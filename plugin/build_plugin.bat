@@ -17,7 +17,7 @@ if %ERRORLEVEL% equ 0 (
         echo [ERROR] windres failed!
         exit /b 1
     )
-    g++ -shared -O3 -mwindows -municode -s -static rapoo_plugin.cpp plugin.o -lsetupapi -lhid -luser32 -lgdi32 -lshell32 -ladvapi32 -o ..\bin\rapoo-plugin.dll
+    g++ -shared -O3 -std=c++17 -mwindows -municode -s -static rapoo_plugin.cpp plugin.o -lsetupapi -lhid -luser32 -lgdi32 -lshell32 -ladvapi32 -o ..\bin\rapoo-plugin.dll
     if %ERRORLEVEL% neq 0 (
         echo [ERROR] g++ compilation failed!
         exit /b 1

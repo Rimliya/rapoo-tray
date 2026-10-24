@@ -8,7 +8,7 @@ echo [Building Installer Resource...]
 windres --codepage 65001 -i installer.rc -o installer.o -O coff
 
 echo [Compiling rapoo-tray-setup.exe...]
-g++ -O3 -mwindows -municode -s -static installer.cpp installer.o -lole32 -lshell32 -luser32 -lgdi32 -ladvapi32 -luuid -o ..\dist\rapoo-tray-setup.exe
+g++ -O3 -std=c++17 -mwindows -municode -s -static installer.cpp installer.o -lole32 -lshell32 -luser32 -lgdi32 -ladvapi32 -luuid -o ..\dist\rapoo-tray-setup.exe
 
 if exist installer.o del installer.o
 

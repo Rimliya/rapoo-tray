@@ -2,12 +2,15 @@
 #include "profile_manager.h"
 #include "osd_window.h"
 #include "rapoo_protocol.h"
+#include "tray_menu.h"
 
 #include <commctrl.h>
 #include <commdlg.h>
 #include <shellapi.h>
 #include <strsafe.h>
+#include <uxtheme.h>
 #include <algorithm>
+#include <cwchar>
 #include <string>
 
 #pragma comment(lib, "comctl32.lib")
@@ -55,10 +58,24 @@ bool g_dirty = false;
 bool g_refreshingList = false;
 bool g_statusGood = true;
 bool g_classRegistered = false;
+bool g_dark = false;
+HBRUSH g_brushBg = NULL;
+HBRUSH g_brushSurface = NULL;
+HBRUSH g_brushField = NULL;
 
 int S(int value) {
     return MulDiv(value, g_dpi, 96);
 }
+
+COLORREF ColorBg() { return g_dark ? RGB(24, 26, 32) : RGB(255, 255, 255); }
+COLORREF ColorSurface() { return g_dark ? RGB(30, 33, 42) : RGB(247, 249, 252); }
+COLORREF ColorField() { return g_dark ? RGB(37, 41, 51) : RGB(242, 245, 250); }
+COLORREF ColorBorder() { return g_dark ? RGB(50, 54, 65) : RGB(205, 212, 222); }
+COLORREF ColorHover() { return g_dark ? RGB(52, 58, 72) : RGB(232, 238, 248); }
+COLORREF ColorText() { return g_dark ? RGB(235, 240, 248) : RGB(20, 24, 32); }
+COLORREF ColorMuted() { return g_dark ? RGB(140, 150, 165) : RGB(105, 115, 130); }
+COLORREF ColorAccent() { return g_dark ? RGB(96, 205, 255) : RGB(0, 110, 215); }
+COLORREF ColorButton() { return g_dark ? RGB(38, 42, 52) : RGB(240, 243, 248); }
 
 UINT GetSystemDpiSafe() {
     HMODULE hUser = GetModuleHandleW(L"user32.dll");
@@ -127,8 +144,18 @@ HWND CreateText(const WCHAR* text, int x, int y, int w, int h, int id = 0, DWORD
     return CreateControl(L"STATIC", text, style, 0, x, y, w, h, id);
 }
 
+LRESULT CALLBACK ButtonSubclassProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam, UINT_PTR idSubclass, DWORD_PTR refData);
+
 HWND CreateButton(const WCHAR* text, int x, int y, int w, int h, int id) {
-    return CreateControl(L"BUTTON", text, WS_TABSTOP | BS_PUSHBUTTON, 0, x, y, w, h, id);
+    HWND button = CreateControl(L"BUTTON", text, WS_TABSTOP | BS_OWNERDRAW, 0, x, y, w, h, id);
+    if (button) SetWindowSubclass(button, ButtonSubclassProc, 1, 0);
+    return button;
+}
+
+HWND CreateCheck(const WCHAR* text, int x, int y, int w, int h, int id) {
+    HWND check = CreateControl(L"BUTTON", text, WS_TABSTOP | BS_OWNERDRAW, 0, x, y, w, h, id);
+    if (check) SetWindowSubclass(check, ButtonSubclassProc, 1, 0);
+    return check;
 }
 
 void ApplyFonts() {
@@ -142,6 +169,211 @@ void ApplyFonts() {
         }
         return TRUE;
     }, 0);
+}
+
+bool IsCheckControlId(int id) {
+    return id == IDC_DEFAULT_PROFILE || id == IDC_AUTO_SWITCH || id == IDC_OSD_ENABLED;
+}
+
+void RebuildBrushes() {
+    if (g_brushBg) DeleteObject(g_brushBg);
+    if (g_brushSurface) DeleteObject(g_brushSurface);
+    if (g_brushField) DeleteObject(g_brushField);
+    g_brushBg = CreateSolidBrush(ColorBg());
+    g_brushSurface = CreateSolidBrush(ColorSurface());
+    g_brushField = CreateSolidBrush(ColorField());
+}
+
+void ApplyNativeTheme() {
+    if (!g_hwnd) return;
+    const WCHAR* explorerTheme = g_dark ? L"DarkMode_Explorer" : L"Explorer";
+    const WCHAR* editTheme = g_dark ? L"DarkMode_CFD" : L"Explorer";
+    SetWindowTheme(g_hwnd, explorerTheme, NULL);
+
+    HWND controls[] = {
+        GetDlgItem(g_hwnd, IDC_PROFILE_NAME),
+        GetDlgItem(g_hwnd, IDC_POLLING_RATE),
+        GetDlgItem(g_hwnd, IDC_SLEEP_TIME),
+        GetDlgItem(g_hwnd, IDC_APP_PATH),
+        g_hProfileList
+    };
+    for (HWND control : controls) {
+        if (control) SetWindowTheme(control, editTheme, NULL);
+    }
+
+    if (g_hProfileList) {
+        ListView_SetBkColor(g_hProfileList, ColorField());
+        ListView_SetTextBkColor(g_hProfileList, ColorField());
+        ListView_SetTextColor(g_hProfileList, ColorText());
+        HWND header = ListView_GetHeader(g_hProfileList);
+        if (header) SetWindowTheme(header, explorerTheme, NULL);
+    }
+}
+
+void UpdateTheme() {
+    if (!g_hwnd) return;
+    g_dark = Tray::IsDarkMode();
+    RebuildBrushes();
+    RECT rc = {0};
+    GetWindowRect(g_hwnd, &rc);
+    Tray::ApplyModernWindowStyle(g_hwnd, g_dark, rc.right - rc.left, rc.bottom - rc.top);
+    ApplyNativeTheme();
+    RedrawWindow(g_hwnd, NULL, NULL, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN);
+}
+
+void FillRounded(HDC dc, const RECT& rect, COLORREF fill, COLORREF border, int radius) {
+    HBRUSH brush = CreateSolidBrush(fill);
+    HPEN pen = CreatePen(PS_SOLID, 1, border);
+    HGDIOBJ oldBrush = SelectObject(dc, brush);
+    HGDIOBJ oldPen = SelectObject(dc, pen);
+    RoundRect(dc, rect.left, rect.top, rect.right, rect.bottom, radius, radius);
+    SelectObject(dc, oldBrush);
+    SelectObject(dc, oldPen);
+    DeleteObject(brush);
+    DeleteObject(pen);
+}
+
+void DrawSection(HDC dc, int x, int y, int w, int h, const WCHAR* title) {
+    RECT section = { S(x), S(y), S(x + w), S(y + h) };
+    FillRounded(dc, section, ColorSurface(), ColorBorder(), S(12));
+
+    SetBkMode(dc, TRANSPARENT);
+    HGDIOBJ oldFont = SelectObject(dc, g_fontBold ? g_fontBold : GetNormalFont());
+
+    RECT dot = { section.left + S(16), section.top + S(17), section.left + S(22), section.top + S(23) };
+    HBRUSH accentBrush = CreateSolidBrush(ColorAccent());
+    HGDIOBJ oldBrush = SelectObject(dc, accentBrush);
+    HGDIOBJ oldPen = SelectObject(dc, GetStockObject(NULL_PEN));
+    Ellipse(dc, dot.left, dot.top, dot.right, dot.bottom);
+    SelectObject(dc, oldBrush);
+    SelectObject(dc, oldPen);
+    DeleteObject(accentBrush);
+
+    SetTextColor(dc, ColorText());
+    RECT titleRect = { section.left + S(29), section.top + S(6), section.right - S(12), section.top + S(30) };
+    DrawTextW(dc, title, -1, &titleRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+    SelectObject(dc, oldFont);
+}
+
+void DrawOwnerButton(const DRAWITEMSTRUCT* item) {
+    HDC dc = item->hDC;
+    RECT rc = item->rcItem;
+    bool pressed = (item->itemState & ODS_SELECTED) != 0;
+    bool disabled = (item->itemState & ODS_DISABLED) != 0;
+    bool focused = (item->itemState & ODS_FOCUS) != 0;
+    bool checked = SendMessageW(item->hwndItem, BM_GETCHECK, 0, 0) == BST_CHECKED;
+    bool isCheck = IsCheckControlId((int)item->CtlID);
+    bool hovered = false;
+
+    POINT cursor = {0};
+    GetCursorPos(&cursor);
+    HWND underCursor = WindowFromPoint(cursor);
+    if (underCursor == item->hwndItem) hovered = true;
+
+    WCHAR text[512] = {0};
+    GetWindowTextW(item->hwndItem, text, ARRAYSIZE(text));
+
+    SetBkMode(dc, TRANSPARENT);
+    SelectObject(dc, g_fontNormal ? g_fontNormal : GetNormalFont());
+
+    if (isCheck) {
+        int box = S(16);
+        int boxTop = rc.top + ((rc.bottom - rc.top) - box) / 2;
+        int boxLeft = rc.left + S(2);
+        RECT boxRect = { boxLeft, boxTop, boxLeft + box, boxTop + box };
+        COLORREF fill = checked ? ColorAccent() : (hovered ? ColorHover() : ColorField());
+        COLORREF border = checked ? ColorAccent() : ColorBorder();
+        FillRounded(dc, boxRect, fill, border, S(4));
+
+        if (checked) {
+            HPEN checkPen = CreatePen(PS_SOLID, S(2), g_dark ? RGB(10, 14, 20) : RGB(255, 255, 255));
+            HGDIOBJ oldPen = SelectObject(dc, checkPen);
+            MoveToEx(dc, boxRect.left + S(4), boxRect.top + S(8), NULL);
+            LineTo(dc, boxRect.left + S(7), boxRect.top + S(11));
+            LineTo(dc, boxRect.left + S(12), boxRect.top + S(5));
+            SelectObject(dc, oldPen);
+            DeleteObject(checkPen);
+        }
+
+        SetTextColor(dc, disabled ? ColorMuted() : ColorText());
+        RECT textRect = { boxRect.right + S(9), rc.top, rc.right - S(4), rc.bottom };
+        DrawTextW(dc, text, -1, &textRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+        if (focused) DrawFocusRect(dc, &rc);
+        return;
+    }
+
+    COLORREF fill = pressed ? ColorHover() : (hovered ? ColorHover() : ColorButton());
+    COLORREF textColor = ColorText();
+    if (item->CtlID == IDC_SAVE) {
+        fill = disabled ? ColorMuted() : ColorAccent();
+        textColor = g_dark ? RGB(10, 14, 20) : RGB(255, 255, 255);
+    }
+    if (disabled) {
+        fill = ColorSurface();
+        textColor = ColorMuted();
+    }
+
+    FillRounded(dc, rc, fill, pressed ? ColorAccent() : ColorBorder(), S(7));
+    SetTextColor(dc, textColor);
+    DrawTextW(dc, text, -1, &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+    if (focused && !disabled) DrawFocusRect(dc, &rc);
+}
+
+LRESULT CALLBACK ButtonSubclassProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam, UINT_PTR, DWORD_PTR) {
+    if (msg == WM_MOUSEMOVE) {
+        TRACKMOUSEEVENT track = { sizeof(track), TME_LEAVE, hWnd, 0 };
+        TrackMouseEvent(&track);
+        InvalidateRect(hWnd, NULL, FALSE);
+    } else if (msg == WM_MOUSELEAVE || msg == WM_SETFOCUS || msg == WM_KILLFOCUS) {
+        InvalidateRect(hWnd, NULL, FALSE);
+    }
+    return DefSubclassProc(hWnd, msg, wParam, lParam);
+}
+
+void ToggleOwnedCheck(int id) {
+    HWND control = GetDlgItem(g_hwnd, id);
+    if (!control) return;
+    bool checked = IsDlgButtonChecked(g_hwnd, id) == BST_CHECKED;
+    CheckDlgButton(g_hwnd, id, checked ? BST_UNCHECKED : BST_CHECKED);
+    InvalidateRect(control, NULL, TRUE);
+}
+
+void PaintSettingsWindow(HWND hWnd) {
+    PAINTSTRUCT ps;
+    HDC dc = BeginPaint(hWnd, &ps);
+    RECT rc = {0};
+    GetClientRect(hWnd, &rc);
+
+    HBRUSH background = CreateSolidBrush(ColorBg());
+    FillRect(dc, &rc, background);
+    DeleteObject(background);
+
+    DrawSection(dc, 22, 82, 334, 284, L"配置档案");
+    DrawSection(dc, 370, 84, 386, 276, L"配置详情");
+    DrawSection(dc, 24, 356, 732, 130, L"前台程序自动切换");
+    DrawSection(dc, 24, 494, 732, 72, L"全局选项");
+
+    RECT listFrame = { S(22), S(106), S(356), S(324) };
+    FillRounded(dc, listFrame, ColorField(), ColorBorder(), S(7));
+    RECT fieldRects[] = {
+        { S(460), S(112), S(740), S(144) },
+        { S(460), S(150), S(740), S(182) },
+        { S(460), S(188), S(740), S(220) },
+        { S(38), S(404), S(594), S(436) }
+    };
+    for (const RECT& field : fieldRects) {
+        FillRounded(dc, field, ColorField(), ColorBorder(), S(6));
+    }
+
+    HPEN border = CreatePen(PS_SOLID, 1, ColorBorder());
+    HGDIOBJ oldPen = SelectObject(dc, border);
+    HGDIOBJ oldBrush = SelectObject(dc, GetStockObject(NULL_BRUSH));
+    RoundRect(dc, 0, 0, rc.right, rc.bottom, S(12), S(12));
+    SelectObject(dc, oldPen);
+    SelectObject(dc, oldBrush);
+    DeleteObject(border);
+
+    EndPaint(hWnd, &ps);
 }
 
 void MarkDirty() {
@@ -377,11 +609,9 @@ void CreateControls() {
         L"快速切换回报率配置；指定前台程序后，进入程序时自动应用，离开后恢复默认配置。",
         24, 50, 730, 22
     );
-    CreateText(L"配置档案", 24, 84, 200, 22);
-
     g_hProfileList = CreateControl(
         WC_LISTVIEWW, L"", WS_TABSTOP | LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS,
-        WS_EX_CLIENTEDGE, 24, 108, 330, 214, IDC_PROFILE_LIST
+        0, 24, 108, 330, 214, IDC_PROFILE_LIST
     );
     ListView_SetExtendedListViewStyle(g_hProfileList, LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER);
 
@@ -406,9 +636,8 @@ void CreateControls() {
     CreateButton(L"新增配置", 24, 330, 100, 30, IDC_ADD_PROFILE);
     CreateButton(L"删除配置", 132, 330, 100, 30, IDC_DELETE_PROFILE);
 
-    CreateControl(L"BUTTON", L"配置详情", BS_GROUPBOX, 0, 370, 84, 386, 276, 0);
     CreateText(L"名称", 388, 119, 70, 22);
-    CreateControl(L"EDIT", L"", WS_TABSTOP | ES_AUTOHSCROLL, WS_EX_CLIENTEDGE, 462, 114, 276, 28, IDC_PROFILE_NAME);
+    CreateControl(L"EDIT", L"", WS_TABSTOP | ES_AUTOHSCROLL, 0, 462, 114, 276, 28, IDC_PROFILE_NAME);
     CreateText(L"回报率", 388, 157, 70, 22);
     HWND pollCombo = CreateControl(L"COMBOBOX", L"", WS_TABSTOP | CBS_DROPDOWNLIST | WS_VSCROLL, 0, 462, 152, 276, 160, IDC_POLLING_RATE);
     const int rates[] = { 125, 250, 500, 1000, 2000, 4000, 8000 };
@@ -422,7 +651,7 @@ void CreateControls() {
     CreateText(L"休眠时间", 388, 195, 70, 22);
     HWND sleepCombo = CreateControl(
         L"COMBOBOX", L"", WS_TABSTOP | CBS_DROPDOWN | WS_VSCROLL | ES_NUMBER,
-        WS_EX_CLIENTEDGE, 462, 190, 276, 160, IDC_SLEEP_TIME
+        0, 462, 190, 276, 160, IDC_SLEEP_TIME
     );
     const int sleeps[] = { 2, 5, 10, 15, 30, 60, 90, 120 };
     for (int minutes : sleeps) {
@@ -431,17 +660,13 @@ void CreateControls() {
         SendMessageW(sleepCombo, CB_ADDSTRING, 0, (LPARAM)label);
     }
 
-    CreateControl(
-        L"BUTTON", L"设为默认配置（离开关联程序后恢复）",
-        WS_TABSTOP | BS_AUTOCHECKBOX, 0, 388, 229, 350, 24, IDC_DEFAULT_PROFILE
-    );
+    CreateCheck(L"设为默认配置（离开关联程序后恢复）", 388, 229, 350, 24, IDC_DEFAULT_PROFILE);
     CreateText(L"默认配置是自动切换结束后的回退配置。", 388, 258, 350, 20);
 
-    CreateControl(L"BUTTON", L"前台程序自动切换", BS_GROUPBOX, 0, 24, 356, 732, 130, 0);
     CreateText(L"关联程序", 40, 382, 100, 22);
     CreateControl(
         L"EDIT", L"", ES_AUTOHSCROLL | ES_READONLY,
-        WS_EX_CLIENTEDGE, 40, 406, 552, 28, IDC_APP_PATH
+        0, 40, 406, 552, 28, IDC_APP_PATH
     );
     CreateButton(L"浏览…", 600, 405, 84, 30, IDC_BROWSE_APP);
     CreateButton(L"清除", 692, 405, 48, 30, IDC_CLEAR_APP);
@@ -450,20 +675,12 @@ void CreateControls() {
         40, 447, 700, 22
     );
 
-    CreateControl(L"BUTTON", L"全局选项", BS_GROUPBOX, 0, 24, 494, 732, 72, 0);
-    CreateControl(
-        L"BUTTON", L"启用前台程序自动切换",
-        WS_TABSTOP | BS_AUTOCHECKBOX, 0, 40, 518, 220, 24, IDC_AUTO_SWITCH
-    );
-    CreateControl(
-        L"BUTTON", L"显示悬浮窗提示 (OSD)",
-        WS_TABSTOP | BS_AUTOCHECKBOX, 0, 278, 518, 220, 24, IDC_OSD_ENABLED
-    );
+    CreateCheck(L"启用前台程序自动切换", 40, 518, 220, 24, IDC_AUTO_SWITCH);
+    CreateCheck(L"显示悬浮窗提示 (OSD)", 278, 518, 220, 24, IDC_OSD_ENABLED);
     CreateText(L"建议为游戏创建独立配置并设置 2000 / 4000 Hz。", 40, 540, 650, 20);
 
     g_hStatus = CreateText(L"", 24, 580, 500, 24, IDC_STATUS);
-    HWND saveButton = CreateButton(L"保存并应用", 550, 574, 110, 32, IDC_SAVE);
-    SendMessageW(saveButton, BM_SETSTYLE, BS_DEFPUSHBUTTON, TRUE);
+    CreateButton(L"保存并应用", 550, 574, 110, 32, IDC_SAVE);
     CreateButton(L"关闭", 670, 574, 86, 32, IDC_CLOSE);
 
     ApplyFonts();
@@ -495,12 +712,14 @@ LRESULT CALLBACK SettingsWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
     switch (msg) {
         case WM_CREATE: {
             g_hwnd = hWnd;
+            g_dark = Tray::IsDarkMode();
+            RebuildBrushes();
             g_fontNormal = MakeFont(13, FW_NORMAL);
             g_fontBold = MakeFont(13, FW_SEMIBOLD);
             g_fontTitle = MakeFont(20, FW_BOLD);
             g_fontSmall = MakeFont(11, FW_NORMAL);
             CreateControls();
-
+            UpdateTheme();
             DragAcceptFiles(hWnd, TRUE);
 
             RefreshList(Profiles::ActiveId());
@@ -509,9 +728,44 @@ LRESULT CALLBACK SettingsWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
             return 0;
         }
 
+        case WM_ERASEBKGND:
+            return 1;
+
+        case WM_PAINT:
+            PaintSettingsWindow(hWnd);
+            return 0;
+
+        case WM_DRAWITEM: {
+            DRAWITEMSTRUCT* item = (DRAWITEMSTRUCT*)lParam;
+            if (item && item->CtlType == ODT_BUTTON) {
+                DrawOwnerButton(item);
+                return TRUE;
+            }
+            break;
+        }
+
+        case WM_SETTINGCHANGE:
+        case WM_THEMECHANGED:
+            UpdateTheme();
+            return 0;
+
         case WM_COMMAND: {
             const int id = LOWORD(wParam);
             const int notification = HIWORD(wParam);
+
+            if (notification == BN_CLICKED && IsCheckControlId(id)) {
+                ToggleOwnedCheck(id);
+                if (id == IDC_AUTO_SWITCH) {
+                    Profiles::SetAutoSwitchEnabled(IsDlgButtonChecked(hWnd, IDC_AUTO_SWITCH) == BST_CHECKED);
+                    SetStatus(L"自动切换设置已更新", true);
+                } else if (id == IDC_OSD_ENABLED) {
+                    Osd::SetEnabled(IsDlgButtonChecked(hWnd, IDC_OSD_ENABLED) == BST_CHECKED);
+                    SetStatus(L"悬浮窗设置已更新", true);
+                } else {
+                    MarkDirty();
+                }
+                return 0;
+            }
 
             if (id == IDC_ADD_PROFILE && notification == BN_CLICKED) {
                 AddProfile();
@@ -538,21 +792,10 @@ LRESULT CALLBACK SettingsWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
                 SendMessageW(hWnd, WM_CLOSE, 0, 0);
                 return 0;
             }
-            if (id == IDC_AUTO_SWITCH && notification == BN_CLICKED) {
-                Profiles::SetAutoSwitchEnabled(IsDlgButtonChecked(hWnd, IDC_AUTO_SWITCH) == BST_CHECKED);
-                SetStatus(L"自动切换设置已更新", true);
-                return 0;
-            }
-            if (id == IDC_OSD_ENABLED && notification == BN_CLICKED) {
-                Osd::SetEnabled(IsDlgButtonChecked(hWnd, IDC_OSD_ENABLED) == BST_CHECKED);
-                SetStatus(L"悬浮窗设置已更新", true);
-                return 0;
-            }
             if ((id == IDC_PROFILE_NAME && notification == EN_CHANGE) ||
                 (id == IDC_POLLING_RATE && notification == CBN_SELCHANGE) ||
                 (id == IDC_SLEEP_TIME && notification == CBN_EDITCHANGE) ||
-                (id == IDC_SLEEP_TIME && notification == CBN_SELCHANGE) ||
-                (id == IDC_DEFAULT_PROFILE && notification == BN_CLICKED)) {
+                (id == IDC_SLEEP_TIME && notification == CBN_SELCHANGE)) {
                 MarkDirty();
                 return 0;
             }
@@ -585,16 +828,36 @@ LRESULT CALLBACK SettingsWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
         case WM_CTLCOLORSTATIC: {
             HDC dc = (HDC)wParam;
             HWND control = (HWND)lParam;
+            int id = control ? GetDlgCtrlID(control) : 0;
             SetBkMode(dc, TRANSPARENT);
-            if (control == g_hSubtitle) {
-                SetTextColor(dc, RGB(96, 105, 120));
-            } else if (control == g_hStatus && !g_statusGood) {
-                SetTextColor(dc, RGB(190, 48, 48));
-            } else {
-                SetTextColor(dc, RGB(28, 32, 40));
+            if (id == IDC_APP_PATH) {
+                SetBkMode(dc, OPAQUE);
+                SetBkColor(dc, ColorField());
+                SetTextColor(dc, ColorText());
+                return (LRESULT)(g_brushField ? g_brushField : GetStockObject(WHITE_BRUSH));
             }
-            return (LRESULT)GetStockObject(WHITE_BRUSH);
+            if (control == g_hSubtitle) {
+                SetTextColor(dc, ColorMuted());
+            } else if (control == g_hStatus && !g_statusGood) {
+                SetTextColor(dc, RGB(235, 92, 92));
+            } else if (control == g_hStatus) {
+                SetTextColor(dc, ColorAccent());
+            } else {
+                SetTextColor(dc, ColorText());
+            }
+            return (LRESULT)(g_brushBg ? g_brushBg : GetStockObject(WHITE_BRUSH));
         }
+
+        case WM_CTLCOLOREDIT:
+        case WM_CTLCOLORLISTBOX: {
+            HDC dc = (HDC)wParam;
+            SetTextColor(dc, ColorText());
+            SetBkColor(dc, ColorField());
+            return (LRESULT)(g_brushField ? g_brushField : GetStockObject(WHITE_BRUSH));
+        }
+
+        case WM_CTLCOLORBTN:
+            return (LRESULT)(g_brushBg ? g_brushBg : GetStockObject(WHITE_BRUSH));
 
         case WM_CLOSE: {
             if (!CommitEditor(true)) return 0;
@@ -603,6 +866,10 @@ LRESULT CALLBACK SettingsWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
         }
 
         case WM_DESTROY: {
+            if (g_brushBg) DeleteObject(g_brushBg);
+            if (g_brushSurface) DeleteObject(g_brushSurface);
+            if (g_brushField) DeleteObject(g_brushField);
+            g_brushBg = g_brushSurface = g_brushField = NULL;
             if (g_fontNormal) DeleteObject(g_fontNormal);
             if (g_fontBold) DeleteObject(g_fontBold);
             if (g_fontTitle) DeleteObject(g_fontTitle);
@@ -639,7 +906,7 @@ void Show(HWND owner) {
         wc.hInstance = (HINSTANCE)GetModuleHandleW(NULL);
         wc.hIcon = LoadIconW(wc.hInstance, MAKEINTRESOURCEW(1));
         wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-        wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+        wc.hbrBackground = NULL;
         wc.lpszClassName = WINDOW_CLASS;
         if (!RegisterClassExW(&wc)) return;
         g_classRegistered = true;
@@ -692,6 +959,23 @@ void Show(HWND owner) {
 bool PreTranslateMessage(MSG* msg) {
     if (!g_hwnd || !IsWindow(g_hwnd) || !msg) return false;
     if (msg->hwnd == g_hwnd || IsChild(g_hwnd, msg->hwnd)) {
+        if (msg->message == WM_KEYDOWN && msg->wParam == VK_RETURN) {
+            HWND focused = GetFocus();
+            int focusedId = focused ? GetDlgCtrlID(focused) : 0;
+            if (focusedId == IDC_POLLING_RATE || focusedId == IDC_SLEEP_TIME) {
+                if (SendMessageW(focused, CB_GETDROPPEDSTATE, 0, 0)) {
+                    return IsDialogMessageW(g_hwnd, msg) != FALSE;
+                }
+            }
+            WCHAR className[32] = {0};
+            if (focused) GetClassNameW(focused, className, ARRAYSIZE(className));
+            if (wcscmp(className, L"Button") == 0) {
+                SendMessageW(focused, BM_CLICK, 0, 0);
+            } else {
+                SendMessageW(g_hwnd, WM_COMMAND, MAKEWPARAM(IDC_SAVE, BN_CLICKED), 0);
+            }
+            return true;
+        }
         return IsDialogMessageW(g_hwnd, msg) != FALSE;
     }
     return false;
