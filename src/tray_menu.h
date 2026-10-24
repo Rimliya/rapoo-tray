@@ -6,6 +6,8 @@
 namespace Tray {
 
 void InitTheme();
+bool IsDarkMode();
+void ApplyModernWindowStyle(HWND hWnd, bool isDark, int width = 0, int height = 0);
 void ShowMenu(HWND hWndOwner);
 void DismissAllMenus();
 
