@@ -27,6 +27,7 @@ static HANDLE g_hControlDev = INVALID_HANDLE_VALUE;
 static HANDLE g_hFeatureDev = INVALID_HANDLE_VALUE;
 
 static int g_cachedBattery = 100;
+static bool g_started = false;
 
 // Registry helper for persistent settings
 static DWORD LoadRegistryDword(const WCHAR* valName, DWORD defVal) {
@@ -76,7 +77,8 @@ static bool SendRawCommand(BYTE bank, BYTE addr, const BYTE* pData, BYTE len) {
     return (ok && written == pktSize);
 }
 
-static bool PingDevice(int& outHz) {
+
+static bool ReadRegisterByte(BYTE bank, BYTE addr, BYTE& outValue) {
     EnterCriticalSection(&g_csDevIO);
     if (g_hControlDev == INVALID_HANDLE_VALUE || g_hFeatureDev == INVALID_HANDLE_VALUE) {
         LeaveCriticalSection(&g_csDevIO);
@@ -84,14 +86,14 @@ static bool PingDevice(int& outHz) {
     }
 
     BYTE outBuf[33] = {0};
-    DWORD pktSize = Rapoo::BuildReadCommand(Rapoo::BANK_SYSTEM, Rapoo::ADDR_POLLING_HZ, 1, outBuf, sizeof(outBuf));
+    DWORD pktSize = Rapoo::BuildReadCommand(bank, addr, 1, outBuf, sizeof(outBuf));
 
     DWORD written = 0;
     OVERLAPPED ov = {0};
     ov.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
     BOOL wOk = WriteFile(g_hControlDev, outBuf, pktSize, &written, &ov);
     if (!wOk && GetLastError() == ERROR_IO_PENDING) {
-        if (WaitForSingleObject(ov.hEvent, 300) == WAIT_OBJECT_0) {
+        if (WaitForSingleObject(ov.hEvent, 800) == WAIT_OBJECT_0) {
             GetOverlappedResult(g_hControlDev, &ov, &written, FALSE);
             wOk = (written == pktSize);
         } else {
@@ -100,26 +102,24 @@ static bool PingDevice(int& outHz) {
         }
     }
     CloseHandle(ov.hEvent);
-
     if (!wOk) {
         LeaveCriticalSection(&g_csDevIO);
         return false;
     }
 
     Sleep(20);
-
     BYTE featBuf[33] = {0};
     featBuf[0] = Rapoo::REPORT_ID_FEATURE;
     BOOL fOk = HidD_GetFeature(g_hFeatureDev, featBuf, sizeof(featBuf));
-
-    BYTE readVal = 0;
-    if (!fOk || !Rapoo::ParseFeatureRead(featBuf, sizeof(featBuf), 1, &readVal)) {
-        LeaveCriticalSection(&g_csDevIO);
-        return false;
-    }
-
-    outHz = Rapoo::CodeToPollingHz(readVal);
+    bool ok = fOk && Rapoo::ParseFeatureRead(featBuf, sizeof(featBuf), 1, &outValue);
     LeaveCriticalSection(&g_csDevIO);
+    return ok;
+}
+
+static bool PingDevice(int& outHz) {
+    BYTE value = 0;
+    if (!ReadRegisterByte(Rapoo::BANK_SYSTEM, Rapoo::ADDR_POLLING_HZ, value)) return false;
+    outHz = Rapoo::CodeToPollingHz(value);
     return true;
 }
 
@@ -142,17 +142,38 @@ static const RapooModelEntry VERIFIED_MODELS[] = {
     { L"1411", L"雷柏 VT3S" },
     { L"4611", L"雷柏 VT3S" },
 
-    // 雷柏 VT3 系列 (实测已验证)
-    { L"1412", L"雷柏 VT3" },
-    { L"4612", L"雷柏 VT3" },
+    // 雷柏 VT3 V2 系列 (实测已验证；1462/4662 为本机接收器/有线变体)
+    { L"1412", L"雷柏 VT3 V2" },
+    { L"4612", L"雷柏 VT3 V2" },
+    { L"1462", L"雷柏 VT3 V2" },
+    { L"4662", L"雷柏 VT3 V2" },
 
     // 雷柏 VT3 MAX 系列 (实测已验证 - PR #3 by @sAchNMN)
     { L"1417", L"雷柏 VT3 MAX" },
     { L"4617", L"雷柏 VT3 MAX" },
 };
 
-static void ResolveRapooModelName(const WCHAR* targetPid, WCHAR* outModel, DWORD maxModelLen) {
+static void ResolveRapooModelName(const WCHAR* targetPid, const WCHAR* productName, WCHAR* outModel, DWORD maxModelLen) {
     if (!outModel || maxModelLen == 0) return;
+
+    if (productName && productName[0]) {
+        if (wcsstr(productName, L"VT3 MAX")) {
+            StringCchCopyW(outModel, maxModelLen, L"雷柏 VT3 MAX");
+            return;
+        }
+        if (wcsstr(productName, L"VT3S")) {
+            StringCchCopyW(outModel, maxModelLen, L"雷柏 VT3S");
+            return;
+        }
+        if (wcsstr(productName, L"VT7")) {
+            StringCchCopyW(outModel, maxModelLen, L"雷柏 VT7");
+            return;
+        }
+        if (wcsstr(productName, L"VT3 V2") || wcsstr(productName, L"VT3V2")) {
+            StringCchCopyW(outModel, maxModelLen, L"雷柏 VT3 V2");
+            return;
+        }
+    }
 
     for (const auto& entry : VERIFIED_MODELS) {
         if (wcsstr(targetPid, entry.pidKeyword)) {
@@ -180,6 +201,7 @@ static bool FindRapooEndpoints(WCHAR* pathStatus, WCHAR* pathControl, WCHAR* pat
     pathFeature[0] = 0;
 
     WCHAR targetPid[32] = {0};
+    WCHAR detectedProduct[128] = {0};
     bool isWired = false;
 
     // Phase 1: Determine the target device.
@@ -306,6 +328,14 @@ static bool FindRapooEndpoints(WCHAR* pathStatus, WCHAR* pathControl, WCHAR* pat
                 }
 
                 if (hProbe != INVALID_HANDLE_VALUE) {
+                    WCHAR probeProduct[128] = {0};
+                    if (HidD_GetProductString(hProbe, probeProduct, sizeof(probeProduct)) && probeProduct[0]) {
+                        bool knownProduct = wcsstr(probeProduct, L"VT3") || wcsstr(probeProduct, L"VT7");
+                        if (!detectedProduct[0] || knownProduct) {
+                            StringCchCopyW(detectedProduct, ARRAYSIZE(detectedProduct), probeProduct);
+                        }
+                    }
+
                     PHIDP_PREPARSED_DATA pData = NULL;
                     if (HidD_GetPreparsedData(hProbe, &pData)) {
                         HIDP_CAPS caps;
@@ -334,7 +364,7 @@ static bool FindRapooEndpoints(WCHAR* pathStatus, WCHAR* pathControl, WCHAR* pat
     bool ok = (foundStatus && pathControl[0] != 0);
     if (ok) {
         if (outModel && maxModelLen > 0) {
-            ResolveRapooModelName(targetPid, outModel, maxModelLen);
+            ResolveRapooModelName(targetPid, detectedProduct, outModel, maxModelLen);
         }
         if (outIsWired) {
             *outIsWired = isWired;
@@ -363,6 +393,7 @@ static DWORD WINAPI HidWorkerThread(LPVOID lpParam) {
             bool wasConn = g_currentState.isConnected;
             g_currentState.isConnected = false;
             g_currentState.isCharging = false;
+            g_currentState.rfAvailable = false;
             State copySt = g_currentState;
             LeaveCriticalSection(&g_csState);
             if (wasConn && g_callback) g_callback(copySt, CHANGE_CONNECTED | CHANGE_BATTERY);
@@ -385,6 +416,7 @@ static DWORD WINAPI HidWorkerThread(LPVOID lpParam) {
             bool wasConn = g_currentState.isConnected;
             g_currentState.isConnected = false;
             g_currentState.isCharging = false;
+            g_currentState.rfAvailable = false;
             State copySt = g_currentState;
             LeaveCriticalSection(&g_csState);
             if (wasConn && g_callback) g_callback(copySt, CHANGE_CONNECTED | CHANGE_BATTERY);
@@ -482,6 +514,8 @@ static DWORD WINAPI HidWorkerThread(LPVOID lpParam) {
             LeaveCriticalSection(&g_csState);
             if (g_callback) g_callback(pollSt, CHANGE_POLLING);
         }
+
+        RefreshRfState();
 
         // Push saved sleep timeout to device hardware
         int curSleepMin = 10;
@@ -621,6 +655,7 @@ static DWORD WINAPI HidWorkerThread(LPVOID lpParam) {
         bool wasConn = g_currentState.isConnected;
         g_currentState.isConnected = false;
         g_currentState.isCharging = false;
+        g_currentState.rfAvailable = false;
         State copySt = g_currentState;
         LeaveCriticalSection(&g_csState);
         if (wasConn && g_callback) g_callback(copySt, CHANGE_CONNECTED | CHANGE_BATTERY);
@@ -666,10 +701,12 @@ bool Start(HWND hNotifyWnd, StateCallback callback) {
     g_hDevChangeEvent = CreateEventW(NULL, FALSE, FALSE, NULL);
 
     g_hWorkerThread = CreateThread(NULL, 0, HidWorkerThread, NULL, 0, NULL);
-    return (g_hWorkerThread != NULL);
+    g_started = (g_hWorkerThread != NULL);
+    return g_started;
 }
 
 void Stop() {
+    g_started = false;
     if (g_hStopEvent) SetEvent(g_hStopEvent);
     if (g_hWorkerThread) {
         WaitForSingleObject(g_hWorkerThread, 2000);
@@ -736,9 +773,56 @@ bool RefreshPollingRate() {
     return false;
 }
 
+bool RefreshRfState() {
+    BYTE raw = 0;
+    if (!ReadRegisterByte(Rapoo::BANK_SYSTEM, Rapoo::ADDR_RF_STRENGTHEN, raw)) {
+        EnterCriticalSection(&g_csState);
+        g_currentState.rfAvailable = false;
+        State copySt = g_currentState;
+        LeaveCriticalSection(&g_csState);
+        if (g_callback) g_callback(copySt, CHANGE_RF);
+        return false;
+    }
+
+    bool full = (raw & 0x01) != 0;
+    EnterCriticalSection(&g_csState);
+    bool changed = (!g_currentState.rfAvailable || g_currentState.rfFull != full);
+    g_currentState.rfAvailable = true;
+    g_currentState.rfFull = full;
+    State copySt = g_currentState;
+    LeaveCriticalSection(&g_csState);
+    if (changed && g_callback) g_callback(copySt, CHANGE_RF);
+    return true;
+}
+
+bool SetRfFull(bool full) {
+    BYTE current = 0;
+    if (!ReadRegisterByte(Rapoo::BANK_SYSTEM, Rapoo::ADDR_RF_STRENGTHEN, current)) return false;
+
+    BYTE next = full ? (BYTE)(current | 0x01) : (BYTE)(current & 0xFE);
+    if (!SendRawCommand(Rapoo::BANK_SYSTEM, Rapoo::ADDR_RF_STRENGTHEN, &next, 1)) return false;
+
+    BYTE verify = 0;
+    if (!ReadRegisterByte(Rapoo::BANK_SYSTEM, Rapoo::ADDR_RF_STRENGTHEN, verify)) return false;
+    if (((verify & 0x01) != 0) != full) return false;
+
+    EnterCriticalSection(&g_csState);
+    g_currentState.rfAvailable = true;
+    g_currentState.rfFull = full;
+    State copySt = g_currentState;
+    LeaveCriticalSection(&g_csState);
+    if (g_callback) g_callback(copySt, CHANGE_RF);
+    return true;
+}
+
+bool IsStarted() {
+    return g_started;
+}
+
 void ForceRefresh() {
-    // 1. Actively query hardware polling rate
+    // 1. Actively query hardware polling rate and RF strategy
     RefreshPollingRate();
+    RefreshRfState();
 
     // 2. Send active wake command to trigger hardware status report
     EnterCriticalSection(&g_csDevIO);

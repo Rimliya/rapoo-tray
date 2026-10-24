@@ -4,7 +4,7 @@
   <p><b>雷柏VT系列游戏鼠标轻量化托盘程序</b></p>
 
   <p>
-    <a href="https://github.com/Rimliya/rapoo-tray/releases"><img src="https://img.shields.io/badge/Release-v1.4.1-blue?style=flat-square" alt="Release" /></a>
+    <a href="https://github.com/Rimliya/rapoo-tray/releases"><img src="https://img.shields.io/badge/Release-v1.5.0-blue?style=flat-square" alt="Release" /></a>
     <img src="https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?style=flat-square&logo=windows" alt="Platform" />
     <img src="https://img.shields.io/badge/Language-C%2B%2B17%20%2F%20Win32-00599C?style=flat-square&logo=c%2B%2B" alt="Language" />
     <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License" />
@@ -21,6 +21,8 @@
 
 ## 🚀 新版本特性
 
+- **无线射频策略与续航粗估**：设置页可切换“满格射频 / 智能调节”，并按鼠标型号、回报率、射频策略和当前电量估算续航；型号支持自动识别或手动指定。
+- **设备识别增强**：补充 VT3 V2 的 `1462/4662` PID 变体，并增加 HID 产品字符串回退识别。
 - **统一 Fluent 界面**：独立的“配置与自动化”窗口沿用托盘的亚克力、圆角、深浅色、悬停与强调色视觉体系。
 - **配置档案与快速切换**：可新建、重命名和删除独立配置，每个配置保存回报率与休眠时间；托盘菜单和“配置与自动化”窗口均可快速切换。
 - **前台程序自动切换**：为配置指定程序后，程序进入前台（包括无边框 / 独占全屏游戏）时自动应用该配置；离开程序后恢复用户指定的默认配置。
@@ -85,8 +87,8 @@
 | **雷柏 VT3S** | 2.4G 无线接收器 | `0x24AE` | `0x1406` / `0x1410` | ✅ 社区实测支持（由社区用户 [@hsb689](https://github.com/hsb689) 提供） |
 | **雷柏 VT3S** | USB 有线直连 | `0x24AE` | `0x4606` / `0x1411` | ✅ 社区实测支持（由社区用户 [@hsb689](https://github.com/hsb689) 提供） |
 | **雷柏 VT3 MAX** | 2.4G 无线接收器 | `0x24AE` | `0x1417` | ✅ 社区实测支持（由社区用户 [@sAchNMN](https://github.com/sAchNMN) 提供） | 
-| **雷柏 VT3 V2标准版** | 2.4G 无线接收器 | `0x24AE` | `0x1412` | ✅ 社区实测支持（由社区用户 [@lbyisme](https://github.com/lbyisme) 提供） | 
-| **雷柏 VT3 V2标准版** | USB 有线直连 | `0x24AE` | `0x4612` | ✅ 社区实测支持（由社区用户 [@lbyisme](https://github.com/lbyisme) 提供） | 
+| **雷柏 VT3 V2标准版** | 2.4G 无线接收器 | `0x24AE` | `0x1412` / `0x1462` | ✅ 社区实测支持（由社区用户 [@lbyisme](https://github.com/lbyisme) 提供） |
+| **雷柏 VT3 V2标准版** | USB 有线直连 | `0x24AE` | `0x4612` / `0x4662` | ✅ 社区实测支持（由社区用户 [@lbyisme](https://github.com/lbyisme) 提供） |
 | **雷柏二代游戏鼠标 (未打标机型)** | 2.4G / USB 有线 | `0x24AE` | 通用自动匹配 | 🔑 待验证 |
 
 ### 💡 通用兼容机制与型号提报指南
@@ -109,6 +111,7 @@
 3. 点击 **浏览…** 选择需要联动的程序（例如 `r5apex_dx12.exe`）。游戏切换为无边框或独占全屏后，Windows 仍会报告其前台窗口，因此该规则同样有效。
 4. 保存后，进入所选程序时会应用该配置；切换到其他程序时会恢复 **默认配置**。
 5. 托盘菜单中的 **快速切换配置** 可立即手动切换；手动切换不会修改默认回退配置。
+6. 在“高级设置”中可勾选 **满格射频**（不勾选即智能调节），并选择鼠标型号查看粗略续航估算。
 
 > 所有配置、默认项和自动化开关均保存在 `HKCU\Software\rapoo-tray`，无需管理员权限，也不会写入仓库。
 

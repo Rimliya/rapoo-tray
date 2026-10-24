@@ -38,6 +38,7 @@ jobs:
             src/tray_menu.cpp \
             src/alert_window.cpp \
             src/profile_manager.cpp \
+            src/battery_estimator.cpp \
             src/settings_window.cpp \
             bin/app.o \
             -lsetupapi -lhid -luser32 -lgdi32 -lshell32 -ladvapi32 \

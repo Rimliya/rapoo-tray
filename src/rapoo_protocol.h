@@ -20,6 +20,7 @@ constexpr BYTE ADDR_KEY_SCAN_RATE = 0x81;
 constexpr BYTE ADDR_LOD_HEIGHT    = 0x84;
 constexpr BYTE ADDR_MOTION_SYNC   = 0x85;
 constexpr BYTE ADDR_SLEEP_TIMEOUT = 0xC2; // 2..120 minutes
+constexpr BYTE ADDR_RF_STRENGTHEN = 0xD8; // bit 0: 0=smart RF, 1=full RF
 constexpr BYTE ADDR_LINEAR_RIPPLE = 0xC3;
 constexpr BYTE ADDR_SENSOR_ANGLE  = 0xC4;
 constexpr BYTE ADDR_GLASS_MODE    = 0xC5;

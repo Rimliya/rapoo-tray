@@ -14,6 +14,8 @@ struct State {
     int dpiY = 800;
     int pollingHz = 1000;
     int sleepMinutes = 10;
+    bool rfFull = false;
+    bool rfAvailable = false;
     WCHAR modelName[64] = {0};
 };
 
@@ -24,6 +26,7 @@ constexpr DWORD CHANGE_BATTERY   = 0x02;
 constexpr DWORD CHANGE_DPI       = 0x04;
 constexpr DWORD CHANGE_POLLING   = 0x08;
 constexpr DWORD CHANGE_SLEEP     = 0x10;
+constexpr DWORD CHANGE_RF        = 0x20;
 
 bool Start(HWND hNotifyWnd, StateCallback callback);
 void Stop();
@@ -33,6 +36,9 @@ void NotifyDeviceChange();
 bool SetPollingRate(int hz);
 bool SetSleepTimeout(int minutes);
 bool RefreshPollingRate();
+bool RefreshRfState();
+bool SetRfFull(bool full);
+bool IsStarted();
 void ForceRefresh();
 
 State GetCurrentState();
