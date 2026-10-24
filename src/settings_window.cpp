@@ -6,7 +6,6 @@
 #include <commctrl.h>
 #include <commdlg.h>
 #include <shellapi.h>
-#include <dwmapi.h>
 #include <strsafe.h>
 #include <algorithm>
 #include <string>
@@ -291,15 +290,24 @@ bool CommitEditor(bool showErrors) {
         return false;
     }
 
+    bool keptDefault = false;
     if (IsDlgButtonChecked(g_hwnd, IDC_DEFAULT_PROFILE) == BST_CHECKED) {
         Profiles::SetDefault(profile.id);
+    } else if (profile.id == Profiles::DefaultId()) {
+        // Exactly one profile must always remain the fallback profile.
+        CheckDlgButton(g_hwnd, IDC_DEFAULT_PROFILE, BST_CHECKED);
+        keptDefault = true;
     }
     Profiles::SetAutoSwitchEnabled(IsDlgButtonChecked(g_hwnd, IDC_AUTO_SWITCH) == BST_CHECKED);
     Osd::SetEnabled(IsDlgButtonChecked(g_hwnd, IDC_OSD_ENABLED) == BST_CHECKED);
 
     g_dirty = false;
     RefreshList(profile.id);
-    SetStatus(L"配置已保存并应用", true);
+    if (keptDefault) {
+        SetStatus(L"已保存；请在另一个配置中勾选“设为默认”来更改回退项", true);
+    } else {
+        SetStatus(L"配置已保存并应用", true);
+    }
     return true;
 }
 
@@ -390,19 +398,19 @@ void CreateControls() {
     LVCOLUMNW col = {0};
     col.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_SUBITEM;
     col.pszText = (LPWSTR)L"名称";
-    col.cx = S(90);
+    col.cx = S(82);
     ListView_InsertColumn(g_hProfileList, 0, &col);
     col.pszText = (LPWSTR)L"回报率";
-    col.cx = S(62);
+    col.cx = S(58);
     ListView_InsertColumn(g_hProfileList, 1, &col);
     col.pszText = (LPWSTR)L"休眠";
-    col.cx = S(58);
+    col.cx = S(52);
     ListView_InsertColumn(g_hProfileList, 2, &col);
     col.pszText = (LPWSTR)L"关联程序";
     col.cx = S(78);
     ListView_InsertColumn(g_hProfileList, 3, &col);
     col.pszText = (LPWSTR)L"状态";
-    col.cx = S(64);
+    col.cx = S(60);
     ListView_InsertColumn(g_hProfileList, 4, &col);
 
     CreateButton(L"新增配置", 24, 330, 100, 30, IDC_ADD_PROFILE);
@@ -464,7 +472,8 @@ void CreateControls() {
     CreateText(L"建议为游戏创建独立配置并设置 2000 / 4000 Hz。", 40, 540, 650, 20);
 
     g_hStatus = CreateText(L"", 24, 580, 500, 24, IDC_STATUS);
-    CreateButton(L"保存并应用", 550, 574, 110, 32, IDC_SAVE);
+    HWND saveButton = CreateButton(L"保存并应用", 550, 574, 110, 32, IDC_SAVE);
+    SendMessageW(saveButton, BM_SETSTYLE, BS_DEFPUSHBUTTON, TRUE);
     CreateButton(L"关闭", 670, 574, 86, 32, IDC_CLOSE);
 
     ApplyFonts();
@@ -503,8 +512,6 @@ LRESULT CALLBACK SettingsWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
             g_fontSmall = MakeFont(11, FW_NORMAL);
             CreateControls();
 
-            BOOL dark = TRUE;
-            DwmSetWindowAttribute(hWnd, 20, &dark, sizeof(dark));
             DragAcceptFiles(hWnd, TRUE);
 
             RefreshList(Profiles::ActiveId());
@@ -538,7 +545,7 @@ LRESULT CALLBACK SettingsWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
                 CommitEditor(true);
                 return 0;
             }
-            if (id == IDC_CLOSE && notification == BN_CLICKED) {
+            if ((id == IDC_CLOSE && notification == BN_CLICKED) || id == IDCANCEL) {
                 SendMessageW(hWnd, WM_CLOSE, 0, 0);
                 return 0;
             }
@@ -682,7 +689,16 @@ void Show(HWND owner) {
         ShowWindow(hwnd, SW_SHOWNORMAL);
         UpdateWindow(hwnd);
         SetForegroundWindow(hwnd);
+        SetFocus(GetDlgItem(hwnd, IDC_PROFILE_NAME));
     }
+}
+
+bool PreTranslateMessage(MSG* msg) {
+    if (!g_hwnd || !IsWindow(g_hwnd) || !msg) return false;
+    if (msg->hwnd == g_hwnd || IsChild(g_hwnd, msg->hwnd)) {
+        return IsDialogMessageW(g_hwnd, msg) != FALSE;
+    }
+    return false;
 }
 
 void Cleanup() {

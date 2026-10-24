@@ -12,7 +12,6 @@
 namespace Profiles {
 namespace {
 
-constexpr const WCHAR* REG_ROOT = L"Software\\rapoo-tray";
 constexpr const WCHAR* REG_PROFILES = L"Software\\rapoo-tray\\Profiles";
 constexpr int MAX_PROFILES = 16;
 
@@ -30,7 +29,6 @@ Store g_store;
 // Runtime-only state for application switching.
 int g_autoContextProfileId = 0;
 int g_manualHoldMatchedProfileId = 0;
-DWORD g_lastForegroundPid = 0;
 
 const int SUPPORTED_RATES[] = { 125, 250, 500, 1000, 2000, 4000, 8000 };
 
@@ -140,27 +138,28 @@ int FindMatchingProfile(const std::wstring& processPath) {
     return 0;
 }
 
-std::wstring GetForegroundProcessPath(DWORD* outPid = nullptr) {
+bool TryGetForegroundProcessPath(std::wstring& outPath, DWORD* outPid = nullptr) {
+    outPath.clear();
     if (outPid) *outPid = 0;
+
     HWND hForeground = GetForegroundWindow();
-    if (!hForeground) return std::wstring();
+    if (!hForeground) return false;
 
     DWORD pid = 0;
     GetWindowThreadProcessId(hForeground, &pid);
-    if (pid == 0) return std::wstring();
+    if (pid == 0) return false;
     if (outPid) *outPid = pid;
 
     HANDLE hProcess = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
-    if (!hProcess) return std::wstring();
+    if (!hProcess) return false;
 
     WCHAR path[32768] = {0};
     DWORD chars = (DWORD)(sizeof(path) / sizeof(path[0]));
-    std::wstring result;
-    if (QueryFullProcessImageNameW(hProcess, 0, path, &chars) && chars > 0) {
-        result.assign(path, chars);
-    }
+    bool ok = QueryFullProcessImageNameW(hProcess, 0, path, &chars) && chars > 0;
     CloseHandle(hProcess);
-    return result;
+    if (!ok) return false;
+    outPath.assign(path, chars);
+    return true;
 }
 
 void SaveState() {
@@ -383,7 +382,6 @@ bool Initialize() {
 void Reload() {
     g_autoContextProfileId = 0;
     g_manualHoldMatchedProfileId = 0;
-    g_lastForegroundPid = 0;
     LoadState();
 }
 
@@ -493,9 +491,11 @@ bool Select(int id) {
     const Definition* profile = FindInternalConst(id);
     if (!profile) return false;
 
-    DWORD pid = 0;
-    std::wstring processPath = GetForegroundProcessPath(&pid);
-    int matched = g_store.autoSwitch ? FindMatchingProfile(processPath) : 0;
+    std::wstring processPath;
+    int matched = 0;
+    if (g_store.autoSwitch && TryGetForegroundProcessPath(processPath)) {
+        matched = FindMatchingProfile(processPath);
+    }
     RecordManualOverride(matched);
 
     Definition selected = *profile;
@@ -511,8 +511,11 @@ bool SetCurrentPolling(int hz) {
         SaveState();
     }
 
-    DWORD pid = 0;
-    int matched = g_store.autoSwitch ? FindMatchingProfile(GetForegroundProcessPath(&pid)) : 0;
+    std::wstring processPath;
+    int matched = 0;
+    if (g_store.autoSwitch && TryGetForegroundProcessPath(processPath)) {
+        matched = FindMatchingProfile(processPath);
+    }
     RecordManualOverride(matched);
     return Device::SetPollingRate(hz);
 }
@@ -526,8 +529,11 @@ bool SetCurrentSleep(int minutes) {
         SaveState();
     }
 
-    DWORD pid = 0;
-    int matched = g_store.autoSwitch ? FindMatchingProfile(GetForegroundProcessPath(&pid)) : 0;
+    std::wstring processPath;
+    int matched = 0;
+    if (g_store.autoSwitch && TryGetForegroundProcessPath(processPath)) {
+        matched = FindMatchingProfile(processPath);
+    }
     RecordManualOverride(matched);
     return Device::SetSleepTimeout(minutes);
 }
@@ -554,9 +560,8 @@ void PollForeground(bool force) {
     const Device::State state = Device::GetCurrentState();
     if (!state.isConnected) return;
 
-    DWORD pid = 0;
-    std::wstring processPath = GetForegroundProcessPath(&pid);
-    g_lastForegroundPid = pid;
+    std::wstring processPath;
+    if (!TryGetForegroundProcessPath(processPath)) return;
     const int matched = FindMatchingProfile(processPath);
 
     if (matched != 0) {

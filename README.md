@@ -4,7 +4,7 @@
   <p><b>雷柏VT系列游戏鼠标轻量化托盘程序</b></p>
 
   <p>
-    <a href="https://github.com/Iris-0109/rapoo-tray/releases"><img src="https://img.shields.io/badge/Release-v1.2.3-blue?style=flat-square" alt="Release" /></a>
+    <a href="https://github.com/Iris-0109/rapoo-tray/releases"><img src="https://img.shields.io/badge/Release-v1.4.0-blue?style=flat-square" alt="Release" /></a>
     <img src="https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?style=flat-square&logo=windows" alt="Platform" />
     <img src="https://img.shields.io/badge/Language-C%2B%2B17%20%2F%20Win32-00599C?style=flat-square&logo=c%2B%2B" alt="Language" />
     <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License" />
@@ -21,6 +21,9 @@
 
 ## 🚀 新版本特性
 
+- **配置档案与快速切换**：可新建、重命名和删除独立配置，每个配置保存回报率与休眠时间；托盘菜单和“配置与自动化”窗口均可快速切换。
+- **前台程序自动切换**：为配置指定程序后，程序进入前台（包括无边框 / 独占全屏游戏）时自动应用该配置；离开程序后恢复用户指定的默认配置。
+- **自动化总开关**：可分别关闭“前台程序自动切换”和“悬浮窗提示 (OSD)”，不影响原有手动回报率、休眠与托盘功能。
 - **硬件兼容体系重构**：建立雷柏二代 Nordic 架构通用兼容机制，未打标机型自动归入通用模式，支持使用主要功能。
 - **托盘电池个性化**：新增 3 种展示风格：
   - **配置一**：经典电池胶囊外观
@@ -52,7 +55,7 @@
 | :--- | :--- | :--- |
 | **鼠标左键单击** | 唤起屏幕右下角状态指示窗 | 弹出当前设备型号、DPI、双轴数值、电量与回报率 OSD |
 | **鼠标左键双击** | 循环切换托盘电池图标样式 | 在“配置一 (经典电池)”、“配置二 (环形电量)”、“配置三 (滑轨数字)”间轮换，并弹出 OSD 提示 |
-| **鼠标右键单击** | 打开 Fluent 亚克力托盘菜单 | 查看真实电量、调节回报率（125Hz~8000Hz）、调节休眠时间、切换开机自启 |
+| **鼠标右键单击** | 打开 Fluent 亚克力托盘菜单 | 快速切换配置、调节回报率与休眠、管理前台程序规则、切换 OSD / 开机自启 |
 
 ---
 
@@ -95,6 +98,18 @@
    Get-PnpDevice -PresentOnly | Where-Object { $_.InstanceId -like "*24AE*" } | Select-Object FriendlyName, InstanceId
    ```
    在 `src/device_manager.cpp` 的 `VERIFIED_MODELS` 映射表中添加对应行（如 `{ L"14xx", L"雷柏 VT9 Pro" }`），提交 PR 即可合并！
+
+---
+
+## 🎛️ 配置档案与自动切换
+
+1. 右键托盘图标，选择 **配置与自动化…**。
+2. 在左侧选择已有配置，或点击 **新增配置**；可修改名称、回报率、休眠时间和是否设为默认配置。
+3. 点击 **浏览…** 选择需要联动的程序（例如 `r5apex_dx12.exe`）。游戏切换为无边框或独占全屏后，Windows 仍会报告其前台窗口，因此该规则同样有效。
+4. 保存后，进入所选程序时会应用该配置；切换到其他程序时会恢复 **默认配置**。
+5. 托盘菜单中的 **快速切换配置** 可立即手动切换；手动切换不会修改默认回退配置。
+
+> 所有配置、默认项和自动化开关均保存在 `HKCU\Software\rapoo-tray`，无需管理员权限，也不会写入仓库。
 
 ---
 
