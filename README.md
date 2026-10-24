@@ -4,7 +4,7 @@
   <p><b>雷柏VT系列游戏鼠标轻量化托盘程序</b></p>
 
   <p>
-    <a href="https://github.com/Iris-0109/rapoo-tray/releases"><img src="https://img.shields.io/badge/Release-v1.4.0-blue?style=flat-square" alt="Release" /></a>
+    <a href="https://github.com/Rimliya/rapoo-tray/releases"><img src="https://img.shields.io/badge/Release-v1.4.0-blue?style=flat-square" alt="Release" /></a>
     <img src="https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?style=flat-square&logo=windows" alt="Platform" />
     <img src="https://img.shields.io/badge/Language-C%2B%2B17%20%2F%20Win32-00599C?style=flat-square&logo=c%2B%2B" alt="Language" />
     <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License" />
@@ -21,6 +21,7 @@
 
 ## 🚀 新版本特性
 
+- **统一 Fluent 界面**：独立的“配置与自动化”窗口沿用托盘的亚克力、圆角、深浅色、悬停与强调色视觉体系。
 - **配置档案与快速切换**：可新建、重命名和删除独立配置，每个配置保存回报率与休眠时间；托盘菜单和“配置与自动化”窗口均可快速切换。
 - **前台程序自动切换**：为配置指定程序后，程序进入前台（包括无边框 / 独占全屏游戏）时自动应用该配置；离开程序后恢复用户指定的默认配置。
 - **自动化总开关**：可分别关闭“前台程序自动切换”和“悬浮窗提示 (OSD)”，不影响原有手动回报率、休眠与托盘功能。
@@ -123,7 +124,7 @@
 - **悬停信息 (Tooltip)**：鼠标悬停在监控项上可查看型号、连接模式（2.4G/USB）、详细电量与当前档位。
 
 ### 安装步骤
-1. 前往 [Releases](https://github.com/Iris-0109/rapoo-tray/releases) 下载 `rapoo-plugin.dll`。
+1. 前往 [Releases](https://github.com/Rimliya/rapoo-tray/releases) 下载 `rapoo-plugin.dll`。
 2. 将 `rapoo-plugin.dll` 放置于 TrafficMonitor 根目录下的 `plugins` 文件夹中。
 3. 重启 TrafficMonitor（或在右键菜单中选择“更多功能” -> “插件管理” -> “重新加载插件”）。
 4. 在“选项” -> “任务栏窗口设置”或“主窗口设置”中，勾选“鼠标电量”和“鼠标DPI”即可。
@@ -132,7 +133,7 @@
 
 ## 📥 下载与安装
 
-请前往 [GitHub Releases](https://github.com/Iris-0109/rapoo-tray/releases) 下载最新发行版：
+请前往 [GitHub Releases](https://github.com/Rimliya/rapoo-tray/releases) 下载最新发行版：
 
 - **单文件便携版 (`rapoo-tray.exe`)**：约 370 KB，绿色免安装独立托盘程序。
 - **一键安装向导 (`rapoo-tray-setup.exe`)**：约 550 KB，自动部署至本地目录，创建快捷方式并支持控制面板卸载。

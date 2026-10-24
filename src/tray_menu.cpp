@@ -81,7 +81,7 @@ void InitTheme() {
     }
 }
 
-static bool IsSystemDarkMode() {
+bool IsDarkMode() {
     HKEY hKey;
     if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize", 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
         DWORD val = 1, size = sizeof(DWORD), type = 0;
@@ -100,7 +100,7 @@ static bool IsSystemDarkMode() {
     return false;
 }
 
-static void ApplyModernWindowStyle(HWND hWnd, bool isDark, int w = 0, int h = 0) {
+void ApplyModernWindowStyle(HWND hWnd, bool isDark, int w, int h) {
     if (fnAllowDarkModeForWindow) {
         fnAllowDarkModeForWindow(hWnd, isDark ? TRUE : FALSE);
     }
@@ -117,7 +117,18 @@ static void ApplyModernWindowStyle(HWND hWnd, bool isDark, int w = 0, int h = 0)
     int width = (w > 0) ? w : (rc.right - rc.left);
     int height = (h > 0) ? h : (rc.bottom - rc.top);
     if (width > 0 && height > 0) {
-        HRGN hRgn = CreateRoundRectRgn(0, 0, width + 1, height + 1, S(12), S(12));
+        UINT dpi = 96;
+        HMODULE hUser = GetModuleHandleW(L"user32.dll");
+        if (hUser) {
+            typedef UINT (WINAPI *pfnGetDpiForWindow)(HWND);
+            pfnGetDpiForWindow fnGetDpi = (pfnGetDpiForWindow)GetProcAddress(hUser, "GetDpiForWindow");
+            if (fnGetDpi) {
+                UINT windowDpi = fnGetDpi(hWnd);
+                if (windowDpi > 0) dpi = windowDpi;
+            }
+        }
+        int radius = MulDiv(12, dpi, 96);
+        HRGN hRgn = CreateRoundRectRgn(0, 0, width + 1, height + 1, radius, radius);
         SetWindowRgn(hWnd, hRgn, TRUE);
     }
 
@@ -947,7 +958,7 @@ void ShowMenu(HWND hWndOwner) {
     if (g_bModalLoop) return;
     Device::RefreshPollingRate();
     g_hParentAppWnd = hWndOwner;
-    g_curDark = IsSystemDarkMode();
+    g_curDark = IsDarkMode();
 
     POINT pt;
     GetCursorPos(&pt);
