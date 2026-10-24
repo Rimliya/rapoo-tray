@@ -1,5 +1,7 @@
 #include "tray_menu.h"
 #include "osd_window.h"
+#include "profile_manager.h"
+#include "settings_window.h"
 #include <dwmapi.h>
 #include <strsafe.h>
 #include <cstring>
@@ -193,7 +195,7 @@ void ToggleAutoRun() {
 }
 
 // --------------------------------------------------------------------------
-// Submenu Window (Polling Rate & Sleep Slider)
+// Submenu Window (Polling Rate, Sleep Slider & Profiles)
 // --------------------------------------------------------------------------
 
 static void DismissSubMenu() {
@@ -266,7 +268,7 @@ static LRESULT CALLBACK AcrylicSubWndProc(HWND hWnd, UINT msg, WPARAM wParam, LP
                 int step = (delta > 0) ? 1 : -1;
                 if (GetKeyState(VK_SHIFT) & 0x8000) step *= 5;
                 g_sliderVal = std::clamp(g_sliderVal + step, 2, 120);
-                Device::SetSleepTimeout(g_sliderVal);
+                Profiles::SetCurrentSleep(g_sliderVal);
 
                 Device::State st = Device::GetCurrentState();
                 WCHAR l1[64], l2[64], l3[64];
@@ -317,7 +319,7 @@ static LRESULT CALLBACK AcrylicSubWndProc(HWND hWnd, UINT msg, WPARAM wParam, LP
                     for (int i = 0; i < count; i++) {
                         if (mx >= curX && mx <= curX + chipW) {
                             g_sliderVal = PRESET_SLEEP[i];
-                            Device::SetSleepTimeout(g_sliderVal);
+                            Profiles::SetCurrentSleep(g_sliderVal);
 
                             Device::State st = Device::GetCurrentState();
                             WCHAR l1[64], l2[64], l3[64];
@@ -359,9 +361,9 @@ static LRESULT CALLBACK AcrylicSubWndProc(HWND hWnd, UINT msg, WPARAM wParam, LP
                 return 0;
             }
 
-            if (g_activeSubId == 1) { // Polling Rate list
-                int count = 7;
-                int itemH = S(28);
+            if (g_activeSubId == 1 || g_activeSubId == 3) { // Polling rate / profile list
+                int count = (g_activeSubId == 1) ? 7 : (int)Profiles::GetAll().size();
+                int itemH = (g_activeSubId == 1) ? S(28) : S(32);
                 int y = S(8);
                 int newH = -1;
                 for (int i = 0; i < count; i++) {
@@ -384,7 +386,7 @@ static LRESULT CALLBACK AcrylicSubWndProc(HWND hWnd, UINT msg, WPARAM wParam, LP
                 g_isDraggingSlider = false;
                 ReleaseCapture();
 
-                Device::SetSleepTimeout(g_sliderVal);
+                Profiles::SetCurrentSleep(g_sliderVal);
 
                 Device::State st = Device::GetCurrentState();
                 WCHAR l1[64], l2[64], l3[64];
@@ -405,7 +407,7 @@ static LRESULT CALLBACK AcrylicSubWndProc(HWND hWnd, UINT msg, WPARAM wParam, LP
                 int hz = hzVals[g_subHover];
                 DismissAllMenus();
 
-                Device::SetPollingRate(hz);
+                Profiles::SetCurrentPolling(hz);
 
                 Device::State st = Device::GetCurrentState();
                 WCHAR l1[64], l2[64], l3[64];
@@ -416,6 +418,16 @@ static LRESULT CALLBACK AcrylicSubWndProc(HWND hWnd, UINT msg, WPARAM wParam, LP
                 StringCchPrintfW(l3, ARRAYSIZE(l3), L"%s  |  第 %d 档  |  %s %d%%  |  %d Hz",
                     modeStr, st.dpiLevel, batIcon, st.battery, hz);
                 Osd::Show(l1, l2, l3);
+                return 0;
+            }
+
+            if (g_activeSubId == 3 && g_subHover >= 0) {
+                auto profiles = Profiles::GetAll();
+                if (g_subHover < (int)profiles.size()) {
+                    int profileId = profiles[g_subHover].id;
+                    DismissAllMenus();
+                    Profiles::Select(profileId);
+                }
                 return 0;
             }
             return 0;
@@ -492,6 +504,48 @@ static LRESULT CALLBACK AcrylicSubWndProc(HWND hWnd, UINT msg, WPARAM wParam, LP
                     if (hzVals[i] == currentHz) {
                         SetTextColor(memDC, checkCol);
                         RECT rCheck = { rc.right - S(28), y, rc.right - S(10), y + itemH };
+                        DrawTextW(memDC, L"✓", -1, &rCheck, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+                    }
+                    y += itemH;
+                }
+            } else if (g_activeSubId == 3) { // Profile quick switch
+                auto profiles = Profiles::GetAll();
+                int currentId = Profiles::ActiveId();
+                int defaultId = Profiles::DefaultId();
+                int itemH = S(32);
+                int y = S(8);
+
+                SelectObject(memDC, hFontNormal);
+                for (size_t i = 0; i < profiles.size(); ++i) {
+                    const auto& profile = profiles[i];
+                    RECT rItem = { S(6), y, rc.right - S(6), y + itemH };
+                    if ((int)i == g_subHover) {
+                        HBRUSH hH = CreateSolidBrush(hoverCol);
+                        HPEN hP = CreatePen(PS_SOLID, 1, hoverCol);
+                        HGDIOBJ oP = SelectObject(memDC, hP);
+                        HGDIOBJ oB = SelectObject(memDC, hH);
+                        RoundRect(memDC, rItem.left, rItem.top + 1, rItem.right, rItem.bottom - 1, S(6), S(6));
+                        SelectObject(memDC, oP);
+                        SelectObject(memDC, oB);
+                        DeleteObject(hP);
+                        DeleteObject(hH);
+                    }
+
+                    std::wstring label = profile.name;
+                    if (profile.id == defaultId) label = L"★ " + label;
+                    SetTextColor(memDC, textCol);
+                    RECT rName = { S(12), y, rc.right - S(76), y + itemH };
+                    DrawTextW(memDC, label.c_str(), -1, &rName, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+
+                    WCHAR hzText[32] = {0};
+                    StringCchPrintfW(hzText, ARRAYSIZE(hzText), L"%d Hz", profile.pollingHz);
+                    SetTextColor(memDC, mutedCol);
+                    RECT rHz = { rc.right - S(82), y, rc.right - S(28), y + itemH };
+                    DrawTextW(memDC, hzText, -1, &rHz, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
+
+                    if (profile.id == currentId) {
+                        SetTextColor(memDC, checkCol);
+                        RECT rCheck = { rc.right - S(26), y, rc.right - S(8), y + itemH };
                         DrawTextW(memDC, L"✓", -1, &rCheck, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
                     }
                     y += itemH;
@@ -613,8 +667,9 @@ static void ShowSubMenuWindow(int subType, RECT rItemScreen) {
         s_subRegistered = true;
     }
 
-    int subW = (subType == 1) ? S(140) : S(260); // 260px wide for sleep slider
-    int subH = (subType == 1) ? S(212) : S(138); // 138px height for sleep slider
+    auto profileSnapshot = Profiles::GetAll();
+    int subW = (subType == 1) ? S(140) : ((subType == 3) ? S(250) : S(260));
+    int subH = (subType == 1) ? S(212) : ((subType == 3) ? S(16 + (int)profileSnapshot.size() * 32) : S(138));
 
     HMONITOR hMon = MonitorFromPoint({ rItemScreen.left, rItemScreen.top }, MONITOR_DEFAULTTONEAREST);
     MONITORINFO mi = { sizeof(mi) };
@@ -655,12 +710,12 @@ static void ShowSubMenuWindow(int subType, RECT rItemScreen) {
 struct MenuItemData {
     int id;
     const WCHAR* label;
-    WCHAR value[32];
+    WCHAR value[64];
     bool isHeader;
     bool isSeparator;
     bool isInteractive;
     bool isDisabled;
-    int submenuType; // 0: None, 1: Polling, 2: Sleep
+    int submenuType; // 0: None, 1: Polling, 2: Sleep, 3: Profile
 };
 
 static std::vector<MenuItemData> g_mainItems;
@@ -756,6 +811,16 @@ static LRESULT CALLBACK AcrylicMainWndProc(HWND hWnd, UINT msg, WPARAM wParam, L
                     ToggleAutoRun();
                 } else if (cmd == 1002) { // Exit
                     PostQuitMessage(0);
+                } else if (cmd == 1003) { // Profile settings
+                    Settings::Show(g_hParentAppWnd);
+                } else if (cmd == 1004) { // OSD switch
+                    bool enabled = !Osd::IsEnabled();
+                    Osd::SetEnabled(enabled);
+                    if (enabled) {
+                        Osd::Show(L"悬浮窗提示已开启", L"设备状态与配置切换会显示在右下角", L"可随时在托盘菜单中关闭");
+                    }
+                } else if (cmd == 1005) { // Foreground app switching
+                    Profiles::SetAutoSwitchEnabled(!Profiles::AutoSwitchEnabled());
                 }
             }
             return 0;
@@ -913,6 +978,16 @@ void ShowMenu(HWND hWndOwner) {
     }
     g_mainItems.push_back(itemHeader);
 
+    MenuItemData itemProfile = { 0 };
+    itemProfile.label = L"快速切换配置";
+    itemProfile.isInteractive = true;
+    itemProfile.submenuType = 3;
+    Profiles::Definition activeProfile;
+    const WCHAR* activeName = L"未选择";
+    if (Profiles::Find(Profiles::ActiveId(), activeProfile)) activeName = activeProfile.name.c_str();
+    StringCchPrintfW(itemProfile.value, ARRAYSIZE(itemProfile.value), L"%s  ›", activeName);
+    g_mainItems.push_back(itemProfile);
+
     MenuItemData itemBat = { 0 };
     itemBat.label = L"电池电量";
     itemBat.isDisabled = !st.isConnected;
@@ -964,6 +1039,27 @@ void ShowMenu(HWND hWndOwner) {
     MenuItemData sep1 = { 0 };
     sep1.isSeparator = true;
     g_mainItems.push_back(sep1);
+
+    MenuItemData itemAppAuto = { 1005 };
+    itemAppAuto.label = L"前台程序自动切换";
+    itemAppAuto.isInteractive = true;
+    StringCchCopyW(itemAppAuto.value, ARRAYSIZE(itemAppAuto.value), Profiles::AutoSwitchEnabled() ? L"✓ 已开启" : L"未开启");
+    g_mainItems.push_back(itemAppAuto);
+
+    MenuItemData itemOsd = { 1004 };
+    itemOsd.label = L"悬浮窗提示";
+    itemOsd.isInteractive = true;
+    StringCchCopyW(itemOsd.value, ARRAYSIZE(itemOsd.value), Osd::IsEnabled() ? L"✓ 已开启" : L"未开启");
+    g_mainItems.push_back(itemOsd);
+
+    MenuItemData itemSettings = { 1003 };
+    itemSettings.label = L"配置与自动化…";
+    itemSettings.isInteractive = true;
+    g_mainItems.push_back(itemSettings);
+
+    MenuItemData sepSettings = { 0 };
+    sepSettings.isSeparator = true;
+    g_mainItems.push_back(sepSettings);
 
     MenuItemData itemAuto = { 1001 };
     itemAuto.label = L"开机自启动";
