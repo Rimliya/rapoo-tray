@@ -9,6 +9,7 @@ static WCHAR g_textLine1[64] = {0};
 static WCHAR g_textLine2[64] = {0};
 static WCHAR g_textLine3[64] = {0};
 static BYTE g_osdAlpha = 0;
+static bool g_enabled = true;
 
 static const COLORREF OSD_KEY_COLOR = RGB(10, 12, 16);
 static const UINT_PTR TIMER_OSD_HIDE = 101;
@@ -155,7 +156,21 @@ static LRESULT CALLBACK OsdWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lP
     }
 }
 
+static void LoadEnabledSetting() {
+    HKEY hKey = NULL;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\rapoo-tray", 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+        DWORD value = 1;
+        DWORD size = sizeof(value);
+        DWORD type = 0;
+        if (RegQueryValueExW(hKey, L"OsdEnabled", NULL, &type, (LPBYTE)&value, &size) == ERROR_SUCCESS && type == REG_DWORD) {
+            g_enabled = (value != 0);
+        }
+        RegCloseKey(hKey);
+    }
+}
+
 bool Init(HINSTANCE hInstance) {
+    LoadEnabledSetting();
     WNDCLASSEXW wc = {0};
     wc.cbSize = sizeof(WNDCLASSEXW);
     wc.lpfnWndProc = OsdWndProc;
@@ -187,8 +202,27 @@ HWND GetWindowHandle() {
     return g_hOsdWnd;
 }
 
+bool IsEnabled() {
+    return g_enabled;
+}
+
+void SetEnabled(bool enabled) {
+    g_enabled = enabled;
+    HKEY hKey = NULL;
+    if (RegCreateKeyExW(HKEY_CURRENT_USER, L"Software\\rapoo-tray", 0, NULL, 0, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
+        DWORD value = enabled ? 1u : 0u;
+        RegSetValueExW(hKey, L"OsdEnabled", 0, REG_DWORD, (const BYTE*)&value, sizeof(value));
+        RegCloseKey(hKey);
+    }
+    if (!enabled && g_hOsdWnd) {
+        KillTimer(g_hOsdWnd, TIMER_OSD_HIDE);
+        KillTimer(g_hOsdWnd, TIMER_OSD_FADE);
+        ShowWindow(g_hOsdWnd, SW_HIDE);
+    }
+}
+
 void Show(const WCHAR* line1, const WCHAR* line2, const WCHAR* line3) {
-    if (!g_hOsdWnd) return;
+    if (!g_enabled || !g_hOsdWnd) return;
 
     StringCchCopyW(g_textLine1, ARRAYSIZE(g_textLine1), line1 ? line1 : L"");
     StringCchCopyW(g_textLine2, ARRAYSIZE(g_textLine2), line2 ? line2 : L"");

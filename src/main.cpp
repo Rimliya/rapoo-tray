@@ -10,9 +10,13 @@ extern "C" {
 #include "osd_window.h"
 #include "alert_window.h"
 #include "tray_menu.h"
+#include "profile_manager.h"
+#include "settings_window.h"
 
 static const UINT WM_APP_TRAYMSG = WM_APP + 1;
 static const UINT WM_APP_STATE_UPDATE = WM_APP + 2;
+static const UINT WM_APP_DEVICE_CONNECTED = WM_APP + 3;
+static const UINT_PTR TIMER_PROFILE_POLL = 0x5101;
 
 static HWND g_hMainWnd = NULL;
 static NOTIFYICONDATAW g_nid = {0};
@@ -62,6 +66,10 @@ static void OnDeviceStateChanged(const Device::State& state, DWORD changeMask) {
         bool dpiChanged = (changeMask & Device::CHANGE_DPI) != 0;
 
         // Auto popup OSD when device is recognized, when mode switches, or on DPI changes
+        if (justConnected) {
+            PostMessageW(g_hMainWnd, WM_APP_DEVICE_CONNECTED, 0, 0);
+        }
+
         if (justConnected || modeChanged || dpiChanged) {
             Osd::ShowDpiUpdate(
                 state.dpiLevel,
@@ -128,6 +136,20 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
         case WM_APP_STATE_UPDATE: {
             RefreshTrayUI(Device::GetCurrentState());
             return 0;
+        }
+
+        case WM_APP_DEVICE_CONNECTED: {
+            Profiles::OnDeviceConnected();
+            RefreshTrayUI(Device::GetCurrentState());
+            return 0;
+        }
+
+        case WM_TIMER: {
+            if (wParam == TIMER_PROFILE_POLL) {
+                Profiles::PollForeground();
+                return 0;
+            }
+            break;
         }
 
         case WM_SETTINGCHANGE:
@@ -216,8 +238,10 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     StringCchCopyW(g_nid.szTip, ARRAYSIZE(g_nid.szTip), L"雷柏游戏鼠标 (正在连接...)");
     Shell_NotifyIconW(NIM_ADD, &g_nid);
 
-    // Start background HID Device Manager
+    // Load persistent profile rules and start polling the foreground app.
+    Profiles::Initialize();
     Device::Start(g_hMainWnd, OnDeviceStateChanged);
+    SetTimer(g_hMainWnd, TIMER_PROFILE_POLL, 600, NULL);
 
     // Run message pump
     MSG msg;
@@ -231,6 +255,8 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         UnregisterDeviceNotification(hDevNotify);
         hDevNotify = NULL;
     }
+    KillTimer(g_hMainWnd, TIMER_PROFILE_POLL);
+    Settings::Cleanup();
     Device::Stop();
     Osd::Cleanup();
     Alert::Cleanup();

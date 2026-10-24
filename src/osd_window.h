@@ -15,6 +15,10 @@ void ShowDpiUpdate(int level, int dpix, int dpiy, int battery, int pollingHz, bo
 // Formatted notification when Battery Icon Style changes
 void ShowStyleOsd(int style);
 
+// User-facing OSD master switch, persisted in HKCU.
+bool IsEnabled();
+void SetEnabled(bool enabled);
+
 HWND GetWindowHandle();
 
 } // namespace Osd
