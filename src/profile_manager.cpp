@@ -211,7 +211,7 @@ void AddFactoryProfiles() {
     g_store.profiles.push_back({ 2, L"高性能", 4000, 10, L"", L"" });
     g_store.nextId = 3;
     g_store.defaultId = 1;
-    g_store.activeId = 2;
+    g_store.activeId = 1;
 }
 
 void LoadState() {
@@ -582,8 +582,11 @@ void PollForeground(bool force) {
     g_manualHoldMatchedProfileId = 0;
     if (g_autoContextProfileId != 0 || force) {
         const Definition* fallback = FindInternalConst(g_store.defaultId);
+        const bool leavingMatchedApp = (g_autoContextProfileId != 0);
         if (fallback && (force || g_store.activeId != fallback->id)) {
-            ApplyInternal(*fallback, true, false, true);
+            // Initial/reconnect synchronization should stay quiet; only an actual
+            // app-to-desktop transition gets a visible fallback notification.
+            ApplyInternal(*fallback, leavingMatchedApp, false, true);
         }
         g_autoContextProfileId = 0;
     }

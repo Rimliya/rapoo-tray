@@ -76,18 +76,7 @@ UINT GetSystemDpiSafe() {
     return dpi > 0 ? dpi : 96;
 }
 
-UINT GetDpiForHwnd(HWND hWnd) {
-    HMODULE hUser = GetModuleHandleW(L"user32.dll");
-    if (hUser) {
-        typedef UINT (WINAPI *pfnGetDpiForWindow)(HWND);
-        pfnGetDpiForWindow fn = (pfnGetDpiForWindow)GetProcAddress(hUser, "GetDpiForWindow");
-        if (fn && hWnd) {
-            UINT dpi = fn(hWnd);
-            if (dpi > 0) return dpi;
-        }
-    }
-    return 96;
-}
+
 
 HFONT MakeFont(int px, int weight) {
     return CreateFontW(
@@ -303,6 +292,7 @@ bool CommitEditor(bool showErrors) {
 
     g_dirty = false;
     RefreshList(profile.id);
+    LoadEditor(profile.id);
     if (keptDefault) {
         SetStatus(L"已保存；请在另一个配置中勾选“设为默认”来更改回退项", true);
     } else {
@@ -505,7 +495,6 @@ LRESULT CALLBACK SettingsWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
     switch (msg) {
         case WM_CREATE: {
             g_hwnd = hWnd;
-            g_dpi = (int)GetDpiForHwnd(hWnd);
             g_fontNormal = MakeFont(13, FW_NORMAL);
             g_fontBold = MakeFont(13, FW_SEMIBOLD);
             g_fontTitle = MakeFont(20, FW_BOLD);
@@ -656,13 +645,6 @@ void Show(HWND owner) {
         g_classRegistered = true;
     }
 
-    DWORD style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_CLIPCHILDREN;
-    DWORD exStyle = WS_EX_APPWINDOW;
-    RECT rc = { 0, 0, S(WINDOW_WIDTH), S(WINDOW_HEIGHT) };
-    AdjustWindowRectEx(&rc, style, FALSE, exStyle);
-    int width = rc.right - rc.left;
-    int height = rc.bottom - rc.top;
-
     RECT work = {0};
     if (owner && IsWindow(owner)) {
         HMONITOR monitor = MonitorFromWindow(owner, MONITOR_DEFAULTTONEAREST);
@@ -672,6 +654,20 @@ void Show(HWND owner) {
     if (IsRectEmpty(&work)) {
         SystemParametersInfoW(SPI_GETWORKAREA, 0, &work, 0);
     }
+
+    // Keep the fixed layout usable on 768p / high-DPI laptops.
+    const int workWidth = work.right - work.left;
+    const int workHeight = work.bottom - work.top;
+    int maxDpiByWidth = MulDiv(96, std::max(320, workWidth - 64), WINDOW_WIDTH);
+    int maxDpiByHeight = MulDiv(96, std::max(240, workHeight - 64), WINDOW_HEIGHT);
+    g_dpi = std::max(1, std::min(g_dpi, std::min(maxDpiByWidth, maxDpiByHeight)));
+
+    DWORD style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_CLIPCHILDREN;
+    DWORD exStyle = WS_EX_APPWINDOW;
+    RECT rc = { 0, 0, S(WINDOW_WIDTH), S(WINDOW_HEIGHT) };
+    AdjustWindowRectEx(&rc, style, FALSE, exStyle);
+    int width = rc.right - rc.left;
+    int height = rc.bottom - rc.top;
 
     int x = work.left + ((work.right - work.left) - width) / 2;
     int y = work.top + ((work.bottom - work.top) - height) / 2;
