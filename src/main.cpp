@@ -246,6 +246,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     // Run message pump
     MSG msg;
     while (GetMessageW(&msg, NULL, 0, 0)) {
+        if (Settings::PreTranslateMessage(&msg)) continue;
         TranslateMessage(&msg);
         DispatchMessageW(&msg);
     }
