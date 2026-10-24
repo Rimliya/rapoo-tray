@@ -1,5 +1,7 @@
 #include "settings_window.h"
 #include "profile_manager.h"
+#include "battery_estimator.h"
+#include "device_manager.h"
 #include "osd_window.h"
 #include "rapoo_protocol.h"
 #include "tray_menu.h"
@@ -21,7 +23,7 @@ namespace {
 
 constexpr const WCHAR* WINDOW_CLASS = L"RapooProfilesSettingsWnd";
 constexpr int WINDOW_WIDTH = 780;
-constexpr int WINDOW_HEIGHT = 620;
+constexpr int WINDOW_HEIGHT = 690;
 
 enum ControlId {
     IDC_PROFILE_LIST = 3001,
@@ -38,8 +40,13 @@ enum ControlId {
     IDC_OSD_ENABLED,
     IDC_SAVE,
     IDC_CLOSE,
-    IDC_STATUS
+    IDC_STATUS,
+    IDC_RF_FULL,
+    IDC_MODEL_SELECT
 };
+
+constexpr UINT_PTR TIMER_ADVANCED_INIT = 0x4101;
+constexpr UINT_PTR TIMER_ADVANCED_REFRESH = 0x4102;
 
 HWND g_hwnd = NULL;
 HWND g_hOwner = NULL;
@@ -47,6 +54,7 @@ HWND g_hProfileList = NULL;
 HWND g_hTitle = NULL;
 HWND g_hSubtitle = NULL;
 HWND g_hStatus = NULL;
+HWND g_hModelCombo = NULL;
 HFONT g_fontNormal = NULL;
 HFONT g_fontBold = NULL;
 HFONT g_fontTitle = NULL;
@@ -66,6 +74,10 @@ HBRUSH g_brushField = NULL;
 bool g_checkDefault = false;
 bool g_checkAutoSwitch = true;
 bool g_checkOsd = true;
+bool g_checkRfFull = false;
+Device::State g_deviceState;
+bool g_deviceStateValid = false;
+WCHAR g_lastAutoModelName[64] = {0};
 
 int S(int value) {
     return MulDiv(value, g_dpi, 96);
@@ -176,13 +188,15 @@ void ApplyFonts() {
 }
 
 bool IsCheckControlId(int id) {
-    return id == IDC_DEFAULT_PROFILE || id == IDC_AUTO_SWITCH || id == IDC_OSD_ENABLED;
+    return id == IDC_DEFAULT_PROFILE || id == IDC_AUTO_SWITCH ||
+           id == IDC_OSD_ENABLED || id == IDC_RF_FULL;
 }
 
 bool GetOwnedChecked(int id) {
     if (id == IDC_DEFAULT_PROFILE) return g_checkDefault;
     if (id == IDC_AUTO_SWITCH) return g_checkAutoSwitch;
     if (id == IDC_OSD_ENABLED) return g_checkOsd;
+    if (id == IDC_RF_FULL) return g_checkRfFull;
     return false;
 }
 
@@ -190,6 +204,7 @@ void SetOwnedChecked(int id, bool checked) {
     if (id == IDC_DEFAULT_PROFILE) g_checkDefault = checked;
     else if (id == IDC_AUTO_SWITCH) g_checkAutoSwitch = checked;
     else if (id == IDC_OSD_ENABLED) g_checkOsd = checked;
+    else if (id == IDC_RF_FULL) g_checkRfFull = checked;
     else return;
     HWND control = g_hwnd ? GetDlgItem(g_hwnd, id) : NULL;
     if (control) InvalidateRect(control, NULL, TRUE);
@@ -215,6 +230,7 @@ void ApplyNativeTheme() {
         GetDlgItem(g_hwnd, IDC_POLLING_RATE),
         GetDlgItem(g_hwnd, IDC_SLEEP_TIME),
         GetDlgItem(g_hwnd, IDC_APP_PATH),
+        g_hModelCombo,
         g_hProfileList
     };
     for (HWND control : controls) {
@@ -368,6 +384,86 @@ void ToggleOwnedCheck(int id) {
     SetOwnedChecked(id, !GetOwnedChecked(id));
 }
 
+void UpdateAutoModelLabel() {
+    if (!g_hModelCombo) return;
+    if (_wcsicmp(g_lastAutoModelName, g_deviceState.modelName) == 0) return;
+    StringCchCopyW(g_lastAutoModelName, ARRAYSIZE(g_lastAutoModelName), g_deviceState.modelName);
+
+    int current = (int)SendMessageW(g_hModelCombo, CB_GETCURSEL, 0, 0);
+    LRESULT currentData = current >= 0 ? SendMessageW(g_hModelCombo, CB_GETITEMDATA, current, 0) : 0;
+    std::wstring label = L"自动识别";
+    if (g_deviceState.modelName[0] && _wcsicmp(g_deviceState.modelName, L"通用") != 0) {
+        label += L"（";
+        label += g_deviceState.modelName;
+        label += L"）";
+    }
+
+    SendMessageW(g_hModelCombo, CB_DELETESTRING, 0, 0);
+    SendMessageW(g_hModelCombo, CB_INSERTSTRING, 0, (LPARAM)label.c_str());
+    SendMessageW(g_hModelCombo, CB_SETITEMDATA, 0, 0);
+
+    int count = (int)SendMessageW(g_hModelCombo, CB_GETCOUNT, 0, 0);
+    for (int i = 0; i < count; ++i) {
+        if (SendMessageW(g_hModelCombo, CB_GETITEMDATA, i, 0) == currentData) {
+            SendMessageW(g_hModelCombo, CB_SETCURSEL, i, 0);
+            break;
+        }
+    }
+}
+
+void SelectSavedModel() {
+    if (!g_hModelCombo) return;
+    std::wstring saved = BatteryEstimate::LoadOverride();
+    const auto& models = BatteryEstimate::Models();
+    int selected = 0;
+    for (size_t i = 0; i < models.size(); ++i) {
+        if (_wcsicmp(models[i].key.c_str(), saved.c_str()) == 0) {
+            selected = (int)i;
+            break;
+        }
+    }
+    SendMessageW(g_hModelCombo, CB_SETCURSEL, selected, 0);
+}
+
+void RefreshDeviceState() {
+    if (!g_hwnd || !Device::IsStarted()) return;
+    g_deviceState = Device::GetCurrentState();
+    g_deviceStateValid = true;
+    UpdateAutoModelLabel();
+    SetOwnedChecked(IDC_RF_FULL, g_deviceState.rfFull);
+    HWND rfControl = GetDlgItem(g_hwnd, IDC_RF_FULL);
+    if (rfControl) EnableWindow(rfControl, (g_deviceState.isConnected && g_deviceState.rfAvailable) ? TRUE : FALSE);
+    RECT advanced = { S(386), S(494), S(756), S(626) };
+    InvalidateRect(g_hwnd, &advanced, FALSE);
+}
+
+void DrawBatteryEstimate(HDC dc) {
+    BatteryEstimate::Result estimate = BatteryEstimate::Calculate(g_deviceState);
+    if (!estimate.available) {
+        DrawLabel(dc, L"续航数据暂不可用", 400, 598, 340, 22, g_fontSmall, ColorMuted());
+        return;
+    }
+
+    WCHAR text[160] = {0};
+    if (!g_deviceStateValid) {
+        StringCchPrintfW(text, ARRAYSIZE(text), L"满电约 %d–%d h · 连接后更新", estimate.fullMinHours, estimate.fullMaxHours);
+    } else if (g_deviceState.isCharging) {
+        StringCchPrintfW(text, ARRAYSIZE(text), L"满电约 %d–%d h · 充电中", estimate.fullMinHours, estimate.fullMaxHours);
+    } else {
+        StringCchPrintfW(
+            text,
+            ARRAYSIZE(text),
+            L"满电约 %d–%d h · 当前 %d%% 约 %d–%d h",
+            estimate.fullMinHours,
+            estimate.fullMaxHours,
+            g_deviceState.battery,
+            estimate.remainingMinHours,
+            estimate.remainingMaxHours
+        );
+    }
+    DrawLabel(dc, text, 400, 598, 340, 20, g_fontSmall, ColorAccent());
+}
+
 void PaintSettingsWindow(HWND hWnd) {
     PAINTSTRUCT ps;
     HDC dc = BeginPaint(hWnd, &ps);
@@ -381,7 +477,8 @@ void PaintSettingsWindow(HWND hWnd) {
     DrawSection(dc, 22, 82, 334, 284, L"配置档案");
     DrawSection(dc, 370, 84, 386, 276, L"配置详情");
     DrawSection(dc, 24, 356, 732, 130, L"前台程序自动切换");
-    DrawSection(dc, 24, 494, 732, 72, L"全局选项");
+    DrawSection(dc, 24, 494, 350, 132, L"全局选项");
+    DrawSection(dc, 386, 494, 370, 132, L"高级设置");
 
     RECT listFrame = { S(22), S(106), S(356), S(324) };
     FillRounded(dc, listFrame, ColorField(), ColorBorder(), S(7));
@@ -411,7 +508,8 @@ void PaintSettingsWindow(HWND hWnd) {
         { S(460), S(112), S(740), S(144) },
         { S(460), S(150), S(740), S(182) },
         { S(460), S(188), S(740), S(220) },
-        { S(38), S(404), S(594), S(436) }
+        { S(38), S(404), S(594), S(436) },
+        { S(458), S(554), S(742), S(592) }
     };
     for (const RECT& field : fieldRects) {
         FillRounded(dc, field, ColorField(), ColorBorder(), S(6));
@@ -423,7 +521,9 @@ void PaintSettingsWindow(HWND hWnd) {
     DrawLabel(dc, L"默认配置是自动切换结束后的回退配置。", 388, 254, 350, 22, g_fontSmall, ColorMuted());
     DrawLabel(dc, L"关联程序", 40, 379, 100, 24, g_fontNormal, ColorText());
     DrawLabel(dc, L"当该程序处于前台（含无边框 / 独占全屏）时应用此配置；切到其他程序后恢复默认配置。", 40, 441, 700, 28, g_fontSmall, ColorMuted());
-    DrawLabel(dc, L"建议为游戏创建独立配置并设置 2000 / 4000 Hz。", 40, 536, 650, 24, g_fontSmall, ColorMuted());
+    DrawLabel(dc, L"可随时关闭自动切换与 OSD 提示。", 40, 590, 310, 22, g_fontSmall, ColorMuted());
+    DrawLabel(dc, L"鼠标型号", 400, 557, 58, 28, g_fontNormal, ColorText());
+    DrawBatteryEstimate(dc);
     HPEN border = CreatePen(PS_SOLID, 1, ColorBorder());
     HGDIOBJ oldPen = SelectObject(dc, border);
     HGDIOBJ oldBrush = SelectObject(dc, GetStockObject(NULL_BRUSH));
@@ -718,12 +818,26 @@ void CreateControls() {
     CreateButton(L"浏览…", 600, 405, 84, 30, IDC_BROWSE_APP);
     CreateButton(L"清除", 692, 405, 48, 30, IDC_CLEAR_APP);
 
-    CreateCheck(L"启用前台程序自动切换", 40, 518, 220, 24, IDC_AUTO_SWITCH);
-    CreateCheck(L"显示悬浮窗提示 (OSD)", 278, 518, 220, 24, IDC_OSD_ENABLED);
+    CreateCheck(L"启用前台程序自动切换", 40, 530, 300, 24, IDC_AUTO_SWITCH);
+    CreateCheck(L"显示悬浮窗提示 (OSD)", 40, 560, 300, 24, IDC_OSD_ENABLED);
 
-    g_hStatus = CreateText(L"", 24, 580, 500, 24, IDC_STATUS);
-    CreateButton(L"保存并应用", 550, 574, 110, 32, IDC_SAVE);
-    CreateButton(L"关闭", 670, 574, 86, 32, IDC_CLOSE);
+    CreateCheck(L"满格射频（不勾选 = 智能调节）", 400, 530, 340, 24, IDC_RF_FULL);
+    g_hModelCombo = CreateControl(
+        L"COMBOBOX", L"", WS_TABSTOP | CBS_DROPDOWNLIST | WS_VSCROLL,
+        0, 460, 555, 280, 160, IDC_MODEL_SELECT
+    );
+    if (g_hModelCombo) {
+        const auto& models = BatteryEstimate::Models();
+        for (size_t i = 0; i < models.size(); ++i) {
+            int index = (int)SendMessageW(g_hModelCombo, CB_ADDSTRING, 0, (LPARAM)models[i].label.c_str());
+            SendMessageW(g_hModelCombo, CB_SETITEMDATA, index, i);
+        }
+        SelectSavedModel();
+    }
+
+    g_hStatus = CreateText(L"", 24, 648, 500, 24, IDC_STATUS);
+    CreateButton(L"保存并应用", 550, 642, 110, 32, IDC_SAVE);
+    CreateButton(L"关闭", 670, 642, 86, 32, IDC_CLOSE);
 
     ApplyFonts();
     SendMessageW(g_hTitle, WM_SETFONT, (WPARAM)g_fontTitle, TRUE);
@@ -766,6 +880,9 @@ LRESULT CALLBACK SettingsWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
             RefreshList(Profiles::ActiveId());
             LoadEditor(Profiles::ActiveId());
+            RefreshDeviceState();
+            SetTimer(hWnd, TIMER_ADVANCED_INIT, 150, NULL);
+            SetTimer(hWnd, TIMER_ADVANCED_REFRESH, 1000, NULL);
             SetStatus(L"选择配置进行编辑，或新增一个配置", true);
             return 0;
         }
@@ -790,6 +907,20 @@ LRESULT CALLBACK SettingsWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
             UpdateTheme();
             return 0;
 
+        case WM_TIMER: {
+            if (wParam == TIMER_ADVANCED_INIT) {
+                KillTimer(hWnd, TIMER_ADVANCED_INIT);
+                if (Device::IsStarted()) Device::RefreshRfState();
+                RefreshDeviceState();
+                return 0;
+            }
+            if (wParam == TIMER_ADVANCED_REFRESH) {
+                RefreshDeviceState();
+                return 0;
+            }
+            break;
+        }
+
         case WM_COMMAND: {
             const int id = LOWORD(wParam);
             const int notification = HIWORD(wParam);
@@ -802,8 +933,29 @@ LRESULT CALLBACK SettingsWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
                 } else if (id == IDC_OSD_ENABLED) {
                     Osd::SetEnabled(GetOwnedChecked(IDC_OSD_ENABLED));
                     SetStatus(L"悬浮窗设置已更新", true);
+                } else if (id == IDC_RF_FULL) {
+                    bool full = GetOwnedChecked(IDC_RF_FULL);
+                    if (!Device::SetRfFull(full)) {
+                        ToggleOwnedCheck(IDC_RF_FULL);
+                        SetStatus(L"射频策略写入失败，请唤醒鼠标后重试", false);
+                    } else {
+                        RefreshDeviceState();
+                        SetStatus(full ? L"已切换为满格射频" : L"已切换为智能调节", true);
+                    }
                 } else {
                     MarkDirty();
+                }
+                return 0;
+            }
+
+            if (id == IDC_MODEL_SELECT && notification == CBN_SELCHANGE) {
+                int index = (int)SendMessageW(g_hModelCombo, CB_GETCURSEL, 0, 0);
+                const auto& models = BatteryEstimate::Models();
+                if (index >= 0 && index < (int)models.size()) {
+                    BatteryEstimate::SaveOverride(models[index].key);
+                    RefreshDeviceState();
+                    InvalidateRect(hWnd, NULL, FALSE);
+                    SetStatus(L"续航估算型号已更新", true);
                 }
                 return 0;
             }
@@ -913,6 +1065,8 @@ LRESULT CALLBACK SettingsWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
         }
 
         case WM_DESTROY: {
+            KillTimer(hWnd, TIMER_ADVANCED_INIT);
+            KillTimer(hWnd, TIMER_ADVANCED_REFRESH);
             if (g_brushBg) DeleteObject(g_brushBg);
             if (g_brushSurface) DeleteObject(g_brushSurface);
             if (g_brushField) DeleteObject(g_brushField);
@@ -924,6 +1078,8 @@ LRESULT CALLBACK SettingsWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
             g_fontNormal = g_fontBold = g_fontTitle = g_fontSmall = NULL;
             g_hwnd = NULL;
             g_hProfileList = NULL;
+            g_hModelCombo = NULL;
+            g_lastAutoModelName[0] = 0;
             g_hTitle = g_hSubtitle = g_hStatus = NULL;
             return 0;
         }
