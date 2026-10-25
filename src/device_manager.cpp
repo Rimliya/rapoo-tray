@@ -97,7 +97,7 @@ static bool ReadControlReportLocked(BYTE* outBuf, DWORD outSize, DWORD timeoutMs
         CloseHandle(ov.hEvent);
         if (ok && read >= 2) {
             if (outBuf[0] == Rapoo::REPORT_ID_CONTROL ||
-                outBuf[0] == Rapoo::RESP_ACK ||
+                outBuf[0] == 0x01 ||
                 outBuf[0] == 0x02 || outBuf[0] == 0x03) {
                 bytesRead = read;
                 return true;
