@@ -1071,10 +1071,10 @@ void ShowMenu(HWND hWndOwner) {
     itemSettings.isInteractive = true;
     g_mainItems.push_back(itemSettings);
 
-    MenuItemData itemDpi = { 1006 };
-    itemDpi.label = L"DPI 设置…";
-    itemDpi.isInteractive = true;
-    g_mainItems.push_back(itemDpi);
+    MenuItemData itemDpiEditor = { 1006 };
+    itemDpiEditor.label = L"DPI 设置…";
+    itemDpiEditor.isInteractive = true;
+    g_mainItems.push_back(itemDpiEditor);
 
     MenuItemData sepSettings = { 0 };
     sepSettings.isSeparator = true;

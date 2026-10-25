@@ -384,7 +384,7 @@ int SliderY() { return S(206); }
 
 double SliderRatioForDpi(int dpi) {
     double minValue = std::max(1, g_spec.minDpi);
-    double maxValue = std::max(minValue + 1, g_spec.maxDpi);
+    double maxValue = std::max(minValue + 1.0, (double)g_spec.maxDpi);
     double value = std::clamp((double)dpi, minValue, maxValue);
     return (std::log(value) - std::log(minValue)) / (std::log(maxValue) - std::log(minValue));
 }
@@ -400,7 +400,7 @@ int DpiForSliderX(int x) {
     int right = SliderRight();
     double t = std::clamp((double)(x - left) / (double)(right - left), 0.0, 1.0);
     double minValue = std::max(1, g_spec.minDpi);
-    double maxValue = std::max(minValue + 1, g_spec.maxDpi);
+    double maxValue = std::max(minValue + 1.0, (double)g_spec.maxDpi);
     double value = std::exp(std::log(minValue) + t * (std::log(maxValue) - std::log(minValue)));
     return SnapDpi((int)std::lround(value));
 }
