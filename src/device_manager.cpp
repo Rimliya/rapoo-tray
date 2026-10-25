@@ -952,6 +952,28 @@ bool WriteDpiConfig(const DpiConfig& config) {
     return true;
 }
 
+bool SetCurrentDpi(int x, int y) {
+    DpiConfig config;
+    if (!ReadDpiConfig(config) || config.dpiX.empty() || config.dpiY.empty()) return false;
+
+    x = std::clamp(x, 1, 0xFFFF);
+    y = std::clamp(y, 1, 0xFFFF);
+    int current = std::clamp(config.currentIndex, 0, (int)config.dpiX.size() - 1);
+    if (config.dpiX[(size_t)current] == x && config.dpiY[(size_t)current] == y) return true;
+
+    // Reuse an existing gear when possible so profile switching does not
+    // silently rewrite the user's configured DPI slot table.
+    for (int i = 0; i < (int)config.dpiX.size() && i < (int)config.dpiY.size(); ++i) {
+        if (config.dpiX[(size_t)i] == x && config.dpiY[(size_t)i] == y) {
+            return SetDpiIndex(i);
+        }
+    }
+
+    config.dpiX[(size_t)current] = x;
+    config.dpiY[(size_t)current] = y;
+    return WriteDpiConfig(config);
+}
+
 bool SetDpiIndex(int index) {
     if (index < 0 || index >= MAX_DPI_SLOTS) return false;
 
