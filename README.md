@@ -171,7 +171,7 @@
 
 ## 🛠️ 源码编译 (Build from Source)
 
-环境要求：Windows 10 / 11，配备 MinGW-w64 (GCC 9+) 或 MSVC (Visual Studio 2019+)。
+环境要求：Windows 10 / 11，推荐安装 **Zig 0.16+**；也可使用 MSVC (Visual Studio 2019+)，或在本地开发时使用 MinGW-w64。正式发布请使用 Zig，以避免已知的杀毒软件误报。
 
 ### 1. 编译可执行程序
 运行根目录下的一键编译脚本：
@@ -181,11 +181,19 @@ build.bat
 输出产物：`bin\rapoo-tray.exe`
 
 ### 2. 编译安装程序
+先完成主程序编译，再执行：
 ```cmd
 cd installer
 build_installer.bat
 ```
 输出产物：`dist\rapoo-tray-setup.exe`
+
+### 3. 编译 TrafficMonitor 插件
+```cmd
+cd plugin
+build_plugin.bat
+```
+输出产物：`bin\rapoo-plugin.dll`
 
 ---
 
