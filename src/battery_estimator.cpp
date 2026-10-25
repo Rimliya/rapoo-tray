@@ -11,27 +11,31 @@ namespace {
 constexpr const WCHAR* REG_SUBKEY = L"Software\\rapoo-tray";
 constexpr const WCHAR* REG_MODEL_VALUE = L"BatteryEstimateModel";
 
-struct PowerProfile {
+struct FullProfile {
     const WCHAR* key;
     const WCHAR* label;
     double baseHoursAt1000;
+    int dpiMin;
+    int dpiMax;
+    int dpiStep;
+    int maxSlots;
 };
 
-// Rough full-charge runtimes at 1000 Hz, smart RF and the balanced profile.
-// The calculator is intentionally conservative and is labelled as an estimate.
-const PowerProfile PROFILES[] = {
-    { L"vt7", L"雷柏 VT7 / VT7 V2", 750.0 },
-    { L"vt3v2", L"雷柏 VT3 V2", 760.0 },
-    { L"vt3s", L"雷柏 VT3S", 300.0 },
-    { L"vt3max", L"雷柏 VT3 MAX", 600.0 },
-    { L"vt3", L"雷柏 VT3", 700.0 },
-    { L"generic", L"通用（粗略）", 500.0 },
+// DPI ranges are constrained from the official Rapoo product pages. The
+// maxSlots value follows the 7-stage editor used by the current A Hub.
+const FullProfile PROFILES[] = {
+    { L"vt7",     L"雷柏 VT7 / VT7 V2", 750.0, 10, 30000, 10, 7 },
+    { L"vt3v2",   L"雷柏 VT3 V2",       750.0, 10, 30000, 10, 7 },
+    { L"vt3s",    L"雷柏 VT3S",         300.0, 50, 26000, 10, 7 },
+    { L"vt3max",  L"雷柏 VT3 MAX",      600.0, 10, 30000, 10, 7 },
+    { L"vt3",     L"雷柏 VT3",          700.0, 50, 26000, 10, 7 },
+    { L"generic", L"通用（粗略）",      500.0, 50, 26000, 10, 7 },
 };
 
 std::wstring g_override;
 bool g_overrideLoaded = false;
 
-const PowerProfile* FindProfile(const std::wstring& key) {
+const FullProfile* FindProfile(const std::wstring& key) {
     for (const auto& profile : PROFILES) {
         if (_wcsicmp(profile.key, key.c_str()) == 0) return &profile;
     }
@@ -78,15 +82,14 @@ std::wstring ReadOverrideFromRegistry() {
 } // namespace
 
 const std::vector<ModelOption>& Models() {
-    static const std::vector<ModelOption> options = {
-        { L"", L"自动识别" },
-        { L"vt7", L"雷柏 VT7 / VT7 V2" },
-        { L"vt3v2", L"雷柏 VT3 V2" },
-        { L"vt3s", L"雷柏 VT3S" },
-        { L"vt3max", L"雷柏 VT3 MAX" },
-        { L"vt3", L"雷柏 VT3" },
-        { L"generic", L"通用（粗略）" },
-    };
+    static const std::vector<ModelOption> options = [] {
+        std::vector<ModelOption> list;
+        list.push_back({ L"", L"自动识别" });
+        for (const auto& profile : PROFILES) {
+            list.push_back({ profile.key, profile.label });
+        }
+        return list;
+    }();
     return options;
 }
 
@@ -131,24 +134,40 @@ std::wstring DetectModelKey(const Device::State& state) {
     return L"generic";
 }
 
+std::wstring ResolveModelKey(const Device::State& state) {
+    std::wstring overrideKey = LoadOverride();
+    std::wstring key = overrideKey.empty() ? DetectModelKey(state) : overrideKey;
+    if (!FindProfile(key)) key = L"generic";
+    return key;
+}
+
+bool GetDpiSpecForState(const Device::State& state, DpiSpec& outSpec, std::wstring* outKey, std::wstring* outLabel) {
+    std::wstring key = ResolveModelKey(state);
+    const FullProfile* profile = FindProfile(key);
+    if (!profile) return false;
+    outSpec.minDpi = profile->dpiMin;
+    outSpec.maxDpi = profile->dpiMax;
+    outSpec.step = std::max(1, profile->dpiStep);
+    outSpec.maxSlots = std::max(1, profile->maxSlots);
+    if (outKey) *outKey = key;
+    if (outLabel) *outLabel = profile->label;
+    return true;
+}
+
 Result Calculate(const Device::State& state) {
     Result result;
-    std::wstring overrideKey = LoadOverride();
-    std::wstring modelKey = overrideKey.empty() ? DetectModelKey(state) : overrideKey;
-    const PowerProfile* profile = FindProfile(modelKey);
-    if (!profile) profile = FindProfile(L"generic");
+    std::wstring modelKey = ResolveModelKey(state);
+    const FullProfile* profile = FindProfile(modelKey);
     if (!profile) return result;
 
     result.available = true;
-    result.autoDetected = overrideKey.empty();
+    result.autoDetected = LoadOverride().empty();
     result.modelLabel = profile->label;
 
     double hours = profile->baseHoursAt1000;
     hours *= PollingFactor(state.pollingHz);
     if (state.rfFull) hours *= 0.82;
 
-    // A small uncertainty band keeps the UI honest: the mouse battery gauge and
-    // real-world radio conditions are not precise enough for a single number.
     double low = hours * 0.96;
     double high = hours * 1.04;
     result.fullMinHours = std::max(1, (int)std::lround(low));

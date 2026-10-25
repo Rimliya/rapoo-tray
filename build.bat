@@ -12,7 +12,7 @@ where g++ >nul 2>nul
 if %ERRORLEVEL% equ 0 (
     echo [Toolchain] Using MinGW GCC/G++ ...
     windres --codepage 65001 -I res -i res\app.rc -o bin\app.o
-    g++ -O3 -std=c++17 -mwindows -municode -s -static src\main.cpp src\rapoo_protocol.cpp src\device_manager.cpp src\osd_window.cpp src\tray_menu.cpp src\alert_window.cpp src\profile_manager.cpp src\battery_estimator.cpp src\settings_window.cpp bin\app.o -lsetupapi -lhid -luser32 -lgdi32 -lshell32 -ladvapi32 -luxtheme -ldwmapi -lcomdlg32 -lcomctl32 -o bin\rapoo-tray.exe
+    g++ -O3 -std=c++17 -mwindows -municode -s -static src\main.cpp src\rapoo_protocol.cpp src\device_manager.cpp src\osd_window.cpp src\tray_menu.cpp src\alert_window.cpp src\profile_manager.cpp src\battery_estimator.cpp src\settings_window.cpp src\dpi_window.cpp bin\app.o -lsetupapi -lhid -luser32 -lgdi32 -lshell32 -ladvapi32 -luxtheme -ldwmapi -lcomdlg32 -lcomctl32 -o bin\rapoo-tray.exe
     if exist bin\app.o del bin\app.o
     goto done
 )
@@ -21,7 +21,7 @@ where cl >nul 2>nul
 if %ERRORLEVEL% equ 0 (
     echo [Toolchain] Using MSVC CL ...
     rc /c 65001 /fo bin\app.res res\app.rc
-    cl /nologo /O2 /std:c++17 /MT /DUNICODE /D_UNICODE /DWIN32_LEAN_AND_MEAN src\main.cpp src\rapoo_protocol.cpp src\device_manager.cpp src\osd_window.cpp src\tray_menu.cpp src\alert_window.cpp src\profile_manager.cpp src\battery_estimator.cpp src\settings_window.cpp bin\app.res /Fe:bin\rapoo-tray.exe /link /SUBSYSTEM:WINDOWS setupapi.lib hid.lib user32.lib gdi32.lib shell32.lib advapi32.lib uxtheme.lib dwmapi.lib comdlg32.lib comctl32.lib
+    cl /nologo /O2 /std:c++17 /MT /DUNICODE /D_UNICODE /DWIN32_LEAN_AND_MEAN src\main.cpp src\rapoo_protocol.cpp src\device_manager.cpp src\osd_window.cpp src\tray_menu.cpp src\alert_window.cpp src\profile_manager.cpp src\battery_estimator.cpp src\settings_window.cpp src\dpi_window.cpp bin\app.res /Fe:bin\rapoo-tray.exe /link /SUBSYSTEM:WINDOWS setupapi.lib hid.lib user32.lib gdi32.lib shell32.lib advapi32.lib uxtheme.lib dwmapi.lib comdlg32.lib comctl32.lib
     if exist bin\app.res del bin\app.res
     if exist *.obj del *.obj
     goto done

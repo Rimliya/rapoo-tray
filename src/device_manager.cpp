@@ -78,7 +78,8 @@ static bool SendRawCommand(BYTE bank, BYTE addr, const BYTE* pData, BYTE len) {
 }
 
 
-static bool ReadRegisterByte(BYTE bank, BYTE addr, BYTE& outValue) {
+static bool ReadRegisterBytes(BYTE bank, BYTE addr, BYTE len, BYTE* outData) {
+    if (!outData || len == 0 || len > 31) return false;
     EnterCriticalSection(&g_csDevIO);
     if (g_hControlDev == INVALID_HANDLE_VALUE || g_hFeatureDev == INVALID_HANDLE_VALUE) {
         LeaveCriticalSection(&g_csDevIO);
@@ -86,7 +87,7 @@ static bool ReadRegisterByte(BYTE bank, BYTE addr, BYTE& outValue) {
     }
 
     BYTE outBuf[33] = {0};
-    DWORD pktSize = Rapoo::BuildReadCommand(bank, addr, 1, outBuf, sizeof(outBuf));
+    DWORD pktSize = Rapoo::BuildReadCommand(bank, addr, len, outBuf, sizeof(outBuf));
 
     DWORD written = 0;
     OVERLAPPED ov = {0};
@@ -111,9 +112,13 @@ static bool ReadRegisterByte(BYTE bank, BYTE addr, BYTE& outValue) {
     BYTE featBuf[33] = {0};
     featBuf[0] = Rapoo::REPORT_ID_FEATURE;
     BOOL fOk = HidD_GetFeature(g_hFeatureDev, featBuf, sizeof(featBuf));
-    bool ok = fOk && Rapoo::ParseFeatureRead(featBuf, sizeof(featBuf), 1, &outValue);
+    bool ok = fOk && Rapoo::ParseFeatureRead(featBuf, sizeof(featBuf), len, outData);
     LeaveCriticalSection(&g_csDevIO);
     return ok;
+}
+
+static bool ReadRegisterByte(BYTE bank, BYTE addr, BYTE& outValue) {
+    return ReadRegisterBytes(bank, addr, 1, &outValue);
 }
 
 static bool PingDevice(int& outHz) {
@@ -516,6 +521,8 @@ static DWORD WINAPI HidWorkerThread(LPVOID lpParam) {
         }
 
         RefreshRfState();
+        DpiConfig connectedDpi;
+        ReadDpiConfig(connectedDpi);
 
         // Push saved sleep timeout to device hardware
         int curSleepMin = 10;
@@ -532,6 +539,7 @@ static DWORD WINAPI HidWorkerThread(LPVOID lpParam) {
         BYTE buf[65] = {0};
         DWORD bytesRead = 0;
         bool gotFirstPacket = false; // no ping-alive judgement until mode is known
+        int pingFailureCount = 0;
 
         while (WaitForSingleObject(g_hStopEvent, 0) == WAIT_TIMEOUT) {
             ResetEvent(hReadEvent);
@@ -573,14 +581,22 @@ static DWORD WINAPI HidWorkerThread(LPVOID lpParam) {
                                 int hz = 0;
                                 bool alive = PingDevice(hz);
                                 if (!alive) {
-                                    EnterCriticalSection(&g_csState);
-                                    bool wasConn = g_currentState.isConnected;
-                                    g_currentState.isConnected = false;
-                                    g_currentState.isCharging = false;
-                                    State copySt = g_currentState;
-                                    LeaveCriticalSection(&g_csState);
-                                    if (wasConn && g_callback) g_callback(copySt, CHANGE_CONNECTED | CHANGE_BATTERY);
+                                    // RF mode changes can briefly make the control
+                                    // endpoint unresponsive. Require three failed
+                                    // probes before showing the device as offline.
+                                    ++pingFailureCount;
+                                    if (pingFailureCount >= 3) {
+                                        EnterCriticalSection(&g_csState);
+                                        bool wasConn = g_currentState.isConnected;
+                                        g_currentState.isConnected = false;
+                                        g_currentState.isCharging = false;
+                                        g_currentState.rfAvailable = false;
+                                        State copySt = g_currentState;
+                                        LeaveCriticalSection(&g_csState);
+                                        if (wasConn && g_callback) g_callback(copySt, CHANGE_CONNECTED | CHANGE_BATTERY);
+                                    }
                                 } else {
+                                    pingFailureCount = 0;
                                     EnterCriticalSection(&g_csState);
                                     bool wasConn = g_currentState.isConnected;
                                     g_currentState.isConnected = true;
@@ -608,6 +624,7 @@ static DWORD WINAPI HidWorkerThread(LPVOID lpParam) {
             Rapoo::DeviceStatus devStatus;
             if (Rapoo::ParseStatusReport(buf, bytesRead, devStatus, g_cachedBattery)) {
                 gotFirstPacket = true;
+                pingFailureCount = 0;
                 // NOTE: wired USB direct connect does NOT imply charging.
                 // Trust the protocol-level charging flag for all modes.
 
@@ -797,21 +814,140 @@ bool RefreshRfState() {
 
 bool SetRfFull(bool full) {
     BYTE current = 0;
-    if (!ReadRegisterByte(Rapoo::BANK_SYSTEM, Rapoo::ADDR_RF_STRENGTHEN, current)) return false;
+    bool readCurrent = false;
+    for (int attempt = 0; attempt < 3; ++attempt) {
+        if (ReadRegisterByte(Rapoo::BANK_SYSTEM, Rapoo::ADDR_RF_STRENGTHEN, current)) {
+            readCurrent = true;
+            break;
+        }
+        Sleep(60);
+    }
+    if (!readCurrent) return false;
 
     BYTE next = full ? (BYTE)(current | 0x01) : (BYTE)(current & 0xFE);
     if (!SendRawCommand(Rapoo::BANK_SYSTEM, Rapoo::ADDR_RF_STRENGTHEN, &next, 1)) return false;
 
-    BYTE verify = 0;
-    if (!ReadRegisterByte(Rapoo::BANK_SYSTEM, Rapoo::ADDR_RF_STRENGTHEN, verify)) return false;
-    if (((verify & 0x01) != 0) != full) return false;
-
+    // The RF switch can briefly interrupt the configuration endpoint. Accept
+    // the acknowledged write immediately and verify best-effort in the
+    // background of this call, so the settings UI does not falsely report that
+    // the device disappeared.
     EnterCriticalSection(&g_csState);
     g_currentState.rfAvailable = true;
     g_currentState.rfFull = full;
     State copySt = g_currentState;
     LeaveCriticalSection(&g_csState);
     if (g_callback) g_callback(copySt, CHANGE_RF);
+
+    for (int attempt = 0; attempt < 3; ++attempt) {
+        Sleep(80);
+        BYTE verify = 0;
+        if (ReadRegisterByte(Rapoo::BANK_SYSTEM, Rapoo::ADDR_RF_STRENGTHEN, verify)) {
+            bool actual = (verify & 0x01) != 0;
+            if (actual == full) return true;
+            if (attempt == 2) return false;
+            if (!SendRawCommand(Rapoo::BANK_SYSTEM, Rapoo::ADDR_RF_STRENGTHEN, &next, 1)) return false;
+        }
+    }
+    // Write was acknowledged; a transient read timeout is not a failed switch.
+    return true;
+}
+
+static bool DecodeDpiTable(const BYTE* raw, int count, std::vector<int>& out) {
+    if (!raw || count <= 0) return false;
+    out.resize(count);
+    for (int i = 0; i < count; ++i) {
+        out[i] = (int)raw[i * 2] | ((int)raw[i * 2 + 1] << 8);
+    }
+    return true;
+}
+
+bool ReadDpiConfig(DpiConfig& outConfig) {
+    BYTE countRaw = 0;
+    if (!ReadRegisterByte(Rapoo::BANK_SYSTEM, Rapoo::ADDR_DPI_SLOT_COUNT, countRaw)) return false;
+    int count = std::clamp((int)countRaw, 1, MAX_DPI_SLOTS);
+
+    BYTE indexRaw = 0;
+    if (!ReadRegisterByte(Rapoo::BANK_SYSTEM, Rapoo::ADDR_DPI_INDEX, indexRaw)) return false;
+    int index = std::clamp((int)indexRaw, 0, count - 1);
+
+    BYTE xRaw[MAX_DPI_SLOTS * 2] = {0};
+    BYTE yRaw[MAX_DPI_SLOTS * 2] = {0};
+    if (!ReadRegisterBytes(Rapoo::BANK_SYSTEM, Rapoo::ADDR_DPI_TABLE_X, (BYTE)(count * 2), xRaw)) return false;
+    if (!ReadRegisterBytes(Rapoo::BANK_SYSTEM, Rapoo::ADDR_DPI_TABLE_Y, (BYTE)(count * 2), yRaw)) return false;
+
+    DpiConfig config;
+    config.currentIndex = index;
+    if (!DecodeDpiTable(xRaw, count, config.dpiX) || !DecodeDpiTable(yRaw, count, config.dpiY)) return false;
+    outConfig = config;
+
+    EnterCriticalSection(&g_csState);
+    bool changed = g_currentState.dpiLevel != (index + 1) ||
+                   g_currentState.dpiX != config.dpiX[index] ||
+                   g_currentState.dpiY != config.dpiY[index];
+    g_currentState.dpiLevel = index + 1;
+    g_currentState.dpiX = config.dpiX[index];
+    g_currentState.dpiY = config.dpiY[index];
+    State copySt = g_currentState;
+    LeaveCriticalSection(&g_csState);
+    if (changed && g_callback) g_callback(copySt, CHANGE_DPI);
+    return true;
+}
+
+bool WriteDpiConfig(const DpiConfig& config) {
+    int count = (int)config.dpiX.size();
+    if (count < 1 || count > MAX_DPI_SLOTS || (int)config.dpiY.size() != count) return false;
+    int index = std::clamp(config.currentIndex, 0, count - 1);
+
+    BYTE xBytes[MAX_DPI_SLOTS * 2] = {0};
+    BYTE yBytes[MAX_DPI_SLOTS * 2] = {0};
+    for (int i = 0; i < count; ++i) {
+        int x = std::clamp(config.dpiX[i], 1, 0xFFFF);
+        int y = std::clamp(config.dpiY[i], 1, 0xFFFF);
+        xBytes[i * 2] = (BYTE)(x & 0xFF);
+        xBytes[i * 2 + 1] = (BYTE)((x >> 8) & 0xFF);
+        yBytes[i * 2] = (BYTE)(y & 0xFF);
+        yBytes[i * 2 + 1] = (BYTE)((y >> 8) & 0xFF);
+    }
+
+    if (!SendRawCommand(Rapoo::BANK_SYSTEM, Rapoo::ADDR_DPI_TABLE_X, xBytes, (BYTE)(count * 2))) return false;
+    Sleep(20);
+    if (!SendRawCommand(Rapoo::BANK_SYSTEM, Rapoo::ADDR_DPI_TABLE_Y, yBytes, (BYTE)(count * 2))) return false;
+    BYTE countByte = (BYTE)count;
+    BYTE indexByte = (BYTE)index;
+    if (!SendRawCommand(Rapoo::BANK_SYSTEM, Rapoo::ADDR_DPI_SLOT_COUNT, &countByte, 1)) return false;
+    if (!SendRawCommand(Rapoo::BANK_SYSTEM, Rapoo::ADDR_DPI_INDEX, &indexByte, 1)) return false;
+    Sleep(30);
+
+    DpiConfig verify;
+    if (!ReadDpiConfig(verify)) return false;
+    if ((int)verify.dpiX.size() != count || (int)verify.dpiY.size() != count || verify.currentIndex != index) return false;
+    for (int i = 0; i < count; ++i) {
+        if (verify.dpiX[i] != config.dpiX[i] || verify.dpiY[i] != config.dpiY[i]) return false;
+    }
+    return true;
+}
+
+bool SetDpiIndex(int index) {
+    BYTE countRaw = 0;
+    if (!ReadRegisterByte(Rapoo::BANK_SYSTEM, Rapoo::ADDR_DPI_SLOT_COUNT, countRaw)) return false;
+    int count = std::clamp((int)countRaw, 1, MAX_DPI_SLOTS);
+    if (index < 0 || index >= count) return false;
+
+    BYTE indexByte = (BYTE)index;
+    if (!SendRawCommand(Rapoo::BANK_SYSTEM, Rapoo::ADDR_DPI_INDEX, &indexByte, 1)) return false;
+
+    BYTE verify = 0;
+    if (!ReadRegisterByte(Rapoo::BANK_SYSTEM, Rapoo::ADDR_DPI_INDEX, verify)) return false;
+    if ((int)verify != index) return false;
+
+    DpiConfig current;
+    if (ReadDpiConfig(current)) return true;
+
+    EnterCriticalSection(&g_csState);
+    g_currentState.dpiLevel = index + 1;
+    State copySt = g_currentState;
+    LeaveCriticalSection(&g_csState);
+    if (g_callback) g_callback(copySt, CHANGE_DPI);
     return true;
 }
 

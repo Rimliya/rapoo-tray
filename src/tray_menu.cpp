@@ -2,6 +2,7 @@
 #include "osd_window.h"
 #include "profile_manager.h"
 #include "settings_window.h"
+#include "dpi_window.h"
 #include <dwmapi.h>
 #include <strsafe.h>
 #include <cstring>
@@ -824,6 +825,8 @@ static LRESULT CALLBACK AcrylicMainWndProc(HWND hWnd, UINT msg, WPARAM wParam, L
                     PostQuitMessage(0);
                 } else if (cmd == 1003) { // Profile settings
                     Settings::Show(g_hParentAppWnd);
+                } else if (cmd == 1006) { // DPI editor
+                    DpiWindow::Show(g_hParentAppWnd);
                 } else if (cmd == 1004) { // OSD switch
                     bool enabled = !Osd::IsEnabled();
                     Osd::SetEnabled(enabled);
@@ -1067,6 +1070,11 @@ void ShowMenu(HWND hWndOwner) {
     itemSettings.label = L"配置与自动化…";
     itemSettings.isInteractive = true;
     g_mainItems.push_back(itemSettings);
+
+    MenuItemData itemDpi = { 1006 };
+    itemDpi.label = L"DPI 设置…";
+    itemDpi.isInteractive = true;
+    g_mainItems.push_back(itemDpi);
 
     MenuItemData sepSettings = { 0 };
     sepSettings.isSeparator = true;

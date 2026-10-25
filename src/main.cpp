@@ -12,6 +12,7 @@ extern "C" {
 #include "tray_menu.h"
 #include "profile_manager.h"
 #include "settings_window.h"
+#include "dpi_window.h"
 
 static const UINT WM_APP_TRAYMSG = WM_APP + 1;
 static const UINT WM_APP_STATE_UPDATE = WM_APP + 2;
@@ -247,6 +248,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     MSG msg;
     while (GetMessageW(&msg, NULL, 0, 0)) {
         if (Settings::PreTranslateMessage(&msg)) continue;
+        if (DpiWindow::PreTranslateMessage(&msg)) continue;
         TranslateMessage(&msg);
         DispatchMessageW(&msg);
     }
@@ -258,6 +260,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     }
     KillTimer(g_hMainWnd, TIMER_PROFILE_POLL);
     Settings::Cleanup();
+    DpiWindow::Cleanup();
     Device::Stop();
     Osd::Cleanup();
     Alert::Cleanup();

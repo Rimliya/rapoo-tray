@@ -4,7 +4,7 @@
   <p><b>雷柏VT系列游戏鼠标轻量化托盘程序</b></p>
 
   <p>
-    <a href="https://github.com/Rimliya/rapoo-tray/releases"><img src="https://img.shields.io/badge/Release-v1.5.0-blue?style=flat-square" alt="Release" /></a>
+    <a href="https://github.com/Rimliya/rapoo-tray/releases"><img src="https://img.shields.io/badge/Release-v1.6.0-blue?style=flat-square" alt="Release" /></a>
     <img src="https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?style=flat-square&logo=windows" alt="Platform" />
     <img src="https://img.shields.io/badge/Language-C%2B%2B17%20%2F%20Win32-00599C?style=flat-square&logo=c%2B%2B" alt="Language" />
     <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License" />
@@ -21,6 +21,9 @@
 
 ## 🚀 新版本特性
 
+- **DPI 档位编辑器**：读取鼠标内置 DPI 档位与当前生效档位，支持新增/删除档位、自定义 DPI、按低到高排序和一键切换；每款已适配型号使用各自的 DPI 范围。
+- **安装器原位更新**：检测已有安装位置，更新时直接复用原目录，不再要求重新选择。
+- **射频状态修复**：切换满格射频后不再因短时链路抖动误显示未连接。
 - **无线射频策略与续航粗估**：设置页可切换“满格射频 / 智能调节”，并按鼠标型号、回报率、射频策略和当前电量估算续航；型号支持自动识别或手动指定。
 - **设备识别增强**：补充 VT3 V2 的 `1462/4662` PID 变体，并增加 HID 产品字符串回退识别。
 - **统一 Fluent 界面**：独立的“配置与自动化”窗口沿用托盘的亚克力、圆角、深浅色、悬停与强调色视觉体系。

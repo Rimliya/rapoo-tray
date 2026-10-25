@@ -217,7 +217,7 @@ static void DoInstall() {
     HKEY hKeyUn;
     if (RegCreateKeyExW(HKEY_CURRENT_USER, REG_UNINSTALL, 0, NULL, 0, KEY_SET_VALUE, NULL, &hKeyUn, NULL) == ERROR_SUCCESS) {
         const WCHAR* name = L"rapoo-tray";
-        const WCHAR* ver = L"1.5.0";
+        const WCHAR* ver = L"1.6.0";
         const WCHAR* pub = L"Iris";
         WCHAR unCmd[MAX_PATH + 32];
         StringCchPrintfW(unCmd, sizeof(unCmd) / sizeof(WCHAR), L"\"%s\" /uninstall", uninstallerPath);
@@ -308,14 +308,20 @@ static LRESULT CALLBACK InstallerWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPA
             g_hFontTitle = CreateFontW(-18, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Microsoft YaHei UI");
             g_hFontBody = CreateFontW(-13, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Microsoft YaHei UI");
 
-            // Title
-            HWND hTitle = CreateWindowExW(0, L"STATIC", L"rapoo-tray Setup", WS_CHILD | WS_VISIBLE, 24, 20, 360, 24, hWnd, NULL, g_hInstance, NULL);
+            // Prefer the previously installed path so updates replace the current
+            // installation instead of behaving like a fresh install.
+            WCHAR installDir[MAX_PATH] = {0};
+            bool isUpdate = GetSavedInstallDir(installDir, MAX_PATH);
+            if (!isUpdate || installDir[0] == 0) {
+                GetInstallDir(installDir, MAX_PATH);
+                isUpdate = false;
+            }
+
+            HWND hTitle = CreateWindowExW(0, L"STATIC", isUpdate ? L"rapoo-tray 更新" : L"rapoo-tray Setup", WS_CHILD | WS_VISIBLE, 24, 20, 360, 24, hWnd, NULL, g_hInstance, NULL);
             SendMessageW(hTitle, WM_SETFONT, (WPARAM)g_hFontTitle, TRUE);
 
-            // Install Path (editable)
-            WCHAR installDir[MAX_PATH];
-            GetInstallDir(installDir, MAX_PATH);
-            HWND hPathLabel = CreateWindowExW(0, L"STATIC", L"安装路径:", WS_CHILD | WS_VISIBLE, 24, 52, 70, 20, hWnd, NULL, g_hInstance, NULL);
+            // Install Path (editable; prefilled from the existing installation)
+            HWND hPathLabel = CreateWindowExW(0, L"STATIC", isUpdate ? L"更新到:" : L"安装路径:", WS_CHILD | WS_VISIBLE, 24, 52, 70, 20, hWnd, NULL, g_hInstance, NULL);
             SendMessageW(hPathLabel, WM_SETFONT, (WPARAM)g_hFontBody, TRUE);
 
             g_hEdtPath = CreateWindowExW(0, L"EDIT", installDir, WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL, 94, 50, 240, 24, hWnd, (HMENU)IDC_EDT_PATH, g_hInstance, NULL);
@@ -338,7 +344,7 @@ static LRESULT CALLBACK InstallerWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPA
             SendMessageW(g_hChkLaunch, BM_SETCHECK, BST_CHECKED, 0);
 
             // Buttons
-            g_hBtnInstall = CreateWindowExW(0, L"BUTTON", L"安装", WS_CHILD | WS_VISIBLE | BS_DEFPUSHBUTTON, 216, 188, 88, 30, hWnd, (HMENU)IDC_BTN_INSTALL, g_hInstance, NULL);
+            g_hBtnInstall = CreateWindowExW(0, L"BUTTON", isUpdate ? L"更新" : L"安装", WS_CHILD | WS_VISIBLE | BS_DEFPUSHBUTTON, 216, 188, 88, 30, hWnd, (HMENU)IDC_BTN_INSTALL, g_hInstance, NULL);
             SendMessageW(g_hBtnInstall, WM_SETFONT, (WPARAM)g_hFontBody, TRUE);
 
             g_hBtnCancel = CreateWindowExW(0, L"BUTTON", L"取消", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 314, 188, 88, 30, hWnd, (HMENU)IDC_BTN_CANCEL, g_hInstance, NULL);
