@@ -29,6 +29,7 @@ static HANDLE g_hFeatureDev = INVALID_HANDLE_VALUE;
 
 static int g_cachedBattery = 100;
 static bool g_started = false;
+static bool g_dpiConfigValid = false;
 static std::atomic<ULONGLONG> g_rfSettleUntil{0};
 
 // Registry helper for persistent settings
@@ -407,6 +408,7 @@ static DWORD WINAPI HidWorkerThread(LPVOID lpParam) {
             g_currentState.isConnected = false;
             g_currentState.isCharging = false;
             g_currentState.rfAvailable = false;
+            g_dpiConfigValid = false;
             State copySt = g_currentState;
             LeaveCriticalSection(&g_csState);
             if (wasConn && g_callback) g_callback(copySt, CHANGE_CONNECTED | CHANGE_BATTERY);
@@ -430,6 +432,7 @@ static DWORD WINAPI HidWorkerThread(LPVOID lpParam) {
             g_currentState.isConnected = false;
             g_currentState.isCharging = false;
             g_currentState.rfAvailable = false;
+            g_dpiConfigValid = false;
             State copySt = g_currentState;
             LeaveCriticalSection(&g_csState);
             if (wasConn && g_callback) g_callback(copySt, CHANGE_CONNECTED | CHANGE_BATTERY);
@@ -502,6 +505,7 @@ static DWORD WINAPI HidWorkerThread(LPVOID lpParam) {
             g_currentState.isCharging = true;
         }
         g_currentState.isConnected = true;
+        g_dpiConfigValid = false;
         State connSt = g_currentState;
         LeaveCriticalSection(&g_csState);
         if (g_callback) g_callback(connSt, CHANGE_CONNECTED | (isWired ? CHANGE_BATTERY : 0));
@@ -653,7 +657,11 @@ static DWORD WINAPI HidWorkerThread(LPVOID lpParam) {
                     mask |= CHANGE_CONNECTED;
                 }
 
-                if (devStatus.dpiLevel != g_currentState.dpiLevel || devStatus.dpiX != g_currentState.dpiX) {
+                // On the 54L15 generation the passive status packet can keep
+                // reporting a stale 800 DPI value. Once the real register table
+                // has been read, it is authoritative and broadcasts are ignored.
+                if (!g_dpiConfigValid &&
+                    (devStatus.dpiLevel != g_currentState.dpiLevel || devStatus.dpiX != g_currentState.dpiX)) {
                     g_currentState.dpiLevel = devStatus.dpiLevel;
                     g_currentState.dpiX = devStatus.dpiX;
                     g_currentState.dpiY = devStatus.dpiY;
@@ -682,6 +690,7 @@ static DWORD WINAPI HidWorkerThread(LPVOID lpParam) {
         g_currentState.isConnected = false;
         g_currentState.isCharging = false;
         g_currentState.rfAvailable = false;
+        g_dpiConfigValid = false;
         State copySt = g_currentState;
         LeaveCriticalSection(&g_csState);
         if (wasConn && g_callback) g_callback(copySt, CHANGE_CONNECTED | CHANGE_BATTERY);
@@ -870,6 +879,7 @@ bool ReadDpiConfig(DpiConfig& outConfig) {
     outConfig = config;
 
     EnterCriticalSection(&g_csState);
+    g_dpiConfigValid = true;
     bool changed = g_currentState.dpiLevel != (index + 1) ||
                    g_currentState.dpiX != config.dpiX[(size_t)index] ||
                    g_currentState.dpiY != config.dpiY[(size_t)index];
@@ -932,6 +942,7 @@ bool WriteDpiConfig(const DpiConfig& config) {
     // timed out (common during endpoint settling). Keep the device usable and
     // update the local state optimistically instead of reporting a false failure.
     EnterCriticalSection(&g_csState);
+    g_dpiConfigValid = true;
     g_currentState.dpiLevel = index + 1;
     g_currentState.dpiX = std::clamp(config.dpiX[(size_t)index], 1, 0xFFFF);
     g_currentState.dpiY = std::clamp(config.dpiY[(size_t)index], 1, 0xFFFF);
@@ -955,11 +966,19 @@ bool SetDpiIndex(int index) {
     if (ReadDpiConfig(current)) return current.currentIndex == index;
 
     EnterCriticalSection(&g_csState);
+    g_dpiConfigValid = true;
     g_currentState.dpiLevel = index + 1;
     State copySt = g_currentState;
     LeaveCriticalSection(&g_csState);
     if (g_callback) g_callback(copySt, CHANGE_DPI);
     return true;
+}
+
+bool IsDpiConfigValid() {
+    EnterCriticalSection(&g_csState);
+    bool valid = g_dpiConfigValid;
+    LeaveCriticalSection(&g_csState);
+    return valid;
 }
 
 bool IsStarted() {
