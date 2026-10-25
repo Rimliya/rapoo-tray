@@ -13,6 +13,14 @@ struct DpiConfig {
     std::vector<int> dpiY;
 };
 
+struct IoDebugInfo {
+    bool controlOpen = false;
+    bool featureOpen = false;
+    DWORD featureError = 0;
+    DWORD featureBytes = 0;
+    BYTE featureData[33] = {0};
+};
+
 struct State {
     bool isConnected = false;
     bool isWired = false;
@@ -54,5 +62,6 @@ bool IsStarted();
 void ForceRefresh();
 
 State GetCurrentState();
+IoDebugInfo GetIoDebugInfo();
 
 } // namespace Device

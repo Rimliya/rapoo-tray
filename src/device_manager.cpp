@@ -28,6 +28,9 @@ static HANDLE g_hFeatureDev = INVALID_HANDLE_VALUE;
 
 static int g_cachedBattery = 100;
 static bool g_started = false;
+static DWORD g_lastFeatureError = 0;
+static DWORD g_lastFeatureBytes = 0;
+static BYTE g_lastFeatureData[33] = {0};
 
 // Registry helper for persistent settings
 static DWORD LoadRegistryDword(const WCHAR* valName, DWORD defVal) {
@@ -112,6 +115,9 @@ static bool ReadRegisterBytes(BYTE bank, BYTE addr, BYTE len, BYTE* outData) {
     BYTE featBuf[33] = {0};
     featBuf[0] = Rapoo::REPORT_ID_FEATURE;
     BOOL fOk = HidD_GetFeature(g_hFeatureDev, featBuf, sizeof(featBuf));
+    g_lastFeatureError = fOk ? 0 : GetLastError();
+    g_lastFeatureBytes = sizeof(featBuf);
+    memcpy(g_lastFeatureData, featBuf, sizeof(featBuf));
     bool ok = fOk && Rapoo::ParseFeatureRead(featBuf, sizeof(featBuf), len, outData);
     LeaveCriticalSection(&g_csDevIO);
     return ok;
@@ -996,6 +1002,18 @@ State GetCurrentState() {
     State st = g_currentState;
     LeaveCriticalSection(&g_csState);
     return st;
+}
+
+IoDebugInfo GetIoDebugInfo() {
+    IoDebugInfo info;
+    EnterCriticalSection(&g_csDevIO);
+    info.controlOpen = g_hControlDev != INVALID_HANDLE_VALUE;
+    info.featureOpen = g_hFeatureDev != INVALID_HANDLE_VALUE;
+    info.featureError = g_lastFeatureError;
+    info.featureBytes = g_lastFeatureBytes;
+    memcpy(info.featureData, g_lastFeatureData, sizeof(info.featureData));
+    LeaveCriticalSection(&g_csDevIO);
+    return info;
 }
 
 } // namespace Device

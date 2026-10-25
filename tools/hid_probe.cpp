@@ -21,7 +21,15 @@ int wmain() {
 
     Device::DpiConfig dpi;
     bool dpiOk = state.isConnected && Device::ReadDpiConfig(dpi);
+    Device::IoDebugInfo io = Device::GetIoDebugInfo();
     if (log) {
+        fwprintf(log, L"Control open: %d\n", io.controlOpen ? 1 : 0);
+        fwprintf(log, L"Feature open: %d\n", io.featureOpen ? 1 : 0);
+        fwprintf(log, L"Feature error: %lu\n", (unsigned long)io.featureError);
+        fwprintf(log, L"Feature bytes: %lu\n", (unsigned long)io.featureBytes);
+        fwprintf(log, L"Feature data:");
+        for (DWORD i = 0; i < io.featureBytes; ++i) fwprintf(log, L" %02X", io.featureData[i]);
+        fwprintf(log, L"\n");
         fwprintf(log, L"Connected: %d\n", state.isConnected ? 1 : 0);
         fwprintf(log, L"Wired: %d\n", state.isWired ? 1 : 0);
         fwprintf(log, L"Model: %s\n", state.modelName);
