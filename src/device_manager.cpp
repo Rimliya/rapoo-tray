@@ -116,6 +116,24 @@ static bool ReadControlReportLocked(BYTE* outBuf, DWORD outSize, DWORD timeoutMs
             g_lastControlBytes = read;
             memcpy(g_lastControlData, outBuf, std::min<DWORD>(sizeof(g_lastControlData), read));
         }
+
+        BYTE getInput[33] = {0};
+        getInput[0] = Rapoo::REPORT_ID_CONTROL;
+        if (HidD_GetInputReport(g_hControlDev, getInput, sizeof(getInput))) {
+            bool getReportWithAck = getInput[0] == Rapoo::REPORT_ID_CONTROL &&
+                (getInput[1] == 0x01 || getInput[1] == 0x02 || getInput[1] == 0x03);
+            bool getAckWithoutReportId = getInput[0] == 0x01 || getInput[0] == 0x02 || getInput[0] == 0x03;
+            if (getReportWithAck || getAckWithoutReportId) {
+                g_lastControlError = 0;
+                g_lastControlBytes = sizeof(getInput);
+                memcpy(g_lastControlData, getInput, sizeof(getInput));
+                memcpy(outBuf, getInput, std::min<DWORD>(outSize, sizeof(getInput)));
+                bytesRead = sizeof(getInput);
+                return true;
+            }
+        } else {
+            g_lastControlError = GetLastError();
+        }
     }
     return false;
 }
