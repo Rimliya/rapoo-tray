@@ -18,53 +18,52 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Zig
-        uses: mlugg/setup-zig@v2
+      - name: Setup MinGW
+        uses: msys2/setup-msys2@v2
         with:
-          version: 0.16.0
+          msystem: MINGW64
+          update: false
+          install: mingw-w64-x86_64-gcc mingw-w64-x86_64-binutils
 
       - name: Build rapoo-tray.exe
-        shell: pwsh
+        shell: msys2 {0}
         run: |
-          New-Item -ItemType Directory -Force bin | Out-Null
-          zig rc /c 65001 /I res /fo bin/app.o res/app.rc
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          zig c++ -O3 -s -std=c++17 -municode '-Wl,--subsystem,windows' -static -Isrc `
-            src/main.cpp `
-            src/rapoo_protocol.cpp `
-            src/device_manager.cpp `
-            src/osd_window.cpp `
-            src/tray_menu.cpp `
-            src/alert_window.cpp `
-            src/profile_manager.cpp `
-            src/battery_estimator.cpp `
-            src/settings_window.cpp `
-            src/dpi_window.cpp `
-            bin/app.o `
-            -lsetupapi -lhid -luser32 -lgdi32 -lshell32 -ladvapi32 `
-            -luxtheme -ldwmapi -lcomdlg32 -lcomctl32 `
+          mkdir -p bin
+          windres --codepage 65001 -I res -i res/app.rc -o bin/app.o
+          g++ -O3 -std=c++17 -mwindows -municode -s -static \
+            src/main.cpp \
+            src/rapoo_protocol.cpp \
+            src/device_manager.cpp \
+            src/osd_window.cpp \
+            src/tray_menu.cpp \
+            src/alert_window.cpp \
+            src/profile_manager.cpp \
+            src/battery_estimator.cpp \
+            src/settings_window.cpp \
+            src/dpi_window.cpp \
+            bin/app.o \
+            -lsetupapi -lhid -luser32 -lgdi32 -lshell32 -ladvapi32 \
+            -luxtheme -ldwmapi -lcomdlg32 -lcomctl32 \
             -o bin/rapoo-tray.exe
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          Remove-Item bin/app.o -Force
+          rm -f bin/app.o
 
       - name: Build rapoo-tray-setup.exe
-        shell: pwsh
+        shell: msys2 {0}
         run: |
-          New-Item -ItemType Directory -Force dist | Out-Null
-          zig rc /c 65001 /fo installer/installer.o installer/installer.rc
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          zig c++ -O3 -s -std=c++17 -municode '-Wl,--subsystem,windows' -static installer/installer.cpp installer/installer.o -lole32 -lshell32 -luser32 -lgdi32 -ladvapi32 -luuid -o dist/rapoo-tray-setup.exe
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          Remove-Item installer/installer.o -Force
+          mkdir -p dist
+          cd installer
+          windres --codepage 65001 -i installer.rc -o installer.o -O coff
+          g++ -O3 -std=c++17 -mwindows -municode -s -static installer.cpp installer.o -lole32 -lshell32 -luser32 -lgdi32 -ladvapi32 -luuid -o ../dist/rapoo-tray-setup.exe
+          rm -f installer.o
 
       - name: Build rapoo-plugin.dll
-        shell: pwsh
+        shell: msys2 {0}
         run: |
-          zig rc /c 65001 /fo plugin/plugin.o plugin/plugin.rc
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          zig c++ -shared -O3 -s -std=c++17 -municode -static plugin/rapoo_plugin.cpp plugin/plugin.o -lsetupapi -lhid -luser32 -lgdi32 -lshell32 -ladvapi32 -o bin/rapoo-plugin.dll
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          Remove-Item plugin/plugin.o -Force
+          mkdir -p bin
+          cd plugin
+          windres --codepage 65001 -i plugin.rc -o plugin.o -O coff
+          g++ -shared -O3 -std=c++17 -mwindows -municode -s -static rapoo_plugin.cpp plugin.o -lsetupapi -lhid -luser32 -lgdi32 -lshell32 -ladvapi32 -o ../bin/rapoo-plugin.dll
+          rm -f plugin.o
 
       - name: Upload build bundle
         uses: actions/upload-artifact@v4
