@@ -5,6 +5,7 @@ extern "C" {
 #include <setupapi.h>
 #include <strsafe.h>
 #include <algorithm>
+#include <atomic>
 
 #pragma comment(lib, "setupapi.lib")
 #pragma comment(lib, "hid.lib")
@@ -28,6 +29,7 @@ static HANDLE g_hFeatureDev = INVALID_HANDLE_VALUE;
 
 static int g_cachedBattery = 100;
 static bool g_started = false;
+static std::atomic<ULONGLONG> g_rfSettleUntil{0};
 
 // Registry helper for persistent settings
 static DWORD LoadRegistryDword(const WCHAR* valName, DWORD defVal) {
@@ -78,42 +80,53 @@ static bool SendRawCommand(BYTE bank, BYTE addr, const BYTE* pData, BYTE len) {
 }
 
 
-static bool ReadRegisterByte(BYTE bank, BYTE addr, BYTE& outValue) {
+static bool ReadRegisterBytes(BYTE bank, BYTE addr, BYTE len, BYTE* outData) {
+    if (!outData || len == 0 || len > 31) return false;
+
     EnterCriticalSection(&g_csDevIO);
     if (g_hControlDev == INVALID_HANDLE_VALUE || g_hFeatureDev == INVALID_HANDLE_VALUE) {
         LeaveCriticalSection(&g_csDevIO);
         return false;
     }
 
-    BYTE outBuf[33] = {0};
-    DWORD pktSize = Rapoo::BuildReadCommand(bank, addr, 1, outBuf, sizeof(outBuf));
+    bool ok = false;
+    for (int attempt = 0; attempt < 4 && !ok; ++attempt) {
+        BYTE outBuf[33] = {0};
+        DWORD pktSize = Rapoo::BuildReadCommand(bank, addr, len, outBuf, sizeof(outBuf));
 
-    DWORD written = 0;
-    OVERLAPPED ov = {0};
-    ov.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
-    BOOL wOk = WriteFile(g_hControlDev, outBuf, pktSize, &written, &ov);
-    if (!wOk && GetLastError() == ERROR_IO_PENDING) {
-        if (WaitForSingleObject(ov.hEvent, 800) == WAIT_OBJECT_0) {
-            GetOverlappedResult(g_hControlDev, &ov, &written, FALSE);
-            wOk = (written == pktSize);
-        } else {
-            CancelIo(g_hControlDev);
-            wOk = FALSE;
+        DWORD written = 0;
+        OVERLAPPED ov = {0};
+        ov.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
+        BOOL wOk = WriteFile(g_hControlDev, outBuf, pktSize, &written, &ov);
+        if (!wOk && GetLastError() == ERROR_IO_PENDING) {
+            if (WaitForSingleObject(ov.hEvent, 800) == WAIT_OBJECT_0) {
+                GetOverlappedResult(g_hControlDev, &ov, &written, FALSE);
+                wOk = (written == pktSize);
+            } else {
+                CancelIo(g_hControlDev);
+                wOk = FALSE;
+            }
         }
-    }
-    CloseHandle(ov.hEvent);
-    if (!wOk) {
-        LeaveCriticalSection(&g_csDevIO);
-        return false;
+        CloseHandle(ov.hEvent);
+        if (!wOk) {
+            Sleep(15);
+            continue;
+        }
+
+        Sleep(20);
+        BYTE featBuf[33] = {0};
+        featBuf[0] = Rapoo::REPORT_ID_FEATURE;
+        BOOL fOk = HidD_GetFeature(g_hFeatureDev, featBuf, sizeof(featBuf));
+        ok = fOk && Rapoo::ParseFeatureRead(featBuf, sizeof(featBuf), len, outData);
+        if (!ok) Sleep(50 + attempt * 50);
     }
 
-    Sleep(20);
-    BYTE featBuf[33] = {0};
-    featBuf[0] = Rapoo::REPORT_ID_FEATURE;
-    BOOL fOk = HidD_GetFeature(g_hFeatureDev, featBuf, sizeof(featBuf));
-    bool ok = fOk && Rapoo::ParseFeatureRead(featBuf, sizeof(featBuf), 1, &outValue);
     LeaveCriticalSection(&g_csDevIO);
     return ok;
+}
+
+static bool ReadRegisterByte(BYTE bank, BYTE addr, BYTE& outValue) {
+    return ReadRegisterBytes(bank, addr, 1, &outValue);
 }
 
 static bool PingDevice(int& outHz) {
@@ -500,9 +513,13 @@ static DWORD WINAPI HidWorkerThread(LPVOID lpParam) {
             DWORD written = 0;
             OVERLAPPED uOv = {0};
             uOv.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
-            WriteFile(g_hControlDev, unlockBuf, uSize, &written, &uOv);
-            WaitForSingleObject(uOv.hEvent, 200);
+            BOOL unlocked = WriteFile(g_hControlDev, unlockBuf, uSize, &written, &uOv);
+            if (!unlocked && GetLastError() == ERROR_IO_PENDING) {
+                unlocked = WaitForSingleObject(uOv.hEvent, 800) == WAIT_OBJECT_0 &&
+                    GetOverlappedResult(g_hControlDev, &uOv, &written, FALSE);
+            }
             CloseHandle(uOv.hEvent);
+            if (unlocked) Sleep(150);
         }
 
         // Query current hardware polling rate
@@ -516,6 +533,8 @@ static DWORD WINAPI HidWorkerThread(LPVOID lpParam) {
         }
 
         RefreshRfState();
+        DpiConfig initialDpi;
+        ReadDpiConfig(initialDpi);
 
         // Push saved sleep timeout to device hardware
         int curSleepMin = 10;
@@ -532,6 +551,7 @@ static DWORD WINAPI HidWorkerThread(LPVOID lpParam) {
         BYTE buf[65] = {0};
         DWORD bytesRead = 0;
         bool gotFirstPacket = false; // no ping-alive judgement until mode is known
+        int pingFailureCount = 0;
 
         while (WaitForSingleObject(g_hStopEvent, 0) == WAIT_TIMEOUT) {
             ResetEvent(hReadEvent);
@@ -572,15 +592,20 @@ static DWORD WINAPI HidWorkerThread(LPVOID lpParam) {
                             if (!wiredNow) {
                                 int hz = 0;
                                 bool alive = PingDevice(hz);
+                                bool inRfSettleWindow = GetTickCount64() < g_rfSettleUntil.load();
                                 if (!alive) {
-                                    EnterCriticalSection(&g_csState);
-                                    bool wasConn = g_currentState.isConnected;
-                                    g_currentState.isConnected = false;
-                                    g_currentState.isCharging = false;
-                                    State copySt = g_currentState;
-                                    LeaveCriticalSection(&g_csState);
-                                    if (wasConn && g_callback) g_callback(copySt, CHANGE_CONNECTED | CHANGE_BATTERY);
+                                    ++pingFailureCount;
+                                    if (!inRfSettleWindow && pingFailureCount >= 3) {
+                                        EnterCriticalSection(&g_csState);
+                                        bool wasConn = g_currentState.isConnected;
+                                        g_currentState.isConnected = false;
+                                        g_currentState.isCharging = false;
+                                        State copySt = g_currentState;
+                                        LeaveCriticalSection(&g_csState);
+                                        if (wasConn && g_callback) g_callback(copySt, CHANGE_CONNECTED | CHANGE_BATTERY);
+                                    }
                                 } else {
+                                    pingFailureCount = 0;
                                     EnterCriticalSection(&g_csState);
                                     bool wasConn = g_currentState.isConnected;
                                     g_currentState.isConnected = true;
@@ -608,6 +633,7 @@ static DWORD WINAPI HidWorkerThread(LPVOID lpParam) {
             Rapoo::DeviceStatus devStatus;
             if (Rapoo::ParseStatusReport(buf, bytesRead, devStatus, g_cachedBattery)) {
                 gotFirstPacket = true;
+                pingFailureCount = 0;
                 // NOTE: wired USB direct connect does NOT imply charging.
                 // Trust the protocol-level charging flag for all modes.
 
@@ -776,11 +802,9 @@ bool RefreshPollingRate() {
 bool RefreshRfState() {
     BYTE raw = 0;
     if (!ReadRegisterByte(Rapoo::BANK_SYSTEM, Rapoo::ADDR_RF_STRENGTHEN, raw)) {
-        EnterCriticalSection(&g_csState);
-        g_currentState.rfAvailable = false;
-        State copySt = g_currentState;
-        LeaveCriticalSection(&g_csState);
-        if (g_callback) g_callback(copySt, CHANGE_RF);
+        // A failed read is not evidence that RF control disappeared. Keeping the
+        // last known value avoids a false "device disconnected" state during the
+        // short endpoint reset caused by some wireless-strategy changes.
         return false;
     }
 
@@ -796,22 +820,145 @@ bool RefreshRfState() {
 }
 
 bool SetRfFull(bool full) {
-    BYTE current = 0;
-    if (!ReadRegisterByte(Rapoo::BANK_SYSTEM, Rapoo::ADDR_RF_STRENGTHEN, current)) return false;
-
-    BYTE next = full ? (BYTE)(current | 0x01) : (BYTE)(current & 0xFE);
+    // The wireless strategy is a one-byte enum on the supported generation
+    // (0 = smart, 1 = full). Writing the complete value is safer than a
+    // read-modify-write transaction because switching can reset the endpoint.
+    BYTE next = full ? 0x01 : 0x00;
     if (!SendRawCommand(Rapoo::BANK_SYSTEM, Rapoo::ADDR_RF_STRENGTHEN, &next, 1)) return false;
 
-    BYTE verify = 0;
-    if (!ReadRegisterByte(Rapoo::BANK_SYSTEM, Rapoo::ADDR_RF_STRENGTHEN, verify)) return false;
-    if (((verify & 0x01) != 0) != full) return false;
-
+    g_rfSettleUntil.store(GetTickCount64() + 5000);
     EnterCriticalSection(&g_csState);
     g_currentState.rfAvailable = true;
     g_currentState.rfFull = full;
     State copySt = g_currentState;
     LeaveCriticalSection(&g_csState);
     if (g_callback) g_callback(copySt, CHANGE_RF);
+    return true;
+}
+
+static bool DecodeDpiTable(const BYTE* raw, int count, std::vector<int>& out) {
+    if (!raw || count <= 0) return false;
+    out.resize((size_t)count);
+    for (int i = 0; i < count; ++i) {
+        out[(size_t)i] = (int)raw[i * 2] | ((int)raw[i * 2 + 1] << 8);
+    }
+    return true;
+}
+
+bool ReadDpiConfig(DpiConfig& outConfig) {
+    BYTE countRaw = 0;
+    BYTE indexRaw = 0;
+    if (!ReadRegisterByte(Rapoo::BANK_SYSTEM, Rapoo::ADDR_DPI_SLOT_COUNT, countRaw)) return false;
+    if (!ReadRegisterByte(Rapoo::BANK_SYSTEM, Rapoo::ADDR_DPI_INDEX, indexRaw)) return false;
+
+    // 0x96 stores count - 1. Firmware tolerates values above the supported
+    // maximum, so clamp defensively for unknown or partially configured devices.
+    int count = std::clamp((int)countRaw + 1, 1, MAX_DPI_SLOTS);
+    int index = std::clamp((int)indexRaw, 0, count - 1);
+
+    BYTE xRaw[MAX_DPI_SLOTS * 2] = {0};
+    BYTE yRaw[MAX_DPI_SLOTS * 2] = {0};
+    if (!ReadRegisterBytes(Rapoo::BANK_SYSTEM, Rapoo::ADDR_DPI_TABLE_X, (BYTE)(count * 2), xRaw)) return false;
+    if (!ReadRegisterBytes(Rapoo::BANK_SYSTEM, Rapoo::ADDR_DPI_TABLE_Y, (BYTE)(count * 2), yRaw)) return false;
+
+    DpiConfig config;
+    config.currentIndex = index;
+    if (!DecodeDpiTable(xRaw, count, config.dpiX) ||
+        !DecodeDpiTable(yRaw, count, config.dpiY)) {
+        return false;
+    }
+    outConfig = config;
+
+    EnterCriticalSection(&g_csState);
+    bool changed = g_currentState.dpiLevel != (index + 1) ||
+                   g_currentState.dpiX != config.dpiX[(size_t)index] ||
+                   g_currentState.dpiY != config.dpiY[(size_t)index];
+    g_currentState.dpiLevel = index + 1;
+    g_currentState.dpiX = config.dpiX[(size_t)index];
+    g_currentState.dpiY = config.dpiY[(size_t)index];
+    State copySt = g_currentState;
+    LeaveCriticalSection(&g_csState);
+    if (changed && g_callback) g_callback(copySt, CHANGE_DPI);
+    return true;
+}
+
+bool WriteDpiConfig(const DpiConfig& config) {
+    int count = (int)config.dpiX.size();
+    if (count < 1 || count > MAX_DPI_SLOTS || (int)config.dpiY.size() != count) return false;
+    int index = std::clamp(config.currentIndex, 0, count - 1);
+
+    BYTE xBytes[MAX_DPI_SLOTS * 2] = {0};
+    BYTE yBytes[MAX_DPI_SLOTS * 2] = {0};
+    for (int i = 0; i < count; ++i) {
+        int x = std::clamp(config.dpiX[(size_t)i], 1, 0xFFFF);
+        int y = std::clamp(config.dpiY[(size_t)i], 1, 0xFFFF);
+        xBytes[i * 2] = (BYTE)(x & 0xFF);
+        xBytes[i * 2 + 1] = (BYTE)((x >> 8) & 0xFF);
+        yBytes[i * 2] = (BYTE)(y & 0xFF);
+        yBytes[i * 2 + 1] = (BYTE)((y >> 8) & 0xFF);
+    }
+
+    if (!SendRawCommand(Rapoo::BANK_SYSTEM, Rapoo::ADDR_DPI_TABLE_X,
+                        xBytes, (BYTE)(count * 2))) return false;
+    Sleep(15);
+    if (!SendRawCommand(Rapoo::BANK_SYSTEM, Rapoo::ADDR_DPI_TABLE_Y,
+                        yBytes, (BYTE)(count * 2))) return false;
+    Sleep(15);
+
+    BYTE countCode = (BYTE)(count - 1);
+    BYTE indexCode = (BYTE)index;
+    if (!SendRawCommand(Rapoo::BANK_SYSTEM, Rapoo::ADDR_DPI_SLOT_COUNT, &countCode, 1)) return false;
+    Sleep(15);
+    if (!SendRawCommand(Rapoo::BANK_SYSTEM, Rapoo::ADDR_DPI_INDEX, &indexCode, 1)) return false;
+    Sleep(30);
+
+    DpiConfig verified;
+    if (ReadDpiConfig(verified)) {
+        if ((int)verified.dpiX.size() != count || (int)verified.dpiY.size() != count ||
+            verified.currentIndex != index) {
+            return false;
+        }
+        for (int i = 0; i < count; ++i) {
+            int expectedX = std::clamp(config.dpiX[(size_t)i], 1, 0xFFFF);
+            int expectedY = std::clamp(config.dpiY[(size_t)i], 1, 0xFFFF);
+            if (verified.dpiX[(size_t)i] != expectedX || verified.dpiY[(size_t)i] != expectedY) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // The writes were accepted by the endpoint but the optional verification read
+    // timed out (common during endpoint settling). Keep the device usable and
+    // update the local state optimistically instead of reporting a false failure.
+    EnterCriticalSection(&g_csState);
+    g_currentState.dpiLevel = index + 1;
+    g_currentState.dpiX = std::clamp(config.dpiX[(size_t)index], 1, 0xFFFF);
+    g_currentState.dpiY = std::clamp(config.dpiY[(size_t)index], 1, 0xFFFF);
+    State copySt = g_currentState;
+    LeaveCriticalSection(&g_csState);
+    if (g_callback) g_callback(copySt, CHANGE_DPI);
+    return true;
+}
+
+bool SetDpiIndex(int index) {
+    BYTE countRaw = 0;
+    if (!ReadRegisterByte(Rapoo::BANK_SYSTEM, Rapoo::ADDR_DPI_SLOT_COUNT, countRaw)) return false;
+    int count = std::clamp((int)countRaw + 1, 1, MAX_DPI_SLOTS);
+    if (index < 0 || index >= count) return false;
+
+    BYTE indexCode = (BYTE)index;
+    if (!SendRawCommand(Rapoo::BANK_SYSTEM, Rapoo::ADDR_DPI_INDEX, &indexCode, 1)) return false;
+    Sleep(20);
+
+    DpiConfig current;
+    if (ReadDpiConfig(current)) return current.currentIndex == index;
+
+    EnterCriticalSection(&g_csState);
+    g_currentState.dpiLevel = index + 1;
+    State copySt = g_currentState;
+    LeaveCriticalSection(&g_csState);
+    if (g_callback) g_callback(copySt, CHANGE_DPI);
     return true;
 }
 

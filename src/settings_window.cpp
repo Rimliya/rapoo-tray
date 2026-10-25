@@ -2,6 +2,7 @@
 #include "profile_manager.h"
 #include "battery_estimator.h"
 #include "device_manager.h"
+#include "dpi_window.h"
 #include "osd_window.h"
 #include "rapoo_protocol.h"
 #include "tray_menu.h"
@@ -42,7 +43,8 @@ enum ControlId {
     IDC_CLOSE,
     IDC_STATUS,
     IDC_RF_FULL,
-    IDC_MODEL_SELECT
+    IDC_MODEL_SELECT,
+    IDC_OPEN_DPI
 };
 
 constexpr UINT_PTR TIMER_ADVANCED_INIT = 0x4101;
@@ -430,9 +432,11 @@ void RefreshDeviceState() {
     g_deviceState = Device::GetCurrentState();
     g_deviceStateValid = true;
     UpdateAutoModelLabel();
-    SetOwnedChecked(IDC_RF_FULL, g_deviceState.rfFull);
+    if (g_deviceState.rfAvailable) SetOwnedChecked(IDC_RF_FULL, g_deviceState.rfFull);
     HWND rfControl = GetDlgItem(g_hwnd, IDC_RF_FULL);
-    if (rfControl) EnableWindow(rfControl, (g_deviceState.isConnected && g_deviceState.rfAvailable) ? TRUE : FALSE);
+    // Writing the strategy only needs a live control endpoint. A transient
+    // register-read timeout must not make the checkbox look disconnected.
+    if (rfControl) EnableWindow(rfControl, g_deviceState.isConnected ? TRUE : FALSE);
     RECT advanced = { S(386), S(494), S(756), S(626) };
     InvalidateRect(g_hwnd, &advanced, FALSE);
 }
@@ -509,7 +513,7 @@ void PaintSettingsWindow(HWND hWnd) {
         { S(460), S(150), S(740), S(182) },
         { S(460), S(188), S(740), S(220) },
         { S(38), S(404), S(594), S(436) },
-        { S(458), S(554), S(742), S(592) }
+        { S(458), S(554), S(638), S(592) }
     };
     for (const RECT& field : fieldRects) {
         FillRounded(dc, field, ColorField(), ColorBorder(), S(6));
@@ -824,7 +828,7 @@ void CreateControls() {
     CreateCheck(L"满格射频（不勾选 = 智能调节）", 400, 530, 340, 24, IDC_RF_FULL);
     g_hModelCombo = CreateControl(
         L"COMBOBOX", L"", WS_TABSTOP | CBS_DROPDOWNLIST | WS_VSCROLL,
-        0, 460, 555, 280, 160, IDC_MODEL_SELECT
+        0, 460, 555, 180, 160, IDC_MODEL_SELECT
     );
     if (g_hModelCombo) {
         const auto& models = BatteryEstimate::Models();
@@ -834,6 +838,7 @@ void CreateControls() {
         }
         SelectSavedModel();
     }
+    CreateButton(L"DPI 设置…", 650, 552, 90, 30, IDC_OPEN_DPI);
 
     g_hStatus = CreateText(L"", 24, 648, 500, 24, IDC_STATUS);
     CreateButton(L"保存并应用", 550, 642, 110, 32, IDC_SAVE);
@@ -960,6 +965,10 @@ LRESULT CALLBACK SettingsWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
                 return 0;
             }
 
+            if (id == IDC_OPEN_DPI && notification == BN_CLICKED) {
+                DpiWindow::Show(hWnd);
+                return 0;
+            }
             if (id == IDC_ADD_PROFILE && notification == BN_CLICKED) {
                 AddProfile();
                 return 0;

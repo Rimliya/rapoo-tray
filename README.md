@@ -4,7 +4,7 @@
   <p><b>雷柏VT系列游戏鼠标轻量化托盘程序</b></p>
 
   <p>
-    <a href="https://github.com/Rimliya/rapoo-tray/releases"><img src="https://img.shields.io/badge/Release-v1.5.0-blue?style=flat-square" alt="Release" /></a>
+    <a href="https://github.com/Rimliya/rapoo-tray/releases"><img src="https://img.shields.io/badge/Release-v1.6.0-blue?style=flat-square" alt="Release" /></a>
     <img src="https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?style=flat-square&logo=windows" alt="Platform" />
     <img src="https://img.shields.io/badge/Language-C%2B%2B17%20%2F%20Win32-00599C?style=flat-square&logo=c%2B%2B" alt="Language" />
     <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License" />
@@ -21,7 +21,9 @@
 
 ## 🚀 新版本特性
 
+- **DPI 档位编辑器**：读取鼠标当前 DPI 档位，支持按型号限制的 DPI 范围、增删档位、自定义 X/Y、升序排列和独立双轴设置；启动/更新不会重置鼠标当前 DPI。
 - **无线射频策略与续航粗估**：设置页可切换“满格射频 / 智能调节”，并按鼠标型号、回报率、射频策略和当前电量估算续航；型号支持自动识别或手动指定。
+- **原地更新**：安装器会从卸载信息、开机启动项或正在运行的托盘程序定位已有安装目录，更新时不再要求重新选择目录。
 - **设备识别增强**：补充 VT3 V2 的 `1462/4662` PID 变体，并增加 HID 产品字符串回退识别。
 - **统一 Fluent 界面**：独立的“配置与自动化”窗口沿用托盘的亚克力、圆角、深浅色、悬停与强调色视觉体系。
 - **配置档案与快速切换**：可新建、重命名和删除独立配置，每个配置保存回报率与休眠时间；托盘菜单和“配置与自动化”窗口均可快速切换。
@@ -111,7 +113,8 @@
 3. 点击 **浏览…** 选择需要联动的程序（例如 `r5apex_dx12.exe`）。游戏切换为无边框或独占全屏后，Windows 仍会报告其前台窗口，因此该规则同样有效。
 4. 保存后，进入所选程序时会应用该配置；切换到其他程序时会恢复 **默认配置**。
 5. 托盘菜单中的 **快速切换配置** 可立即手动切换；手动切换不会修改默认回退配置。
-6. 在“高级设置”中可勾选 **满格射频**（不勾选即智能调节），并选择鼠标型号查看粗略续航估算。
+6. 在“高级设置”中可勾选 **满格射频**（不勾选即智能调节），选择鼠标型号查看粗略续航估算，并进入 **DPI 设置** 增删和自定义档位。
+7. DPI 设置只会读取当前硬件档位；只有点击“应用并切换”才会写入鼠标，因此重启或更新程序不会把 DPI 恢复为出厂的 800。
 
 > 所有配置、默认项和自动化开关均保存在 `HKCU\Software\rapoo-tray`，无需管理员权限，也不会写入仓库。
 

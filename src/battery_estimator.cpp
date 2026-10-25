@@ -131,16 +131,52 @@ std::wstring DetectModelKey(const Device::State& state) {
     return L"generic";
 }
 
+std::wstring ResolveModelKey(const Device::State& state) {
+    std::wstring overrideKey = LoadOverride();
+    std::wstring key = overrideKey.empty() ? DetectModelKey(state) : overrideKey;
+    if (!FindProfile(key)) key = L"generic";
+    return key;
+}
+
+bool GetDpiSpecForState(const Device::State& state, DpiSpec& outSpec,
+                        std::wstring* outKey, std::wstring* outLabel) {
+    std::wstring key = ResolveModelKey(state);
+    const PowerProfile* profile = FindProfile(key);
+    if (!profile) return false;
+
+    // DPI bounds are based on the published specifications for the supported
+    // Rapoo models. Values are encoded as unsigned 16-bit integers by the mouse.
+    DpiSpec spec;
+    spec.step = 10;
+    spec.maxSlots = 7;
+    if (key == L"vt7" || key == L"vt3v2") {
+        spec.minDpi = 10;
+        spec.maxDpi = 30000;
+    } else if (key == L"vt3max") {
+        spec.minDpi = 1;
+        spec.maxDpi = 60000;
+    } else if (key == L"vt3s" || key == L"vt3") {
+        spec.minDpi = 50;
+        spec.maxDpi = 26000;
+    } else {
+        spec.minDpi = 50;
+        spec.maxDpi = 26000;
+    }
+    outSpec = spec;
+    if (outKey) *outKey = key;
+    if (outLabel) *outLabel = profile->label;
+    return true;
+}
+
 Result Calculate(const Device::State& state) {
     Result result;
-    std::wstring overrideKey = LoadOverride();
-    std::wstring modelKey = overrideKey.empty() ? DetectModelKey(state) : overrideKey;
+    std::wstring modelKey = ResolveModelKey(state);
     const PowerProfile* profile = FindProfile(modelKey);
     if (!profile) profile = FindProfile(L"generic");
     if (!profile) return result;
 
     result.available = true;
-    result.autoDetected = overrideKey.empty();
+    result.autoDetected = LoadOverride().empty();
     result.modelLabel = profile->label;
 
     double hours = profile->baseHoursAt1000;

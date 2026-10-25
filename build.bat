@@ -12,7 +12,7 @@ where g++ >nul 2>nul
 if %ERRORLEVEL% equ 0 (
     echo [Toolchain] Using MinGW GCC/G++ ...
     windres --codepage 65001 -I res -i res\app.rc -o bin\app.o
-    g++ -O3 -std=c++17 -mwindows -municode -s -static src\main.cpp src\rapoo_protocol.cpp src\device_manager.cpp src\osd_window.cpp src\tray_menu.cpp src\alert_window.cpp src\profile_manager.cpp src\battery_estimator.cpp src\settings_window.cpp bin\app.o -lsetupapi -lhid -luser32 -lgdi32 -lshell32 -ladvapi32 -luxtheme -ldwmapi -lcomdlg32 -lcomctl32 -o bin\rapoo-tray.exe
+    g++ -O3 -std=c++17 -mwindows -municode -s -static src\main.cpp src\rapoo_protocol.cpp src\device_manager.cpp src\osd_window.cpp src\tray_menu.cpp src\alert_window.cpp src\profile_manager.cpp src\battery_estimator.cpp src\settings_window.cpp src\dpi_window.cpp bin\app.o -lsetupapi -lhid -luser32 -lgdi32 -lshell32 -ladvapi32 -luxtheme -ldwmapi -lcomdlg32 -lcomctl32 -o bin\rapoo-tray.exe
     if exist bin\app.o del bin\app.o
     goto done
 )

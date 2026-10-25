@@ -7,6 +7,7 @@ extern "C" {
 #include <strsafe.h>
 #include "rapoo_protocol.h"
 #include "device_manager.h"
+#include "dpi_window.h"
 #include "osd_window.h"
 #include "alert_window.h"
 #include "tray_menu.h"
@@ -247,6 +248,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     MSG msg;
     while (GetMessageW(&msg, NULL, 0, 0)) {
         if (Settings::PreTranslateMessage(&msg)) continue;
+        if (DpiWindow::PreTranslateMessage(&msg)) continue;
         TranslateMessage(&msg);
         DispatchMessageW(&msg);
     }
@@ -257,6 +259,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         hDevNotify = NULL;
     }
     KillTimer(g_hMainWnd, TIMER_PROFILE_POLL);
+    DpiWindow::Cleanup();
     Settings::Cleanup();
     Device::Stop();
     Osd::Cleanup();

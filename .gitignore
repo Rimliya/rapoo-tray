@@ -19,3 +19,8 @@ dist/
 # OS temporary files
 Thumbs.db
 Desktop.ini
+
+# Local dependencies and protocol research
+.tools/
+.research/
+hid-probe-result.txt
