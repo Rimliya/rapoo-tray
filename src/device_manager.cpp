@@ -31,6 +31,8 @@ static bool g_started = false;
 static DWORD g_lastFeatureError = 0;
 static DWORD g_lastFeatureBytes = 0;
 static BYTE g_lastFeatureData[33] = {0};
+static bool g_useNrf54lProtocol = false;
+static BYTE g_commandPrefix = 0xA5;
 
 // Registry helper for persistent settings
 static DWORD LoadRegistryDword(const WCHAR* valName, DWORD defVal) {
@@ -52,6 +54,91 @@ static void SaveRegistryDword(const WCHAR* valName, DWORD val) {
     }
 }
 
+static bool WriteControlPacketLocked(const BYTE* packet, DWORD size, DWORD timeoutMs = 800) {
+    DWORD written = 0;
+    OVERLAPPED ov = {0};
+    ov.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
+    BOOL ok = WriteFile(g_hControlDev, packet, size, &written, &ov);
+    if (!ok && GetLastError() == ERROR_IO_PENDING) {
+        if (WaitForSingleObject(ov.hEvent, timeoutMs) == WAIT_OBJECT_0) {
+            GetOverlappedResult(g_hControlDev, &ov, &written, FALSE);
+            ok = (written == size);
+        } else {
+            CancelIo(g_hControlDev);
+            ok = FALSE;
+        }
+    }
+    CloseHandle(ov.hEvent);
+    return ok && written == size;
+}
+
+static bool ReadControlReportLocked(BYTE* outBuf, DWORD outSize, DWORD timeoutMs, DWORD& bytesRead) {
+    bytesRead = 0;
+    if (!outBuf || outSize == 0) return false;
+    ULONGLONG deadline = GetTickCount64() + timeoutMs;
+    while (GetTickCount64() < deadline) {
+        DWORD remaining = (DWORD)(deadline - GetTickCount64());
+        DWORD waitMs = std::min<DWORD>(remaining, 250);
+        ZeroMemory(outBuf, outSize);
+        OVERLAPPED ov = {0};
+        ov.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
+        DWORD read = 0;
+        BOOL ok = ReadFile(g_hControlDev, outBuf, outSize, &read, &ov);
+        if (!ok && GetLastError() == ERROR_IO_PENDING) {
+            DWORD wait = WaitForSingleObject(ov.hEvent, waitMs);
+            if (wait == WAIT_OBJECT_0) {
+                ok = GetOverlappedResult(g_hControlDev, &ov, &read, FALSE);
+            } else {
+                CancelIo(g_hControlDev);
+                CloseHandle(ov.hEvent);
+                continue;
+            }
+        }
+        CloseHandle(ov.hEvent);
+        if (ok && read >= 2) {
+            if (outBuf[0] == Rapoo::REPORT_ID_CONTROL ||
+                outBuf[0] == Rapoo::RESP_ACK ||
+                outBuf[0] == 0x02 || outBuf[0] == 0x03) {
+                bytesRead = read;
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+static bool ReadNrf54lRegisterLocked(BYTE bank, BYTE addr, BYTE len, BYTE* outData) {
+    BYTE command[33] = {0};
+    command[0] = Rapoo::REPORT_ID_CONTROL;
+    command[1] = g_commandPrefix;
+    command[2] = 0xA4;
+    command[3] = len;
+    command[4] = addr;
+    command[5] = bank;
+    if (!WriteControlPacketLocked(command, sizeof(command))) return false;
+    Sleep(20);
+
+    BYTE response[65] = {0};
+    DWORD bytesRead = 0;
+    if (!ReadControlReportLocked(response, sizeof(response), 1200, bytesRead)) return false;
+    g_lastFeatureError = 0;
+    g_lastFeatureBytes = std::min<DWORD>(sizeof(g_lastFeatureData), bytesRead);
+    memcpy(g_lastFeatureData, response, g_lastFeatureBytes);
+
+    DWORD dataOffset = 0;
+    if (bytesRead >= 5 && response[0] == Rapoo::REPORT_ID_CONTROL &&
+        (response[1] == 0x01 || response[1] == 0x02 || response[1] == 0x03)) {
+        dataOffset = 5;
+    } else if (bytesRead >= 4 && (response[0] == 0x01 || response[0] == 0x02 || response[0] == 0x03)) {
+        dataOffset = 4;
+    } else {
+        return false;
+    }
+    if (bytesRead < dataOffset + len) return false;
+    memcpy(outData, response + dataOffset, len);
+    return true;
+}
+
 static bool SendRawCommand(BYTE bank, BYTE addr, const BYTE* pData, BYTE len) {
     EnterCriticalSection(&g_csDevIO);
     if (g_hControlDev == INVALID_HANDLE_VALUE) {
@@ -59,53 +146,61 @@ static bool SendRawCommand(BYTE bank, BYTE addr, const BYTE* pData, BYTE len) {
         return false;
     }
 
+    if (g_useNrf54lProtocol) {
+        if (!pData || len == 0 || len > 24) {
+            LeaveCriticalSection(&g_csDevIO);
+            return false;
+        }
+        BYTE command[33] = {0};
+        command[0] = Rapoo::REPORT_ID_CONTROL;
+        command[1] = g_commandPrefix;
+        command[2] = 0xA5;
+        command[3] = len;
+        command[4] = addr;
+        command[5] = bank;
+        memcpy(&command[8], pData, len);
+        bool wrote = WriteControlPacketLocked(command, sizeof(command));
+        BYTE response[65] = {0};
+        DWORD bytesRead = 0;
+        bool acked = wrote && ReadControlReportLocked(response, sizeof(response), 1200, bytesRead);
+        if (acked) {
+            bool okAck = (bytesRead >= 2 && response[0] == Rapoo::REPORT_ID_CONTROL &&
+                          (response[1] == 0x01 || response[1] == 0x02 || response[1] == 0x03)) ||
+                         (bytesRead >= 1 && (response[0] == 0x01 || response[0] == 0x02 || response[0] == 0x03));
+            if (!okAck) acked = false;
+        }
+        LeaveCriticalSection(&g_csDevIO);
+        return acked;
+    }
+
     BYTE buf[33] = {0};
     DWORD pktSize = Rapoo::BuildWriteCommand(bank, addr, pData, len, buf, sizeof(buf));
-
-    DWORD written = 0;
-    OVERLAPPED ov = {0};
-    ov.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
-    BOOL ok = WriteFile(g_hControlDev, buf, pktSize, &written, &ov);
-    if (!ok && GetLastError() == ERROR_IO_PENDING) {
-        if (WaitForSingleObject(ov.hEvent, 800) == WAIT_OBJECT_0) {
-            GetOverlappedResult(g_hControlDev, &ov, &written, FALSE);
-            ok = (written == pktSize);
-        } else {
-            CancelIo(g_hControlDev);
-            ok = FALSE;
-        }
-    }
-    CloseHandle(ov.hEvent);
+    bool ok = WriteControlPacketLocked(buf, pktSize);
     LeaveCriticalSection(&g_csDevIO);
-    return (ok && written == pktSize);
+    return ok;
 }
 
 
 static bool ReadRegisterBytes(BYTE bank, BYTE addr, BYTE len, BYTE* outData) {
     if (!outData || len == 0 || len > 31) return false;
     EnterCriticalSection(&g_csDevIO);
-    if (g_hControlDev == INVALID_HANDLE_VALUE || g_hFeatureDev == INVALID_HANDLE_VALUE) {
+    if (g_hControlDev == INVALID_HANDLE_VALUE) {
+        LeaveCriticalSection(&g_csDevIO);
+        return false;
+    }
+    if (g_useNrf54lProtocol) {
+        bool ok = ReadNrf54lRegisterLocked(bank, addr, len, outData);
+        LeaveCriticalSection(&g_csDevIO);
+        return ok;
+    }
+    if (g_hFeatureDev == INVALID_HANDLE_VALUE) {
         LeaveCriticalSection(&g_csDevIO);
         return false;
     }
 
     BYTE outBuf[33] = {0};
     DWORD pktSize = Rapoo::BuildReadCommand(bank, addr, len, outBuf, sizeof(outBuf));
-
-    DWORD written = 0;
-    OVERLAPPED ov = {0};
-    ov.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
-    BOOL wOk = WriteFile(g_hControlDev, outBuf, pktSize, &written, &ov);
-    if (!wOk && GetLastError() == ERROR_IO_PENDING) {
-        if (WaitForSingleObject(ov.hEvent, 800) == WAIT_OBJECT_0) {
-            GetOverlappedResult(g_hControlDev, &ov, &written, FALSE);
-            wOk = (written == pktSize);
-        } else {
-            CancelIo(g_hControlDev);
-            wOk = FALSE;
-        }
-    }
-    CloseHandle(ov.hEvent);
+    bool wOk = WriteControlPacketLocked(outBuf, pktSize);
     if (!wOk) {
         LeaveCriticalSection(&g_csDevIO);
         return false;
@@ -197,7 +292,7 @@ static void ResolveRapooModelName(const WCHAR* targetPid, const WCHAR* productNa
     StringCchCopyW(outModel, maxModelLen, L"通用");
 }
 
-static bool FindRapooEndpoints(WCHAR* pathStatus, WCHAR* pathControl, WCHAR* pathFeature, WCHAR* outModel, DWORD maxModelLen, bool* outIsWired) {
+static bool FindRapooEndpoints(WCHAR* pathStatus, WCHAR* pathControl, WCHAR* pathFeature, WCHAR* outModel, DWORD maxModelLen, bool* outIsWired, bool* outUseNrf54l) {
     GUID hidGuid;
     HidD_GetHidGuid(&hidGuid);
 
@@ -380,6 +475,9 @@ static bool FindRapooEndpoints(WCHAR* pathStatus, WCHAR* pathControl, WCHAR* pat
         if (outIsWired) {
             *outIsWired = isWired;
         }
+        if (outUseNrf54l) {
+            *outUseNrf54l = wcsstr(targetPid, L"1462") != nullptr || wcsstr(targetPid, L"4662") != nullptr;
+        }
     }
 
     return ok;
@@ -391,6 +489,7 @@ static DWORD WINAPI HidWorkerThread(LPVOID lpParam) {
     WCHAR pathFeature[MAX_PATH] = {0};
     WCHAR modelBuf[64] = {0};
     bool isWired = false;
+    bool useNrf54l = false;
 
     // Load user's saved sleep timeout from registry (default 10 min)
     EnterCriticalSection(&g_csState);
@@ -399,7 +498,7 @@ static DWORD WINAPI HidWorkerThread(LPVOID lpParam) {
     LeaveCriticalSection(&g_csState);
 
     while (WaitForSingleObject(g_hStopEvent, 200) == WAIT_TIMEOUT) {
-        if (!FindRapooEndpoints(pathStatus, pathControl, pathFeature, modelBuf, 64, &isWired)) {
+        if (!FindRapooEndpoints(pathStatus, pathControl, pathFeature, modelBuf, 64, &isWired, &useNrf54l)) {
             EnterCriticalSection(&g_csState);
             bool wasConn = g_currentState.isConnected;
             g_currentState.isConnected = false;
@@ -411,6 +510,9 @@ static DWORD WINAPI HidWorkerThread(LPVOID lpParam) {
             Sleep(1000);
             continue;
         }
+
+        g_useNrf54lProtocol = useNrf54l;
+        g_commandPrefix = isWired ? 0xFF : 0xA5;
 
         HANDLE hStatus = CreateFileW(
             pathStatus,
