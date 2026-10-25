@@ -50,6 +50,7 @@ bool SetRfFull(bool full);
 bool ReadDpiConfig(DpiConfig& outConfig);
 bool WriteDpiConfig(const DpiConfig& config);
 bool SetDpiIndex(int index);
+bool IsDpiConfigValid();
 bool IsStarted();
 void ForceRefresh();
 

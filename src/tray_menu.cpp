@@ -754,7 +754,7 @@ static void ShowSubMenuWindow(int subType, RECT rItemScreen) {
     }
 
     auto profileSnapshot = Profiles::GetAll();
-    if (subType == 4) {
+    if (subType == 4 && g_dpiQuickSlots.slots.empty()) {
         if (!DpiWindow::GetQuickSlots(g_dpiQuickSlots)) g_dpiQuickSlots = DpiWindow::QuickSlotList();
     }
     int subW = (subType == 1) ? S(140) : ((subType == 3) ? S(250) : ((subType == 4) ? S(180) : S(260)));
@@ -1036,6 +1036,8 @@ static LRESULT CALLBACK AcrylicMainWndProc(HWND hWnd, UINT msg, WPARAM wParam, L
 void ShowMenu(HWND hWndOwner) {
     if (g_bModalLoop) return;
     Device::RefreshPollingRate();
+    g_dpiQuickSlots = DpiWindow::QuickSlotList();
+    DpiWindow::GetQuickSlots(g_dpiQuickSlots);
     g_hParentAppWnd = hWndOwner;
     g_curDark = IsDarkMode();
 
@@ -1054,6 +1056,13 @@ void ShowMenu(HWND hWndOwner) {
     if (g_curDpi == 0) g_curDpi = 96;
 
     Device::State st = Device::GetCurrentState();
+    if (st.isConnected && !g_dpiQuickSlots.slots.empty()) {
+        int index = std::clamp(g_dpiQuickSlots.activeIndex, 0,
+            (int)g_dpiQuickSlots.slots.size() - 1);
+        st.dpiX = g_dpiQuickSlots.slots[(size_t)index].x;
+        st.dpiY = g_dpiQuickSlots.slots[(size_t)index].y;
+        st.dpiLevel = index + 1;
+    }
 
     // Populate Menu Items
     g_mainItems.clear();
@@ -1097,8 +1106,13 @@ void ShowMenu(HWND hWndOwner) {
     itemDpi.isInteractive = true;
     itemDpi.isDisabled = !st.isConnected;
     itemDpi.submenuType = 4;
-    if (st.isConnected) {
-        StringCchPrintfW(itemDpi.value, 32, L"%d (第 %d 档)  ›", st.dpiX, st.dpiLevel);
+    if (!g_dpiQuickSlots.slots.empty()) {
+        int index = std::clamp(g_dpiQuickSlots.activeIndex, 0,
+            (int)g_dpiQuickSlots.slots.size() - 1);
+        StringCchPrintfW(itemDpi.value, 32, L"%d (第 %d 档)  ›",
+            g_dpiQuickSlots.slots[(size_t)index].x, index + 1);
+    } else if (st.isConnected) {
+        StringCchCopyW(itemDpi.value, 32, L"待读取  ›");
     } else {
         StringCchCopyW(itemDpi.value, 32, L"--");
     }

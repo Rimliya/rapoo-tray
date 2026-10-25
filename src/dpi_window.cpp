@@ -978,9 +978,10 @@ bool GetQuickSlots(QuickSlotList& out) {
         return true;
     }
 
-    // First run (or a sleeping mouse without a cache) can still expose the live
-    // DPI value already present in the status packet.
-    if (state.dpiX > 0) {
+    // Only use the status packet as a fallback when its DPI fields have been
+    // superseded by a successful register-read. A stale 800 from the broadcast
+    // must never be presented as the current configured DPI.
+    if (Device::IsDpiConfigValid() && state.dpiX > 0) {
         QuickSlot slot;
         slot.x = std::clamp(state.dpiX, spec.minDpi, spec.maxDpi);
         slot.y = std::clamp(state.dpiY > 0 ? state.dpiY : state.dpiX, spec.minDpi, spec.maxDpi);
