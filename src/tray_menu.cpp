@@ -2,6 +2,7 @@
 #include "osd_window.h"
 #include "profile_manager.h"
 #include "settings_window.h"
+#include "dpi_window.h"
 #include <dwmapi.h>
 #include <strsafe.h>
 #include <cstring>
@@ -22,9 +23,10 @@ static bool g_bModalLoop = false;
 
 static int g_curDpi = 96;
 static bool g_curDark = false;
-static int g_activeSubId = 0; // 0: None, 1: Polling Hz, 2: Sleep Slider
+static int g_activeSubId = 0; // 0: None, 1: Polling, 2: Sleep, 3: Profile, 4: DPI
 static int g_mainHover = -1;
 static int g_subHover = -1;
+static DpiWindow::QuickSlotList g_dpiQuickSlots;
 
 // Sleep slider state
 static bool g_isDraggingSlider = false;
@@ -206,7 +208,7 @@ void ToggleAutoRun() {
 }
 
 // --------------------------------------------------------------------------
-// Submenu Window (Polling Rate, Sleep Slider & Profiles)
+// Submenu Window (Polling Rate, Sleep Slider, Profiles & DPI)
 // --------------------------------------------------------------------------
 
 static void DismissSubMenu() {
@@ -372,9 +374,12 @@ static LRESULT CALLBACK AcrylicSubWndProc(HWND hWnd, UINT msg, WPARAM wParam, LP
                 return 0;
             }
 
-            if (g_activeSubId == 1 || g_activeSubId == 3) { // Polling rate / profile list
-                int count = (g_activeSubId == 1) ? 7 : (int)Profiles::GetAll().size();
-                int itemH = (g_activeSubId == 1) ? S(28) : S(32);
+            if (g_activeSubId == 1 || g_activeSubId == 3 || g_activeSubId == 4) {
+                int count = 0;
+                int itemH = S(28);
+                if (g_activeSubId == 1) count = 7;
+                else if (g_activeSubId == 3) { count = (int)Profiles::GetAll().size(); itemH = S(32); }
+                else count = (int)g_dpiQuickSlots.slots.size();
                 int y = S(8);
                 int newH = -1;
                 for (int i = 0; i < count; i++) {
@@ -428,6 +433,34 @@ static LRESULT CALLBACK AcrylicSubWndProc(HWND hWnd, UINT msg, WPARAM wParam, LP
                 const WCHAR* batIcon = st.isCharging ? L"⚡" : L"🔋";
                 StringCchPrintfW(l3, ARRAYSIZE(l3), L"%s  |  第 %d 档  |  %s %d%%  |  %d Hz",
                     modeStr, st.dpiLevel, batIcon, st.battery, hz);
+                Osd::Show(l1, l2, l3);
+                return 0;
+            }
+
+            if (g_activeSubId == 4 && g_subHover >= 0 &&
+                g_subHover < (int)g_dpiQuickSlots.slots.size()) {
+                int index = g_subHover;
+                DpiWindow::QuickSlot slot = g_dpiQuickSlots.slots[(size_t)index];
+                DismissAllMenus();
+
+                bool ok = DpiWindow::SelectQuickSlot(index);
+                Device::State st = Device::GetCurrentState();
+                WCHAR l1[64], l2[96], l3[128];
+                if (ok) {
+                    if (slot.x == slot.y) {
+                        StringCchPrintfW(l1, ARRAYSIZE(l1), L"DPI: %d", slot.x);
+                    } else {
+                        StringCchPrintfW(l1, ARRAYSIZE(l1), L"DPI: X %d / Y %d", slot.x, slot.y);
+                    }
+                    StringCchPrintfW(l2, ARRAYSIZE(l2), L"已切换到第 %d 档", index + 1);
+                } else {
+                    StringCchCopyW(l1, ARRAYSIZE(l1), L"DPI 切换失败");
+                    StringCchCopyW(l2, ARRAYSIZE(l2), L"请唤醒鼠标后重试");
+                }
+                const WCHAR* modeStr = st.isWired ? L"USB" : L"2.4G";
+                const WCHAR* batIcon = st.isCharging ? L"⚡" : L"🔋";
+                StringCchPrintfW(l3, ARRAYSIZE(l3), L"%s  |  %s %d%%  |  %d Hz",
+                    modeStr, batIcon, st.battery, st.pollingHz);
                 Osd::Show(l1, l2, l3);
                 return 0;
             }
@@ -513,6 +546,48 @@ static LRESULT CALLBACK AcrylicSubWndProc(HWND hWnd, UINT msg, WPARAM wParam, LP
                     DrawTextW(memDC, labels[i], -1, &rText, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 
                     if (hzVals[i] == currentHz) {
+                        SetTextColor(memDC, checkCol);
+                        RECT rCheck = { rc.right - S(28), y, rc.right - S(10), y + itemH };
+                        DrawTextW(memDC, L"✓", -1, &rCheck, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+                    }
+                    y += itemH;
+                }
+            } else if (g_activeSubId == 4) { // DPI quick switch
+                int count = (int)g_dpiQuickSlots.slots.size();
+                int itemH = S(28);
+                int y = S(8);
+                if (count == 0) {
+                    SetTextColor(memDC, mutedCol);
+                    RECT rEmpty = { S(14), y, rc.right - S(14), y + itemH };
+                    DrawTextW(memDC, L"尚未配置 DPI 档位", -1, &rEmpty,
+                        DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+                }
+                for (int i = 0; i < count; ++i) {
+                    RECT rItem = { S(6), y, rc.right - S(6), y + itemH };
+                    if (i == g_subHover) {
+                        HBRUSH hH = CreateSolidBrush(hoverCol);
+                        HPEN hP = CreatePen(PS_SOLID, 1, hoverCol);
+                        HGDIOBJ oP = SelectObject(memDC, hP);
+                        HGDIOBJ oB = SelectObject(memDC, hH);
+                        RoundRect(memDC, rItem.left, rItem.top + 1, rItem.right, rItem.bottom - 1, S(6), S(6));
+                        SelectObject(memDC, oP);
+                        SelectObject(memDC, oB);
+                        DeleteObject(hP);
+                        DeleteObject(hH);
+                    }
+
+                    const auto& slot = g_dpiQuickSlots.slots[(size_t)i];
+                    WCHAR label[64] = {0};
+                    if (slot.x == slot.y) {
+                        StringCchPrintfW(label, ARRAYSIZE(label), L"%d DPI", slot.x);
+                    } else {
+                        StringCchPrintfW(label, ARRAYSIZE(label), L"X %d / Y %d", slot.x, slot.y);
+                    }
+                    SetTextColor(memDC, textCol);
+                    RECT rText = { S(14), y, rc.right - S(32), y + itemH };
+                    DrawTextW(memDC, label, -1, &rText, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+
+                    if (i == g_dpiQuickSlots.activeIndex) {
                         SetTextColor(memDC, checkCol);
                         RECT rCheck = { rc.right - S(28), y, rc.right - S(10), y + itemH };
                         DrawTextW(memDC, L"✓", -1, &rCheck, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
@@ -679,8 +754,12 @@ static void ShowSubMenuWindow(int subType, RECT rItemScreen) {
     }
 
     auto profileSnapshot = Profiles::GetAll();
-    int subW = (subType == 1) ? S(140) : ((subType == 3) ? S(250) : S(260));
-    int subH = (subType == 1) ? S(212) : ((subType == 3) ? S(16 + (int)profileSnapshot.size() * 32) : S(138));
+    if (subType == 4) {
+        if (!DpiWindow::GetQuickSlots(g_dpiQuickSlots)) g_dpiQuickSlots = DpiWindow::QuickSlotList();
+    }
+    int subW = (subType == 1) ? S(140) : ((subType == 3) ? S(250) : ((subType == 4) ? S(180) : S(260)));
+    int subH = (subType == 1) ? S(212) : ((subType == 3) ? S(16 + (int)profileSnapshot.size() * 32) :
+        ((subType == 4) ? S(16 + std::max(1, (int)g_dpiQuickSlots.slots.size()) * 28) : S(138)));
 
     HMONITOR hMon = MonitorFromPoint({ rItemScreen.left, rItemScreen.top }, MONITOR_DEFAULTTONEAREST);
     MONITORINFO mi = { sizeof(mi) };
@@ -726,7 +805,7 @@ struct MenuItemData {
     bool isSeparator;
     bool isInteractive;
     bool isDisabled;
-    int submenuType; // 0: None, 1: Polling, 2: Sleep, 3: Profile
+    int submenuType; // 0: None, 1: Polling, 2: Sleep, 3: Profile, 4: DPI
 };
 
 static std::vector<MenuItemData> g_mainItems;
@@ -1015,9 +1094,11 @@ void ShowMenu(HWND hWndOwner) {
 
     MenuItemData itemDpi = { 0 };
     itemDpi.label = L"DPI 档位";
+    itemDpi.isInteractive = true;
     itemDpi.isDisabled = !st.isConnected;
+    itemDpi.submenuType = 4;
     if (st.isConnected) {
-        StringCchPrintfW(itemDpi.value, 32, L"%d (第 %d 档)", st.dpiX, st.dpiLevel);
+        StringCchPrintfW(itemDpi.value, 32, L"%d (第 %d 档)  ›", st.dpiX, st.dpiLevel);
     } else {
         StringCchCopyW(itemDpi.value, 32, L"--");
     }

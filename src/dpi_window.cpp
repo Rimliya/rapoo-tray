@@ -216,12 +216,65 @@ void SortGears() {
     });
 }
 
-std::wstring CacheKey() {
-    std::wstring key = g_modelKey.empty() ? L"generic" : g_modelKey;
+std::wstring CacheKeyFor(const std::wstring& modelKey) {
+    std::wstring key = modelKey.empty() ? L"generic" : modelKey;
     for (WCHAR& ch : key) {
         if (!(iswalnum(ch) || ch == L'-' || ch == L'_')) ch = L'_';
     }
     return std::wstring(REG_SUBKEY) + L"\\" + key;
+}
+
+std::wstring CacheKey() {
+    return CacheKeyFor(g_modelKey);
+}
+
+bool LoadQuickCache(const std::wstring& modelKey, int limit,
+                    std::vector<QuickSlot>& slots, int& activeIndex) {
+    slots.clear();
+    HKEY hKey = NULL;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, CacheKeyFor(modelKey).c_str(), 0, KEY_READ, &hKey) != ERROR_SUCCESS) {
+        return false;
+    }
+    DWORD count = 0, active = 0, type = 0, size = sizeof(DWORD);
+    bool ok = RegQueryValueExW(hKey, L"Count", NULL, &type, (LPBYTE)&count, &size) == ERROR_SUCCESS;
+    size = sizeof(DWORD);
+    ok = ok && RegQueryValueExW(hKey, L"Active", NULL, &type, (LPBYTE)&active, &size) == ERROR_SUCCESS;
+    count = std::clamp<DWORD>(count, 1, (DWORD)std::max(1, limit));
+    std::vector<int> x(count), y(count);
+    size = count * sizeof(int);
+    ok = ok && RegQueryValueExW(hKey, L"ValuesX", NULL, &type, (LPBYTE)x.data(), &size) == ERROR_SUCCESS;
+    size = count * sizeof(int);
+    ok = ok && RegQueryValueExW(hKey, L"ValuesY", NULL, &type, (LPBYTE)y.data(), &size) == ERROR_SUCCESS;
+    RegCloseKey(hKey);
+    if (!ok) return false;
+
+    for (DWORD i = 0; i < count; ++i) {
+        QuickSlot slot;
+        slot.x = x[i];
+        slot.y = y[i];
+        slots.push_back(slot);
+    }
+    activeIndex = std::clamp((int)active, 0, (int)slots.size() - 1);
+    return !slots.empty();
+}
+
+void SaveQuickCache(const std::wstring& modelKey, const std::vector<QuickSlot>& slots, int activeIndex) {
+    if (slots.empty()) return;
+    HKEY hKey = NULL;
+    if (RegCreateKeyExW(HKEY_CURRENT_USER, CacheKeyFor(modelKey).c_str(), 0, NULL, 0, KEY_WRITE,
+            NULL, &hKey, NULL) != ERROR_SUCCESS) return;
+    DWORD count = (DWORD)slots.size();
+    DWORD active = (DWORD)std::clamp(activeIndex, 0, (int)slots.size() - 1);
+    std::vector<int> x(count), y(count);
+    for (DWORD i = 0; i < count; ++i) {
+        x[i] = slots[(size_t)i].x;
+        y[i] = slots[(size_t)i].y;
+    }
+    RegSetValueExW(hKey, L"Count", 0, REG_DWORD, (const BYTE*)&count, sizeof(count));
+    RegSetValueExW(hKey, L"Active", 0, REG_DWORD, (const BYTE*)&active, sizeof(active));
+    RegSetValueExW(hKey, L"ValuesX", 0, REG_BINARY, (const BYTE*)x.data(), count * sizeof(int));
+    RegSetValueExW(hKey, L"ValuesY", 0, REG_BINARY, (const BYTE*)y.data(), count * sizeof(int));
+    RegCloseKey(hKey);
 }
 
 bool LoadCache(int& activeIndex) {
@@ -888,6 +941,60 @@ LRESULT CALLBACK DpiWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 }
 
 } // namespace
+
+bool GetQuickSlots(QuickSlotList& out) {
+    out = QuickSlotList();
+    Device::State state = Device::GetCurrentState();
+    BatteryEstimate::DpiSpec spec;
+    if (!BatteryEstimate::GetDpiSpecForState(state, spec, &out.modelKey, &out.modelLabel)) {
+        return false;
+    }
+    int limit = std::min(std::max(1, spec.maxSlots), Device::MAX_DPI_SLOTS);
+
+    if (state.isConnected) {
+        Device::DpiConfig hardware;
+        if (Device::ReadDpiConfig(hardware) && !hardware.dpiX.empty()) {
+            int count = std::min({(int)hardware.dpiX.size(), (int)hardware.dpiY.size(), limit});
+            for (int i = 0; i < count; ++i) {
+                QuickSlot slot;
+                slot.x = std::clamp(hardware.dpiX[(size_t)i], spec.minDpi, spec.maxDpi);
+                slot.y = std::clamp(hardware.dpiY[(size_t)i], spec.minDpi, spec.maxDpi);
+                out.slots.push_back(slot);
+            }
+            if (!out.slots.empty()) {
+                out.activeIndex = std::clamp(hardware.currentIndex, 0, (int)out.slots.size() - 1);
+                out.fromDevice = true;
+                SaveQuickCache(out.modelKey, out.slots, out.activeIndex);
+                return true;
+            }
+        }
+    }
+
+    if (LoadQuickCache(out.modelKey, limit, out.slots, out.activeIndex)) {
+        for (QuickSlot& slot : out.slots) {
+            slot.x = std::clamp(slot.x, spec.minDpi, spec.maxDpi);
+            slot.y = std::clamp(slot.y, spec.minDpi, spec.maxDpi);
+        }
+        return true;
+    }
+
+    // First run (or a sleeping mouse without a cache) can still expose the live
+    // DPI value already present in the status packet.
+    if (state.dpiX > 0) {
+        QuickSlot slot;
+        slot.x = std::clamp(state.dpiX, spec.minDpi, spec.maxDpi);
+        slot.y = std::clamp(state.dpiY > 0 ? state.dpiY : state.dpiX, spec.minDpi, spec.maxDpi);
+        out.slots.push_back(slot);
+        out.activeIndex = 0;
+        return true;
+    }
+    return false;
+}
+
+bool SelectQuickSlot(int index) {
+    if (index < 0 || !Device::GetCurrentState().isConnected) return false;
+    return Device::SetDpiIndex(index);
+}
 
 void Show(HWND owner) {
     if (g_hwnd && IsWindow(g_hwnd)) {

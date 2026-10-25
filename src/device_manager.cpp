@@ -942,15 +942,15 @@ bool WriteDpiConfig(const DpiConfig& config) {
 }
 
 bool SetDpiIndex(int index) {
-    BYTE countRaw = 0;
-    if (!ReadRegisterByte(Rapoo::BANK_SYSTEM, Rapoo::ADDR_DPI_SLOT_COUNT, countRaw)) return false;
-    int count = std::clamp((int)countRaw + 1, 1, MAX_DPI_SLOTS);
-    if (index < 0 || index >= count) return false;
+    if (index < 0 || index >= MAX_DPI_SLOTS) return false;
 
     BYTE indexCode = (BYTE)index;
     if (!SendRawCommand(Rapoo::BANK_SYSTEM, Rapoo::ADDR_DPI_INDEX, &indexCode, 1)) return false;
     Sleep(20);
 
+    // Index switching does not require a preceding register read. The quick
+    // menu already knows the configured slot count, so avoid failing a valid
+    // switch when a feature read is temporarily unavailable.
     DpiConfig current;
     if (ReadDpiConfig(current)) return current.currentIndex == index;
 
