@@ -31,6 +31,9 @@ static bool g_started = false;
 static DWORD g_lastFeatureError = 0;
 static DWORD g_lastFeatureBytes = 0;
 static BYTE g_lastFeatureData[33] = {0};
+static DWORD g_lastControlError = 0;
+static DWORD g_lastControlBytes = 0;
+static BYTE g_lastControlData[65] = {0};
 static bool g_useNrf54lProtocol = false;
 static BYTE g_commandPrefix = 0xA5;
 
@@ -84,12 +87,16 @@ static bool ReadControlReportLocked(BYTE* outBuf, DWORD outSize, DWORD timeoutMs
         ov.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
         DWORD read = 0;
         BOOL ok = ReadFile(g_hControlDev, outBuf, outSize, &read, &ov);
+        if (!ok) {
+            g_lastControlError = GetLastError();
+        }
         if (!ok && GetLastError() == ERROR_IO_PENDING) {
             DWORD wait = WaitForSingleObject(ov.hEvent, waitMs);
             if (wait == WAIT_OBJECT_0) {
                 ok = GetOverlappedResult(g_hControlDev, &ov, &read, FALSE);
             } else {
                 CancelIo(g_hControlDev);
+                g_lastControlError = ERROR_TIMEOUT;
                 CloseHandle(ov.hEvent);
                 continue;
             }
@@ -100,9 +107,14 @@ static bool ReadControlReportLocked(BYTE* outBuf, DWORD outSize, DWORD timeoutMs
                 (outBuf[1] == 0x01 || outBuf[1] == 0x02 || outBuf[1] == 0x03);
             bool ackWithoutReportId = outBuf[0] == 0x01 || outBuf[0] == 0x02 || outBuf[0] == 0x03;
             if (reportWithAck || ackWithoutReportId) {
+                g_lastControlError = 0;
+                g_lastControlBytes = read;
+                memcpy(g_lastControlData, outBuf, std::min<DWORD>(sizeof(g_lastControlData), read));
                 bytesRead = read;
                 return true;
             }
+            g_lastControlBytes = read;
+            memcpy(g_lastControlData, outBuf, std::min<DWORD>(sizeof(g_lastControlData), read));
         }
     }
     return false;
@@ -1115,6 +1127,10 @@ IoDebugInfo GetIoDebugInfo() {
     info.featureError = g_lastFeatureError;
     info.featureBytes = g_lastFeatureBytes;
     memcpy(info.featureData, g_lastFeatureData, sizeof(info.featureData));
+    info.nrf54l = g_useNrf54lProtocol;
+    info.controlError = g_lastControlError;
+    info.controlBytes = g_lastControlBytes;
+    memcpy(info.controlData, g_lastControlData, sizeof(info.controlData));
     LeaveCriticalSection(&g_csDevIO);
     return info;
 }

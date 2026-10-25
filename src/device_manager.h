@@ -19,6 +19,10 @@ struct IoDebugInfo {
     DWORD featureError = 0;
     DWORD featureBytes = 0;
     BYTE featureData[33] = {0};
+    bool nrf54l = false;
+    DWORD controlError = 0;
+    DWORD controlBytes = 0;
+    BYTE controlData[65] = {0};
 };
 
 struct State {

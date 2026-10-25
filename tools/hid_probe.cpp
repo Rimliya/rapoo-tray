@@ -30,6 +30,12 @@ int wmain() {
         fwprintf(log, L"Feature data:");
         for (DWORD i = 0; i < io.featureBytes; ++i) fwprintf(log, L" %02X", io.featureData[i]);
         fwprintf(log, L"\n");
+        fwprintf(log, L"nRF54L: %d\n", io.nrf54l ? 1 : 0);
+        fwprintf(log, L"Control error: %lu\n", (unsigned long)io.controlError);
+        fwprintf(log, L"Control bytes: %lu\n", (unsigned long)io.controlBytes);
+        fwprintf(log, L"Control data:");
+        for (DWORD i = 0; i < io.controlBytes; ++i) fwprintf(log, L" %02X", io.controlData[i]);
+        fwprintf(log, L"\n");
         fwprintf(log, L"Connected: %d\n", state.isConnected ? 1 : 0);
         fwprintf(log, L"Wired: %d\n", state.isWired ? 1 : 0);
         fwprintf(log, L"Model: %s\n", state.modelName);
