@@ -4,7 +4,7 @@
   <p><b>雷柏VT系列游戏鼠标轻量化托盘程序</b></p>
 
   <p>
-    <a href="https://github.com/Rimliya/rapoo-tray/releases"><img src="https://img.shields.io/badge/Release-v1.6.4-blue?style=flat-square" alt="Release" /></a>
+    <a href="https://github.com/Rimliya/rapoo-tray/releases"><img src="https://img.shields.io/badge/Release-v1.6.5-blue?style=flat-square" alt="Release" /></a>
     <img src="https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?style=flat-square&logo=windows" alt="Platform" />
     <img src="https://img.shields.io/badge/Language-C%2B%2B17%20%2F%20Win32-00599C?style=flat-square&logo=c%2B%2B" alt="Language" />
     <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License" />
@@ -171,7 +171,7 @@
 
 ## 🛠️ 源码编译 (Build from Source)
 
-环境要求：Windows 10 / 11，推荐安装 **Zig 0.16+**；也可使用 MSVC (Visual Studio 2019+)，或在本地开发时使用 MinGW-w64。正式发布请使用 Zig，以避免已知的杀毒软件误报。
+环境要求：Windows 10 / 11，配备 MinGW-w64 (GCC 9+) 或 MSVC (Visual Studio 2019+)。正式发布统一由 GitHub Actions 使用 MinGW 构建，本地脚本仅用于开发验证。
 
 ### 1. 编译可执行程序
 运行根目录下的一键编译脚本：
