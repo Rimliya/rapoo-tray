@@ -4,7 +4,7 @@
   <p><b>雷柏VT系列游戏鼠标轻量化托盘程序</b></p>
 
   <p>
-    <a href="https://github.com/Rimliya/rapoo-tray/releases"><img src="https://img.shields.io/badge/Release-v1.6.1-blue?style=flat-square" alt="Release" /></a>
+    <a href="https://github.com/Rimliya/rapoo-tray/releases"><img src="https://img.shields.io/badge/Release-v1.6.2-blue?style=flat-square" alt="Release" /></a>
     <img src="https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?style=flat-square&logo=windows" alt="Platform" />
     <img src="https://img.shields.io/badge/Language-C%2B%2B17%20%2F%20Win32-00599C?style=flat-square&logo=c%2B%2B" alt="Language" />
     <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License" />
@@ -23,7 +23,7 @@
 
 - **DPI 档位编辑器与托盘快速切换**：读取鼠标当前 DPI 档位，支持按型号限制的 DPI 范围、增删档位、自定义 X/Y、升序排列和独立双轴设置；托盘菜单可直接选择当前型号已配置的 DPI 档位。启动/更新不会重置鼠标当前 DPI。
 - **无线射频策略与续航粗估**：设置页可切换“满格射频 / 智能调节”，并按鼠标型号、回报率、射频策略和当前电量估算续航；型号支持自动识别或手动指定。
-- **原地更新**：安装器会从卸载信息、开机启动项或正在运行的托盘程序定位已有安装目录，更新时不再要求重新选择目录。
+- **原地更新与强制停机**：安装器会从卸载信息、开机启动项或正在运行的托盘程序定位已有安装目录；安装前强制执行“检测并停止旧程序、确认进程退出、再覆盖文件”的顺序，无法停止时直接中止安装。
 - **设备识别增强**：补充 VT3 V2 的 `1462/4662` PID 变体，并增加 HID 产品字符串回退识别。
 - **统一 Fluent 界面**：独立的“配置与自动化”窗口沿用托盘的亚克力、圆角、深浅色、悬停与强调色视觉体系。
 - **配置档案与快速切换**：可新建、重命名和删除独立配置，每个配置保存回报率与休眠时间；托盘菜单和“配置与自动化”窗口均可快速切换。

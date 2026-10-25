@@ -42,27 +42,55 @@ static const WCHAR* REG_RUN = L"Software\\Microsoft\\Windows\\CurrentVersion\\Ru
 static const WCHAR* REG_UNINSTALL = L"Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\rapoo-tray";
 static const WCHAR* APP_NAME = L"rapoo-tray";
 
-// Kill running process by executable name
-static void TerminateAppProcess() {
-    HANDLE hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-    if (hSnap == INVALID_HANDLE_VALUE) return;
+// The installer must stop every running tray instance and verify that the
+// executable locks are released before it replaces any files.
+static bool IsAppProcessName(const WCHAR* name) {
+    return name && (_wcsicmp(name, L"rapoo-tray.exe") == 0 ||
+                    _wcsicmp(name, L"RapooVT7Tray.exe") == 0);
+}
 
-    PROCESSENTRY32W pe;
-    pe.dwSize = sizeof(pe);
-    if (Process32FirstW(hSnap, &pe)) {
-        do {
-            if (_wcsicmp(pe.szExeFile, L"rapoo-tray.exe") == 0 || _wcsicmp(pe.szExeFile, L"RapooVT7Tray.exe") == 0) {
-                HANDLE hProc = OpenProcess(PROCESS_TERMINATE, FALSE, pe.th32ProcessID);
-                if (hProc) {
-                    TerminateProcess(hProc, 0);
-                    WaitForSingleObject(hProc, 1000);
-                    CloseHandle(hProc);
+static bool TerminateAppProcess(DWORD* outError = NULL) {
+    DWORD lastError = 0;
+    for (int round = 0; round < 5; ++round) {
+        HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+        if (snapshot == INVALID_HANDLE_VALUE) {
+            if (outError) *outError = GetLastError();
+            return false;
+        }
+
+        bool found = false;
+        PROCESSENTRY32W entry = {0};
+        entry.dwSize = sizeof(entry);
+        if (Process32FirstW(snapshot, &entry)) {
+            do {
+                if (!IsAppProcessName(entry.szExeFile)) continue;
+                found = true;
+                HANDLE process = OpenProcess(PROCESS_TERMINATE | SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION,
+                    FALSE, entry.th32ProcessID);
+                if (!process) {
+                    lastError = GetLastError();
+                    continue;
                 }
-            }
-        } while (Process32NextW(hSnap, &pe));
+                if (!TerminateProcess(process, 0)) {
+                    lastError = GetLastError();
+                }
+                DWORD wait = WaitForSingleObject(process, 1500);
+                if (wait != WAIT_OBJECT_0) lastError = ERROR_TIMEOUT;
+                CloseHandle(process);
+            } while (Process32NextW(snapshot, &entry));
+        }
+        CloseHandle(snapshot);
+
+        if (!found) {
+            Sleep(150);
+            if (outError) *outError = 0;
+            return true;
+        }
+        Sleep(300);
     }
-    CloseHandle(hSnap);
-    Sleep(150);
+
+    if (outError) *outError = lastError ? lastError : ERROR_TIMEOUT;
+    return false;
 }
 
 // Create Shell Shortcut (.lnk)
@@ -274,8 +302,25 @@ static void DoInstall() {
     EnableWindow(g_hBtnInstall, FALSE);
     EnableWindow(g_hBtnCancel, FALSE);
 
-    // 1. Terminate old running instances
-    TerminateAppProcess();
+    // 1. Mandatory stop-before-install strategy. Never continue if a tray
+    // instance is still alive, because replacing a locked executable can leave
+    // a partially updated installation.
+    SetWindowTextW(g_hBtnInstall, L"正在停止旧程序…");
+    UpdateWindow(g_hBtnInstall);
+    DWORD stopError = 0;
+    if (!TerminateAppProcess(&stopError)) {
+        WCHAR message[256] = {0};
+        StringCchPrintfW(message, ARRAYSIZE(message),
+            L"无法停止正在运行的 rapoo-tray.exe（错误 %lu）。\n请手动退出托盘程序后重试。",
+            (unsigned long)stopError);
+        MessageBoxW(g_hMainWnd, message, L"无法安装", MB_ICONERROR | MB_OK);
+        SetWindowTextW(g_hBtnInstall, g_isUpdate ? L"更新" : L"安装");
+        EnableWindow(g_hBtnInstall, TRUE);
+        EnableWindow(g_hBtnCancel, TRUE);
+        return;
+    }
+    SetWindowTextW(g_hBtnInstall, L"正在安装…");
+    UpdateWindow(g_hBtnInstall);
 
     // 2. Prepare directories (user-editable path)
     WCHAR installDir[MAX_PATH];
@@ -285,6 +330,7 @@ static void DoInstall() {
     while (dlen > 3 && installDir[dlen - 1] == L'\\') { installDir[dlen - 1] = 0; --dlen; }
     if (installDir[0] == 0 || installDir[1] != L':') {
         MessageBoxW(g_hMainWnd, L"请输入有效的安装路径。", L"错误", MB_ICONERROR);
+        SetWindowTextW(g_hBtnInstall, g_isUpdate ? L"更新" : L"安装");
         EnableWindow(g_hBtnInstall, TRUE);
         EnableWindow(g_hBtnCancel, TRUE);
         return;
@@ -299,7 +345,8 @@ static void DoInstall() {
 
     // 3. Extract rapoo-tray.exe
     if (!ExtractPayloadToFile(appExePath)) {
-        MessageBoxW(g_hMainWnd, L"写入文件失败，请确认程序是否正在运行。", L"错误", MB_ICONERROR);
+        MessageBoxW(g_hMainWnd, L"旧程序已停止，但写入文件仍失败。请检查安装目录权限后重试。", L"错误", MB_ICONERROR);
+        SetWindowTextW(g_hBtnInstall, g_isUpdate ? L"更新" : L"安装");
         EnableWindow(g_hBtnInstall, TRUE);
         EnableWindow(g_hBtnCancel, TRUE);
         return;
@@ -343,7 +390,7 @@ static void DoInstall() {
     HKEY hKeyUn;
     if (RegCreateKeyExW(HKEY_CURRENT_USER, REG_UNINSTALL, 0, NULL, 0, KEY_SET_VALUE, NULL, &hKeyUn, NULL) == ERROR_SUCCESS) {
         const WCHAR* name = L"rapoo-tray";
-        const WCHAR* ver = L"1.6.1";
+        const WCHAR* ver = L"1.6.2";
         const WCHAR* pub = L"Iris";
         WCHAR unCmd[MAX_PATH + 32];
         StringCchPrintfW(unCmd, sizeof(unCmd) / sizeof(WCHAR), L"\"%s\" /uninstall", uninstallerPath);
