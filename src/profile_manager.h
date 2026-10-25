@@ -13,6 +13,10 @@ struct Definition {
     int sleepMinutes = 10;
     std::wstring appPath;
     std::wstring appName;
+    // Zero means the profile predates DPI capture. The settings editor fills
+    // it from the connected mouse the next time the profile is saved.
+    int dpiX = 0;
+    int dpiY = 0;
 };
 
 // Loads profiles from HKCU and creates a small default set on first run.
@@ -27,7 +31,8 @@ int ActiveId();
 bool HasAppRule(const Definition& profile);
 
 // Profile editing. Names are trimmed and must be unique (case-insensitive).
-int Create(const std::wstring& name, int pollingHz = 1000, int sleepMinutes = 10);
+int Create(const std::wstring& name, int pollingHz = 1000, int sleepMinutes = 10,
+           int dpiX = 0, int dpiY = 0);
 bool Update(const Definition& profile);
 bool Delete(int id);
 void SetDefault(int id);
@@ -40,6 +45,7 @@ bool Select(int id);
 // polling/sleep controls are used directly.
 bool SetCurrentPolling(int hz);
 bool SetCurrentSleep(int minutes);
+bool SetCurrentDpi(int x, int y);
 
 bool AutoSwitchEnabled();
 void SetAutoSwitchEnabled(bool enabled);

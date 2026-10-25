@@ -24,7 +24,7 @@ namespace {
 
 constexpr const WCHAR* WINDOW_CLASS = L"RapooProfilesSettingsWnd";
 constexpr int WINDOW_WIDTH = 780;
-constexpr int WINDOW_HEIGHT = 690;
+constexpr int WINDOW_HEIGHT = 720;
 
 enum ControlId {
     IDC_PROFILE_LIST = 3001,
@@ -44,7 +44,10 @@ enum ControlId {
     IDC_STATUS,
     IDC_RF_FULL,
     IDC_MODEL_SELECT,
-    IDC_OPEN_DPI
+    IDC_OPEN_DPI,
+    IDC_DPI_X,
+    IDC_DPI_Y,
+    IDC_CAPTURE_DPI
 };
 
 constexpr UINT_PTR TIMER_ADVANCED_INIT = 0x4101;
@@ -94,6 +97,27 @@ COLORREF ColorText() { return g_dark ? RGB(235, 240, 248) : RGB(20, 24, 32); }
 COLORREF ColorMuted() { return g_dark ? RGB(140, 150, 165) : RGB(105, 115, 130); }
 COLORREF ColorAccent() { return g_dark ? RGB(96, 205, 255) : RGB(0, 110, 215); }
 COLORREF ColorButton() { return g_dark ? RGB(38, 42, 52) : RGB(240, 243, 248); }
+
+void GetCurrentDpiDefaults(int& x, int& y) {
+    const Device::State state = Device::GetCurrentState();
+    BatteryEstimate::DpiSpec spec;
+    BatteryEstimate::GetDpiSpecForState(state, spec);
+
+    x = 800;
+    y = 800;
+    if (Device::IsDpiConfigValid() && state.dpiX > 0) {
+        x = std::clamp(state.dpiX, spec.minDpi, spec.maxDpi);
+        y = std::clamp(state.dpiY > 0 ? state.dpiY : state.dpiX, spec.minDpi, spec.maxDpi);
+    }
+}
+
+std::wstring FormatDpiValue(const Profiles::Definition& profile) {
+    int x = profile.dpiX;
+    int y = profile.dpiY;
+    if (x <= 0 || y <= 0) GetCurrentDpiDefaults(x, y);
+    if (x == y) return std::to_wstring(x);
+    return std::to_wstring(x) + L"/" + std::to_wstring(y);
+}
 
 UINT GetSystemDpiSafe() {
     HMODULE hUser = GetModuleHandleW(L"user32.dll");
@@ -231,6 +255,8 @@ void ApplyNativeTheme() {
         GetDlgItem(g_hwnd, IDC_PROFILE_NAME),
         GetDlgItem(g_hwnd, IDC_POLLING_RATE),
         GetDlgItem(g_hwnd, IDC_SLEEP_TIME),
+        GetDlgItem(g_hwnd, IDC_DPI_X),
+        GetDlgItem(g_hwnd, IDC_DPI_Y),
         GetDlgItem(g_hwnd, IDC_APP_PATH),
         g_hModelCombo,
         g_hProfileList
@@ -437,14 +463,14 @@ void RefreshDeviceState() {
     // Writing the strategy only needs a live control endpoint. A transient
     // register-read timeout must not make the checkbox look disconnected.
     if (rfControl) EnableWindow(rfControl, g_deviceState.isConnected ? TRUE : FALSE);
-    RECT advanced = { S(386), S(494), S(756), S(626) };
+    RECT advanced = { S(386), S(526), S(756), S(650) };
     InvalidateRect(g_hwnd, &advanced, FALSE);
 }
 
 void DrawBatteryEstimate(HDC dc) {
     BatteryEstimate::Result estimate = BatteryEstimate::Calculate(g_deviceState);
     if (!estimate.available) {
-        DrawLabel(dc, L"续航数据暂不可用", 400, 598, 340, 22, g_fontSmall, ColorMuted());
+        DrawLabel(dc, L"续航数据暂不可用", 400, 618, 340, 20, g_fontSmall, ColorMuted());
         return;
     }
 
@@ -465,7 +491,7 @@ void DrawBatteryEstimate(HDC dc) {
             estimate.remainingMaxHours
         );
     }
-    DrawLabel(dc, text, 400, 598, 340, 20, g_fontSmall, ColorAccent());
+    DrawLabel(dc, text, 400, 618, 340, 20, g_fontSmall, ColorAccent());
 }
 
 void PaintSettingsWindow(HWND hWnd) {
@@ -478,13 +504,13 @@ void PaintSettingsWindow(HWND hWnd) {
     FillRect(dc, &rc, background);
     DeleteObject(background);
 
-    DrawSection(dc, 22, 82, 334, 284, L"配置档案");
-    DrawSection(dc, 370, 84, 386, 276, L"配置详情");
-    DrawSection(dc, 24, 356, 732, 130, L"前台程序自动切换");
-    DrawSection(dc, 24, 494, 350, 132, L"全局选项");
-    DrawSection(dc, 386, 494, 370, 132, L"高级设置");
+    DrawSection(dc, 22, 82, 334, 310, L"配置档案");
+    DrawSection(dc, 370, 82, 386, 310, L"配置详情");
+    DrawSection(dc, 24, 400, 732, 118, L"前台程序自动切换");
+    DrawSection(dc, 24, 526, 350, 124, L"全局选项");
+    DrawSection(dc, 386, 526, 370, 124, L"高级设置");
 
-    RECT listFrame = { S(22), S(106), S(356), S(324) };
+    RECT listFrame = { S(22), S(106), S(356), S(350) };
     FillRounded(dc, listFrame, ColorField(), ColorBorder(), S(7));
 
     RECT listHeader = { S(24), S(108), S(354), S(136) };
@@ -501,19 +527,21 @@ void PaintSettingsWindow(HWND hWnd) {
     SetBkMode(dc, TRANSPARENT);
     SelectObject(dc, g_fontSmall ? g_fontSmall : GetNormalFont());
     SetTextColor(dc, ColorMuted());
-    const WCHAR* headers[] = { L"名称", L"回报率", L"关联程序", L"状态" };
-    const int headerX[] = { 4, 92, 164, 250 };
-    const int headerW[] = { 84, 64, 82, 60 };
-    for (int i = 0; i < 4; ++i) {
+    const int headerX[] = { 4, 84, 142, 206, 278 };
+    const int headerW[] = { 80, 58, 64, 72, 50 };
+    const WCHAR* headersWithDpi[] = { L"名称", L"Hz", L"DPI", L"程序", L"状态" };
+    for (int i = 0; i < 5; ++i) {
         RECT cell = { listHeader.left + S(headerX[i]), listHeader.top, listHeader.left + S(headerX[i] + headerW[i]), listHeader.bottom };
-        DrawTextW(dc, headers[i], -1, &cell, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+        DrawTextW(dc, headersWithDpi[i], -1, &cell, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
     }
     RECT fieldRects[] = {
         { S(460), S(112), S(740), S(144) },
         { S(460), S(150), S(740), S(182) },
         { S(460), S(188), S(740), S(220) },
-        { S(38), S(404), S(594), S(436) },
-        { S(458), S(554), S(638), S(592) }
+        { S(38), S(450), S(594), S(482) },
+        { S(432), S(299), S(524), S(331) },
+        { S(558), S(299), S(658), S(331) },
+        { S(458), S(579), S(638), S(617) }
     };
     for (const RECT& field : fieldRects) {
         FillRounded(dc, field, ColorField(), ColorBorder(), S(6));
@@ -523,10 +551,23 @@ void PaintSettingsWindow(HWND hWnd) {
     DrawLabel(dc, L"回报率", 388, 153, 70, 28, g_fontNormal, ColorText());
     DrawLabel(dc, L"休眠时间", 388, 191, 70, 28, g_fontNormal, ColorText());
     DrawLabel(dc, L"默认配置是自动切换结束后的回退配置。", 388, 254, 350, 22, g_fontSmall, ColorMuted());
-    DrawLabel(dc, L"关联程序", 40, 379, 100, 24, g_fontNormal, ColorText());
-    DrawLabel(dc, L"当该程序处于前台（含无边框 / 独占全屏）时应用此配置；切到其他程序后恢复默认配置。", 40, 441, 700, 28, g_fontSmall, ColorMuted());
-    DrawLabel(dc, L"可随时关闭自动切换与 OSD 提示。", 40, 590, 310, 22, g_fontSmall, ColorMuted());
-    DrawLabel(dc, L"鼠标型号", 400, 557, 58, 28, g_fontNormal, ColorText());
+
+    HPEN dpiDivider = CreatePen(PS_SOLID, 1, ColorBorder());
+    HGDIOBJ oldDividerPen = SelectObject(dc, dpiDivider);
+    MoveToEx(dc, S(388), S(277), NULL);
+    LineTo(dc, S(738), S(277));
+    SelectObject(dc, oldDividerPen);
+    DeleteObject(dpiDivider);
+    DrawLabel(dc, L"DPI 参数", 388, 280, 72, 20, g_fontBold, ColorText());
+    DrawLabel(dc, L"切换档案时写入当前 DPI 档位", 462, 280, 276, 20, g_fontSmall, ColorMuted());
+    DrawLabel(dc, L"X 轴", 388, 303, 40, 22, g_fontSmall, ColorMuted());
+    DrawLabel(dc, L"Y 轴", 534, 303, 24, 22, g_fontSmall, ColorMuted());
+    DrawLabel(dc, L"打开编辑器可增删档位；此档案只保存当前 X/Y 数值。", 388, 373, 358, 18, g_fontSmall, ColorMuted());
+
+    DrawLabel(dc, L"关联程序", 40, 425, 100, 24, g_fontNormal, ColorText());
+    DrawLabel(dc, L"当该程序处于前台（含无边框 / 独占全屏）时应用此配置；切到其他程序后恢复默认配置。", 40, 487, 700, 24, g_fontSmall, ColorMuted());
+    DrawLabel(dc, L"可随时关闭自动切换与 OSD 提示。", 40, 610, 310, 20, g_fontSmall, ColorMuted());
+    DrawLabel(dc, L"鼠标型号", 400, 585, 58, 28, g_fontNormal, ColorText());
     DrawBatteryEstimate(dc);
     HPEN border = CreatePen(PS_SOLID, 1, ColorBorder());
     HGDIOBJ oldPen = SelectObject(dc, border);
@@ -582,6 +623,17 @@ void LoadEditor(int profileId) {
     WCHAR sleepText[32] = {0};
     StringCchPrintfW(sleepText, ARRAYSIZE(sleepText), L"%d", profile.sleepMinutes);
     SetText(GetDlgItem(g_hwnd, IDC_SLEEP_TIME), sleepText);
+
+    int dpiX = profile.dpiX;
+    int dpiY = profile.dpiY;
+    if (dpiX <= 0 || dpiY <= 0) GetCurrentDpiDefaults(dpiX, dpiY);
+    WCHAR dpiXText[32] = {0};
+    WCHAR dpiYText[32] = {0};
+    StringCchPrintfW(dpiXText, ARRAYSIZE(dpiXText), L"%d", dpiX);
+    StringCchPrintfW(dpiYText, ARRAYSIZE(dpiYText), L"%d", dpiY);
+    SetText(GetDlgItem(g_hwnd, IDC_DPI_X), dpiXText);
+    SetText(GetDlgItem(g_hwnd, IDC_DPI_Y), dpiYText);
+
     SetText(GetDlgItem(g_hwnd, IDC_APP_PATH), profile.appPath.c_str());
     EnableClearButton(!profile.appPath.empty());
     SetOwnedChecked(IDC_DEFAULT_PROFILE, profileId == Profiles::DefaultId());
@@ -601,10 +653,7 @@ void RefreshList(int selectId) {
         const auto& profile = profiles[i];
         std::wstring status;
         if (profile.id == Profiles::ActiveId()) status = L"当前";
-        if (profile.id == Profiles::DefaultId()) {
-            if (!status.empty()) status += L"/";
-            status += L"默认";
-        }
+        else if (profile.id == Profiles::DefaultId()) status = L"默认";
 
         LVITEMW lv = {0};
         lv.mask = LVIF_TEXT | LVIF_PARAM;
@@ -614,12 +663,15 @@ void RefreshList(int selectId) {
         int row = ListView_InsertItem(g_hProfileList, &lv);
 
         WCHAR rate[32] = {0};
-        StringCchPrintfW(rate, ARRAYSIZE(rate), L"%d Hz", profile.pollingHz);
+        StringCchPrintfW(rate, ARRAYSIZE(rate), L"%d", profile.pollingHz);
         ListView_SetItemText(g_hProfileList, row, 1, rate);
 
+        std::wstring dpi = FormatDpiValue(profile);
+        ListView_SetItemText(g_hProfileList, row, 2, (LPWSTR)dpi.c_str());
+
         std::wstring app = profile.appName.empty() ? L"—" : profile.appName;
-        ListView_SetItemText(g_hProfileList, row, 2, (LPWSTR)app.c_str());
-        ListView_SetItemText(g_hProfileList, row, 3, (LPWSTR)status.c_str());
+        ListView_SetItemText(g_hProfileList, row, 3, (LPWSTR)app.c_str());
+        ListView_SetItemText(g_hProfileList, row, 4, (LPWSTR)status.c_str());
 
         if (profile.id == selectId) selectedRow = row;
     }
@@ -655,6 +707,19 @@ bool CommitEditor(bool showErrors) {
     if (!translated) sleepMinutes = 10;
     sleepMinutes = (UINT)Rapoo::ClampSleepMinutes((int)sleepMinutes);
     profile.sleepMinutes = (int)sleepMinutes;
+
+    BOOL dpiTranslatedX = FALSE;
+    BOOL dpiTranslatedY = FALSE;
+    UINT dpiX = GetDlgItemInt(g_hwnd, IDC_DPI_X, &dpiTranslatedX, FALSE);
+    UINT dpiY = GetDlgItemInt(g_hwnd, IDC_DPI_Y, &dpiTranslatedY, FALSE);
+    if (!dpiTranslatedX || !dpiTranslatedY || dpiX == 0 || dpiY == 0 || dpiX > 65535 || dpiY > 65535) {
+        if (showErrors) {
+            MessageBoxW(g_hwnd, L"DPI 必须是 1–65535 之间的数值。", L"无法保存", MB_OK | MB_ICONWARNING);
+        }
+        return false;
+    }
+    profile.dpiX = (int)dpiX;
+    profile.dpiY = (int)dpiY;
 
     profile.name = name;
     profile.appPath = GetText(GetDlgItem(g_hwnd, IDC_APP_PATH));
@@ -700,7 +765,10 @@ void EnableClearButton(bool enabled) {
 void AddProfile() {
     if (!CommitEditor(true)) return;
     std::wstring name = Profiles::MakeUniqueName();
-    int id = Profiles::Create(name, 1000, 10);
+    int dpiX = 800;
+    int dpiY = 800;
+    GetCurrentDpiDefaults(dpiX, dpiY);
+    int id = Profiles::Create(name, 1000, 10, dpiX, dpiY);
     if (id == 0) {
         MessageBoxW(g_hwnd, L"无法新增配置，最多可创建 16 个配置。", L"新增失败", MB_OK | MB_ICONWARNING);
         return;
@@ -731,6 +799,27 @@ void DeleteProfile() {
     RefreshList(nextId);
     LoadEditor(nextId);
     SetStatus(L"配置已删除", true);
+}
+
+void CaptureCurrentDpi() {
+    const Device::State state = Device::GetCurrentState();
+    if (!state.isConnected || !Device::IsDpiConfigValid() || state.dpiX <= 0) {
+        SetStatus(L"暂未读取到鼠标 DPI，请唤醒设备后重试", false);
+        return;
+    }
+
+    BatteryEstimate::DpiSpec spec;
+    BatteryEstimate::GetDpiSpecForState(state, spec);
+    int dpiX = std::clamp(state.dpiX, spec.minDpi, spec.maxDpi);
+    int dpiY = std::clamp(state.dpiY > 0 ? state.dpiY : state.dpiX, spec.minDpi, spec.maxDpi);
+    WCHAR textX[32] = {0};
+    WCHAR textY[32] = {0};
+    StringCchPrintfW(textX, ARRAYSIZE(textX), L"%d", dpiX);
+    StringCchPrintfW(textY, ARRAYSIZE(textY), L"%d", dpiY);
+    SetText(GetDlgItem(g_hwnd, IDC_DPI_X), textX);
+    SetText(GetDlgItem(g_hwnd, IDC_DPI_Y), textY);
+    MarkDirty();
+    SetStatus(L"已读取鼠标当前 DPI，保存后写入此档案", true);
 }
 
 void BrowseApp() {
@@ -765,32 +854,35 @@ void ClearApp() {
 void CreateControls() {
     g_hTitle = CreateText(L"配置与自动化", 24, 18, 400, 32);
     g_hSubtitle = CreateText(
-        L"快速切换回报率配置；指定前台程序后，进入程序时自动应用，离开后恢复默认配置。",
+        L"让回报率、DPI 与休眠随配置一起切换；指定前台程序后自动应用，离开时恢复默认配置。",
         24, 50, 730, 22
     );
     g_hProfileList = CreateControl(
         WC_LISTVIEWW, L"", WS_TABSTOP | LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS | LVS_NOCOLUMNHEADER,
-        0, 24, 136, 330, 184, IDC_PROFILE_LIST
+        0, 24, 136, 330, 212, IDC_PROFILE_LIST
     );
     ListView_SetExtendedListViewStyle(g_hProfileList, LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER);
 
     LVCOLUMNW col = {0};
     col.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_SUBITEM;
     col.pszText = (LPWSTR)L"名称";
-    col.cx = S(92);
+    col.cx = S(80);
     ListView_InsertColumn(g_hProfileList, 0, &col);
-    col.pszText = (LPWSTR)L"回报率";
-    col.cx = S(68);
+    col.pszText = (LPWSTR)L"Hz";
+    col.cx = S(58);
     ListView_InsertColumn(g_hProfileList, 1, &col);
-    col.pszText = (LPWSTR)L"关联程序";
-    col.cx = S(82);
+    col.pszText = (LPWSTR)L"DPI";
+    col.cx = S(64);
     ListView_InsertColumn(g_hProfileList, 2, &col);
-    col.pszText = (LPWSTR)L"状态";
-    col.cx = S(68);
+    col.pszText = (LPWSTR)L"关联程序";
+    col.cx = S(72);
     ListView_InsertColumn(g_hProfileList, 3, &col);
+    col.pszText = (LPWSTR)L"状态";
+    col.cx = S(50);
+    ListView_InsertColumn(g_hProfileList, 4, &col);
 
-    CreateButton(L"新增配置", 24, 330, 100, 30, IDC_ADD_PROFILE);
-    CreateButton(L"删除配置", 132, 330, 100, 30, IDC_DELETE_PROFILE);
+    CreateButton(L"新增配置", 24, 356, 100, 28, IDC_ADD_PROFILE);
+    CreateButton(L"删除配置", 132, 356, 100, 28, IDC_DELETE_PROFILE);
 
     CreateControl(L"EDIT", L"", WS_TABSTOP | ES_AUTOHSCROLL, 0, 462, 114, 276, 28, IDC_PROFILE_NAME);
     HWND pollCombo = CreateControl(L"COMBOBOX", L"", WS_TABSTOP | CBS_DROPDOWNLIST | WS_VSCROLL, 0, 462, 152, 276, 160, IDC_POLLING_RATE);
@@ -815,20 +907,25 @@ void CreateControls() {
 
     CreateCheck(L"设为默认配置（离开关联程序后恢复）", 388, 229, 350, 24, IDC_DEFAULT_PROFILE);
 
+    CreateControl(L"EDIT", L"", WS_TABSTOP | ES_NUMBER | ES_AUTOHSCROLL, 0, 434, 301, 88, 28, IDC_DPI_X);
+    CreateControl(L"EDIT", L"", WS_TABSTOP | ES_NUMBER | ES_AUTOHSCROLL, 0, 560, 301, 96, 28, IDC_DPI_Y);
+    CreateButton(L"读取当前", 668, 300, 88, 30, IDC_CAPTURE_DPI);
+    CreateButton(L"打开 DPI 档位编辑器…", 388, 338, 358, 30, IDC_OPEN_DPI);
+
     CreateControl(
         L"EDIT", L"", ES_AUTOHSCROLL | ES_READONLY,
-        0, 40, 406, 552, 28, IDC_APP_PATH
+        0, 40, 452, 552, 28, IDC_APP_PATH
     );
-    CreateButton(L"浏览…", 600, 405, 84, 30, IDC_BROWSE_APP);
-    CreateButton(L"清除", 692, 405, 48, 30, IDC_CLEAR_APP);
+    CreateButton(L"浏览…", 600, 451, 84, 30, IDC_BROWSE_APP);
+    CreateButton(L"清除", 692, 451, 48, 30, IDC_CLEAR_APP);
 
-    CreateCheck(L"启用前台程序自动切换", 40, 530, 300, 24, IDC_AUTO_SWITCH);
-    CreateCheck(L"显示悬浮窗提示 (OSD)", 40, 560, 300, 24, IDC_OSD_ENABLED);
+    CreateCheck(L"启用前台程序自动切换", 40, 550, 300, 24, IDC_AUTO_SWITCH);
+    CreateCheck(L"显示悬浮窗提示 (OSD)", 40, 578, 300, 24, IDC_OSD_ENABLED);
 
-    CreateCheck(L"满格射频（不勾选 = 智能调节）", 400, 530, 340, 24, IDC_RF_FULL);
+    CreateCheck(L"满格射频（不勾选 = 智能调节）", 400, 550, 340, 24, IDC_RF_FULL);
     g_hModelCombo = CreateControl(
         L"COMBOBOX", L"", WS_TABSTOP | CBS_DROPDOWNLIST | WS_VSCROLL,
-        0, 460, 555, 180, 160, IDC_MODEL_SELECT
+        0, 460, 581, 180, 160, IDC_MODEL_SELECT
     );
     if (g_hModelCombo) {
         const auto& models = BatteryEstimate::Models();
@@ -838,11 +935,10 @@ void CreateControls() {
         }
         SelectSavedModel();
     }
-    CreateButton(L"DPI 设置…", 650, 552, 90, 30, IDC_OPEN_DPI);
 
-    g_hStatus = CreateText(L"", 24, 648, 500, 24, IDC_STATUS);
-    CreateButton(L"保存并应用", 550, 642, 110, 32, IDC_SAVE);
-    CreateButton(L"关闭", 670, 642, 86, 32, IDC_CLOSE);
+    g_hStatus = CreateText(L"", 24, 668, 500, 24, IDC_STATUS);
+    CreateButton(L"保存并应用", 550, 663, 110, 32, IDC_SAVE);
+    CreateButton(L"关闭", 670, 663, 86, 32, IDC_CLOSE);
 
     ApplyFonts();
     SendMessageW(g_hTitle, WM_SETFONT, (WPARAM)g_fontTitle, TRUE);
@@ -969,6 +1065,10 @@ LRESULT CALLBACK SettingsWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
                 DpiWindow::Show(hWnd);
                 return 0;
             }
+            if (id == IDC_CAPTURE_DPI && notification == BN_CLICKED) {
+                CaptureCurrentDpi();
+                return 0;
+            }
             if (id == IDC_ADD_PROFILE && notification == BN_CLICKED) {
                 AddProfile();
                 return 0;
@@ -997,7 +1097,9 @@ LRESULT CALLBACK SettingsWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
             if ((id == IDC_PROFILE_NAME && notification == EN_CHANGE) ||
                 (id == IDC_POLLING_RATE && notification == CBN_SELCHANGE) ||
                 (id == IDC_SLEEP_TIME && notification == CBN_EDITCHANGE) ||
-                (id == IDC_SLEEP_TIME && notification == CBN_SELCHANGE)) {
+                (id == IDC_SLEEP_TIME && notification == CBN_SELCHANGE) ||
+                (id == IDC_DPI_X && notification == EN_CHANGE) ||
+                (id == IDC_DPI_Y && notification == EN_CHANGE)) {
                 MarkDirty();
                 return 0;
             }

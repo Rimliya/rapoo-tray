@@ -1,4 +1,5 @@
 #include "profile_manager.h"
+#include "battery_estimator.h"
 #include "device_manager.h"
 #include "osd_window.h"
 
@@ -105,6 +106,27 @@ bool ValidPollingRate(int hz) {
     return false;
 }
 
+void NormalizeDpiPair(int& x, int& y) {
+    if (x <= 0 || y <= 0) {
+        x = 0;
+        y = 0;
+        return;
+    }
+
+    BatteryEstimate::DpiSpec spec;
+    BatteryEstimate::GetDpiSpecForState(Device::GetCurrentState(), spec);
+    const int step = std::max(1, spec.step);
+    auto normalize = [&](int value) {
+        value = std::clamp(value, spec.minDpi, spec.maxDpi);
+        if (step > 1) {
+            value = ((value + step / 2) / step) * step;
+        }
+        return std::clamp(value, spec.minDpi, spec.maxDpi);
+    };
+    x = normalize(x);
+    y = normalize(y);
+}
+
 bool ProfileNameExists(const std::wstring& name, int exceptId) {
     for (const auto& profile : g_store.profiles) {
         if (profile.id != exceptId && EqualsNoCase(profile.name, name)) return true;
@@ -184,6 +206,8 @@ void SaveState() {
             WriteString(hProfile, L"Name", profile.name);
             WriteDword(hProfile, L"PollingHz", (DWORD)profile.pollingHz);
             WriteDword(hProfile, L"SleepMinutes", (DWORD)profile.sleepMinutes);
+            WriteDword(hProfile, L"DpiX", (DWORD)profile.dpiX);
+            WriteDword(hProfile, L"DpiY", (DWORD)profile.dpiY);
             WriteString(hProfile, L"AppPath", profile.appPath);
             WriteString(hProfile, L"AppName", profile.appName);
             RegCloseKey(hProfile);
@@ -263,6 +287,8 @@ void LoadState() {
         profile.name = Trim(ReadStringFromKey(hProfile, L"Name"));
         profile.pollingHz = (int)ReadDwordFromKey(hProfile, L"PollingHz", 1000);
         profile.sleepMinutes = (int)ReadDwordFromKey(hProfile, L"SleepMinutes", 10);
+        profile.dpiX = (int)ReadDwordFromKey(hProfile, L"DpiX", 0);
+        profile.dpiY = (int)ReadDwordFromKey(hProfile, L"DpiY", 0);
         profile.appPath = NormalizeAppPath(ReadStringFromKey(hProfile, L"AppPath"));
         profile.appName = ReadStringFromKey(hProfile, L"AppName");
         RegCloseKey(hProfile);
@@ -270,6 +296,7 @@ void LoadState() {
         if (profile.id <= 0 || profile.name.empty()) continue;
         if (!ValidPollingRate(profile.pollingHz)) profile.pollingHz = 1000;
         profile.sleepMinutes = Rapoo::ClampSleepMinutes(profile.sleepMinutes);
+        NormalizeDpiPair(profile.dpiX, profile.dpiY);
         if (profile.appPath.empty()) {
             profile.appName.clear();
         } else if (profile.appName.empty()) {
@@ -312,6 +339,17 @@ void ShowSwitchOsd(const Definition& profile, bool automatic, bool fallback, boo
     WCHAR line1[64] = {0};
     WCHAR line2[128] = {0};
     WCHAR line3[160] = {0};
+    WCHAR dpiText[64] = {0};
+
+    if (profile.dpiX > 0 && profile.dpiY > 0) {
+        if (profile.dpiX == profile.dpiY) {
+            StringCchPrintfW(dpiText, ARRAYSIZE(dpiText), L"%d DPI", profile.dpiX);
+        } else {
+            StringCchPrintfW(dpiText, ARRAYSIZE(dpiText), L"X %d / Y %d DPI", profile.dpiX, profile.dpiY);
+        }
+    } else {
+        StringCchCopyW(dpiText, ARRAYSIZE(dpiText), L"DPI 跟随当前");
+    }
 
     if (fallback) {
         StringCchCopyW(line1, ARRAYSIZE(line1), L"已恢复默认配置");
@@ -325,13 +363,13 @@ void ShowSwitchOsd(const Definition& profile, bool automatic, bool fallback, boo
     }
 
     if (!connected) {
-        StringCchPrintfW(line3, ARRAYSIZE(line3), L"%d Hz · 设备未连接，连接后自动应用", profile.pollingHz);
+        StringCchPrintfW(line3, ARRAYSIZE(line3), L"%d Hz · %s · 设备未连接，连接后自动应用", profile.pollingHz, dpiText);
     } else if (automatic && !profile.appName.empty()) {
-        StringCchPrintfW(line3, ARRAYSIZE(line3), L"%d Hz · %s 前台时启用", profile.pollingHz, profile.appName.c_str());
+        StringCchPrintfW(line3, ARRAYSIZE(line3), L"%d Hz · %s · %s 前台时启用", profile.pollingHz, dpiText, profile.appName.c_str());
     } else if (fallback) {
-        StringCchPrintfW(line3, ARRAYSIZE(line3), L"%d Hz · 已离开关联程序", profile.pollingHz);
+        StringCchPrintfW(line3, ARRAYSIZE(line3), L"%d Hz · %s · 已离开关联程序", profile.pollingHz, dpiText);
     } else {
-        StringCchPrintfW(line3, ARRAYSIZE(line3), L"%d Hz · 休眠 %d 分钟", profile.pollingHz, profile.sleepMinutes);
+        StringCchPrintfW(line3, ARRAYSIZE(line3), L"%d Hz · %s · 休眠 %d 分钟", profile.pollingHz, dpiText, profile.sleepMinutes);
     }
 
     Osd::Show(line1, line2, line3);
@@ -342,12 +380,18 @@ bool ApplyInternal(const Definition& profile, bool showOsd, bool automatic, bool
     g_store.activeId = profile.id;
     SaveState();
 
+    Definition effective = profile;
+    NormalizeDpiPair(effective.dpiX, effective.dpiY);
     bool pollingOk = Device::SetPollingRate(profile.pollingHz);
     bool sleepOk = Device::SetSleepTimeout(profile.sleepMinutes);
-    if (showOsd) {
-        ShowSwitchOsd(profile, automatic, fallback, before.isConnected && pollingOk);
+    bool dpiOk = true;
+    if (effective.dpiX > 0 && effective.dpiY > 0) {
+        dpiOk = Device::SetCurrentDpi(effective.dpiX, effective.dpiY);
     }
-    return pollingOk && sleepOk;
+    if (showOsd) {
+        ShowSwitchOsd(profile, automatic, fallback, before.isConnected && pollingOk && dpiOk);
+    }
+    return pollingOk && sleepOk && dpiOk;
 }
 
 void RecordManualOverride(int matchedProfileId) {
@@ -412,7 +456,7 @@ bool HasAppRule(const Definition& profile) {
     return !profile.appPath.empty();
 }
 
-int Create(const std::wstring& requestedName, int pollingHz, int sleepMinutes) {
+int Create(const std::wstring& requestedName, int pollingHz, int sleepMinutes, int dpiX, int dpiY) {
     EnsureInitialized();
     if ((int)g_store.profiles.size() >= MAX_PROFILES) return 0;
 
@@ -425,6 +469,9 @@ int Create(const std::wstring& requestedName, int pollingHz, int sleepMinutes) {
     profile.name = name;
     profile.pollingHz = ValidPollingRate(pollingHz) ? pollingHz : 1000;
     profile.sleepMinutes = Rapoo::ClampSleepMinutes(sleepMinutes);
+    profile.dpiX = dpiX;
+    profile.dpiY = dpiY;
+    NormalizeDpiPair(profile.dpiX, profile.dpiY);
     g_store.profiles.push_back(profile);
     SaveState();
     return profile.id;
@@ -442,6 +489,9 @@ bool Update(const Definition& requested) {
     updated.name = name;
     updated.pollingHz = ValidPollingRate(requested.pollingHz) ? requested.pollingHz : 1000;
     updated.sleepMinutes = Rapoo::ClampSleepMinutes(requested.sleepMinutes);
+    updated.dpiX = requested.dpiX;
+    updated.dpiY = requested.dpiY;
+    NormalizeDpiPair(updated.dpiX, updated.dpiY);
     updated.appPath = NormalizeAppPath(requested.appPath);
     updated.appName = updated.appPath.empty() ? std::wstring() : FileNameFromPath(updated.appPath);
     *profile = updated;
@@ -536,6 +586,27 @@ bool SetCurrentSleep(int minutes) {
     }
     RecordManualOverride(matched);
     return Device::SetSleepTimeout(minutes);
+}
+
+bool SetCurrentDpi(int x, int y) {
+    EnsureInitialized();
+    NormalizeDpiPair(x, y);
+    if (x <= 0 || y <= 0) return false;
+
+    Definition* active = FindInternal(g_store.activeId);
+    if (active) {
+        active->dpiX = x;
+        active->dpiY = y;
+        SaveState();
+    }
+
+    std::wstring processPath;
+    int matched = 0;
+    if (g_store.autoSwitch && TryGetForegroundProcessPath(processPath)) {
+        matched = FindMatchingProfile(processPath);
+    }
+    RecordManualOverride(matched);
+    return Device::SetCurrentDpi(x, y);
 }
 
 bool AutoSwitchEnabled() {
