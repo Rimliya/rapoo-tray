@@ -131,7 +131,7 @@ static bool ReadNrf54lRegisterLocked(BYTE bank, BYTE addr, BYTE len, BYTE* outDa
     if (!WriteControlPacketLocked(command, sizeof(command))) return false;
     Sleep(20);
 
-    BYTE response[65] = {0};
+    BYTE response[33] = {0};
     DWORD bytesRead = 0;
     if (!ReadControlReportLocked(response, sizeof(response), 1200, bytesRead)) return false;
     g_lastFeatureError = 0;
@@ -173,7 +173,7 @@ static bool SendRawCommand(BYTE bank, BYTE addr, const BYTE* pData, BYTE len) {
         command[5] = bank;
         memcpy(&command[8], pData, len);
         bool wrote = WriteControlPacketLocked(command, sizeof(command));
-        BYTE response[65] = {0};
+        BYTE response[33] = {0};
         DWORD bytesRead = 0;
         bool acked = wrote && ReadControlReportLocked(response, sizeof(response), 1200, bytesRead);
         if (acked) {
