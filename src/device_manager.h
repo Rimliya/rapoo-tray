@@ -1,8 +1,17 @@
 #pragma once
 #include <windows.h>
+#include <vector>
 #include "rapoo_protocol.h"
 
 namespace Device {
+
+constexpr int MAX_DPI_SLOTS = 7;
+
+struct DpiConfig {
+    int currentIndex = 0;
+    std::vector<int> dpiX;
+    std::vector<int> dpiY;
+};
 
 struct State {
     bool isConnected = false;
@@ -38,6 +47,9 @@ bool SetSleepTimeout(int minutes);
 bool RefreshPollingRate();
 bool RefreshRfState();
 bool SetRfFull(bool full);
+bool ReadDpiConfig(DpiConfig& outConfig);
+bool WriteDpiConfig(const DpiConfig& config);
+bool SetDpiIndex(int index);
 bool IsStarted();
 void ForceRefresh();
 

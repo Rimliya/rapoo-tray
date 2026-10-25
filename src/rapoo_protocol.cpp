@@ -97,16 +97,21 @@ bool ParseStatusReport(const BYTE* buf, DWORD bytesRead, DeviceStatus& outStatus
 bool ParseFeatureRead(const BYTE* buf, DWORD bytesRead, BYTE expectedLen, BYTE* outData) {
     if (!buf || bytesRead < 5) return false;
 
-    // Case 1: Windows HID driver stripped Report ID -> buf[0] is ACK (0x01)
-    if (buf[0] == 0x01 && bytesRead >= (DWORD)(4 + expectedLen)) {
+    // Feature reads use 0x01 for a successful reply. Other small status codes
+    // can be emitted while the configuration endpoint is settling, but they do
+    // not carry register data and must be retried rather than decoded as zero.
+    auto isAck = [](BYTE value) { return value == 0x01; };
+
+    // Case 1: Windows HID driver stripped Report ID -> buf[0] is ACK.
+    if (isAck(buf[0]) && bytesRead >= (DWORD)(4 + expectedLen)) {
         if (outData) {
             std::memcpy(outData, &buf[4], expectedLen);
         }
         return true;
     }
 
-    // Case 2: buf[0] is Report ID (0x08) and buf[1] is ACK (0x01)
-    if (buf[0] == REPORT_ID_FEATURE && buf[1] == 0x01 && bytesRead >= (DWORD)(5 + expectedLen)) {
+    // Case 2: buf[0] is Report ID (0x08) and buf[1] is ACK.
+    if (buf[0] == REPORT_ID_FEATURE && isAck(buf[1]) && bytesRead >= (DWORD)(5 + expectedLen)) {
         if (outData) {
             std::memcpy(outData, &buf[5], expectedLen);
         }

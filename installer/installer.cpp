@@ -33,6 +33,8 @@ static HWND g_hChkLaunch = NULL;
 static HWND g_hEdtPath = NULL;
 static HWND g_hBtnInstall = NULL;
 static HWND g_hBtnCancel = NULL;
+static bool g_isUpdate = false;
+static WCHAR g_detectedInstallDir[MAX_PATH] = {0};
 static HFONT g_hFontTitle = NULL;
 static HFONT g_hFontBody = NULL;
 
@@ -128,6 +130,130 @@ static bool GetSavedInstallDir(WCHAR* outDir, DWORD maxLen) {
     return (st == ERROR_SUCCESS && outDir[0] != 0);
 }
 
+static bool DirectoryHasApp(const WCHAR* dir) {
+    if (!dir || !dir[0]) return false;
+    WCHAR exe[MAX_PATH] = {0};
+    StringCchPrintfW(exe, ARRAYSIZE(exe), L"%s\\rapoo-tray.exe", dir);
+    DWORD attrs = GetFileAttributesW(exe);
+    return attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_DIRECTORY) == 0;
+}
+
+// Older/custom installations may only have the Run entry. Recover the directory
+// from the executable path so updates never ask the user to choose it again.
+static bool GetRunInstallDir(WCHAR* outDir, DWORD maxLen) {
+    HKEY hKey = NULL;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, REG_RUN, 0, KEY_READ, &hKey) != ERROR_SUCCESS) return false;
+    WCHAR command[MAX_PATH * 2] = {0};
+    DWORD size = sizeof(command), type = 0;
+    LSTATUS st = RegQueryValueExW(hKey, APP_NAME, NULL, &type, (LPBYTE)command, &size);
+    RegCloseKey(hKey);
+    if (st != ERROR_SUCCESS || type != REG_SZ || !command[0]) return false;
+
+    WCHAR* exe = command;
+    while (*exe == L' ' || *exe == L'\t') ++exe;
+    WCHAR* end = exe + wcslen(exe);
+    while (end > exe && (end[-1] == L' ' || end[-1] == L'\t')) *--end = 0;
+    if (*exe == L'"') ++exe;
+    WCHAR* closingQuote = wcschr(exe, L'"');
+    if (closingQuote) *closingQuote = 0;
+    else {
+        WCHAR* exeSuffix = wcsstr(exe, L".exe");
+        if (exeSuffix) exeSuffix[4] = 0;
+    }
+    WCHAR* slash = wcsrchr(exe, L'\\');
+    if (!slash) return false;
+    *slash = 0;
+    if (!exe[0]) return false;
+    StringCchCopyW(outDir, maxLen, exe);
+    return true;
+}
+
+static bool GetShortcutTargetDir(const WCHAR* lnkPath, WCHAR* outDir, DWORD maxLen) {
+    if (!lnkPath || GetFileAttributesW(lnkPath) == INVALID_FILE_ATTRIBUTES) return false;
+    IShellLinkW* link = NULL;
+    if (FAILED(CoCreateInstance(CLSID_ShellLink, NULL, CLSCTX_INPROC_SERVER,
+            IID_IShellLinkW, (LPVOID*)&link))) return false;
+    IPersistFile* file = NULL;
+    bool found = false;
+    if (SUCCEEDED(link->QueryInterface(IID_IPersistFile, (LPVOID*)&file)) && file) {
+        if (SUCCEEDED(file->Load(lnkPath, STGM_READ))) {
+            WCHAR target[MAX_PATH] = {0};
+            if (SUCCEEDED(link->GetPath(target, ARRAYSIZE(target), NULL, SLGP_RAWPATH))) {
+                WCHAR* slash = wcsrchr(target, L'\\');
+                if (slash) {
+                    *slash = 0;
+                    StringCchCopyW(outDir, maxLen, target);
+                    found = DirectoryHasApp(outDir);
+                }
+            }
+        }
+        file->Release();
+    }
+    link->Release();
+    return found;
+}
+
+static bool GetShortcutInstallDir(WCHAR* outDir, DWORD maxLen) {
+    const int folders[] = {CSIDL_PROGRAMS, CSIDL_COMMON_PROGRAMS, CSIDL_DESKTOPDIRECTORY, CSIDL_COMMON_DESKTOPDIRECTORY};
+    for (int folder : folders) {
+        WCHAR dir[MAX_PATH] = {0};
+        if (FAILED(SHGetFolderPathW(NULL, folder, NULL, 0, dir))) continue;
+        WCHAR lnk[MAX_PATH] = {0};
+        StringCchPrintfW(lnk, ARRAYSIZE(lnk), L"%s\\rapoo-tray.lnk", dir);
+        if (GetShortcutTargetDir(lnk, outDir, maxLen)) return true;
+    }
+    return false;
+}
+
+static bool GetRunningAppDir(WCHAR* outDir, DWORD maxLen) {
+    HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (snapshot == INVALID_HANDLE_VALUE) return false;
+    PROCESSENTRY32W entry = {0};
+    entry.dwSize = sizeof(entry);
+    bool found = false;
+    if (Process32FirstW(snapshot, &entry)) {
+        do {
+            if (_wcsicmp(entry.szExeFile, L"rapoo-tray.exe") != 0 &&
+                _wcsicmp(entry.szExeFile, L"RapooVT7Tray.exe") != 0) continue;
+            HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, entry.th32ProcessID);
+            if (!process) continue;
+            WCHAR exe[MAX_PATH] = {0};
+            DWORD size = ARRAYSIZE(exe);
+            if (QueryFullProcessImageNameW(process, 0, exe, &size)) {
+                WCHAR* slash = wcsrchr(exe, L'\\');
+                if (slash) {
+                    *slash = 0;
+                    StringCchCopyW(outDir, maxLen, exe);
+                    found = DirectoryHasApp(outDir);
+                }
+            }
+            CloseHandle(process);
+            if (found) break;
+        } while (Process32NextW(snapshot, &entry));
+    }
+    CloseHandle(snapshot);
+    return found;
+}
+
+static bool DetectInstalledDir(WCHAR* outDir, DWORD maxLen) {
+    if (GetSavedInstallDir(outDir, maxLen) && DirectoryHasApp(outDir)) return true;
+    if (GetRunInstallDir(outDir, maxLen) && DirectoryHasApp(outDir)) return true;
+    if (GetRunningAppDir(outDir, maxLen)) return true;
+    if (GetShortcutInstallDir(outDir, maxLen)) return true;
+    if (GetInstallDir(outDir, maxLen) && DirectoryHasApp(outDir)) return true;
+    return false;
+}
+
+static bool RunEntryExists() {
+    HKEY hKey = NULL;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, REG_RUN, 0, KEY_READ, &hKey) != ERROR_SUCCESS) return false;
+    WCHAR value[MAX_PATH * 2] = {0};
+    DWORD size = sizeof(value), type = 0;
+    LSTATUS st = RegQueryValueExW(hKey, APP_NAME, NULL, &type, (LPBYTE)value, &size);
+    RegCloseKey(hKey);
+    return st == ERROR_SUCCESS && value[0] != 0;
+}
+
 // Browse-for-folder dialog -> selected path or empty string on cancel
 static bool BrowseForFolder(HWND hWnd, WCHAR* outDir, DWORD maxLen) {
     WCHAR buf[MAX_PATH] = {0};
@@ -217,7 +343,7 @@ static void DoInstall() {
     HKEY hKeyUn;
     if (RegCreateKeyExW(HKEY_CURRENT_USER, REG_UNINSTALL, 0, NULL, 0, KEY_SET_VALUE, NULL, &hKeyUn, NULL) == ERROR_SUCCESS) {
         const WCHAR* name = L"rapoo-tray";
-        const WCHAR* ver = L"1.5.0";
+        const WCHAR* ver = L"1.6.0";
         const WCHAR* pub = L"Iris";
         WCHAR unCmd[MAX_PATH + 32];
         StringCchPrintfW(unCmd, sizeof(unCmd) / sizeof(WCHAR), L"\"%s\" /uninstall", uninstallerPath);
@@ -236,7 +362,7 @@ static void DoInstall() {
         ShellExecuteW(NULL, L"open", appExePath, NULL, installDir, SW_SHOWNORMAL);
     }
 
-    MessageBoxW(g_hMainWnd, L"安装完成。", L"提示", MB_ICONINFORMATION | MB_OK);
+    MessageBoxW(g_hMainWnd, g_isUpdate ? L"更新完成。" : L"安装完成。", L"提示", MB_ICONINFORMATION | MB_OK);
     DestroyWindow(g_hMainWnd);
 }
 
@@ -308,26 +434,31 @@ static LRESULT CALLBACK InstallerWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPA
             g_hFontTitle = CreateFontW(-18, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Microsoft YaHei UI");
             g_hFontBody = CreateFontW(-13, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Microsoft YaHei UI");
 
-            // Title
-            HWND hTitle = CreateWindowExW(0, L"STATIC", L"rapoo-tray Setup", WS_CHILD | WS_VISIBLE, 24, 20, 360, 24, hWnd, NULL, g_hInstance, NULL);
+            // An existing installation is updated in place. Custom install paths
+            // are recovered from the uninstall or Run entry and are not requested again.
+            WCHAR installDir[MAX_PATH] = {0};
+            StringCchCopyW(installDir, ARRAYSIZE(installDir), g_detectedInstallDir);
+            if (!installDir[0]) GetInstallDir(installDir, ARRAYSIZE(installDir));
+
+            HWND hTitle = CreateWindowExW(0, L"STATIC", g_isUpdate ? L"rapoo-tray 更新" : L"rapoo-tray Setup", WS_CHILD | WS_VISIBLE, 24, 20, 360, 24, hWnd, NULL, g_hInstance, NULL);
             SendMessageW(hTitle, WM_SETFONT, (WPARAM)g_hFontTitle, TRUE);
 
-            // Install Path (editable)
-            WCHAR installDir[MAX_PATH];
-            GetInstallDir(installDir, MAX_PATH);
-            HWND hPathLabel = CreateWindowExW(0, L"STATIC", L"安装路径:", WS_CHILD | WS_VISIBLE, 24, 52, 70, 20, hWnd, NULL, g_hInstance, NULL);
+            HWND hPathLabel = CreateWindowExW(0, L"STATIC", g_isUpdate ? L"更新到:" : L"安装路径:", WS_CHILD | WS_VISIBLE, 24, 52, 70, 20, hWnd, NULL, g_hInstance, NULL);
             SendMessageW(hPathLabel, WM_SETFONT, (WPARAM)g_hFontBody, TRUE);
 
-            g_hEdtPath = CreateWindowExW(0, L"EDIT", installDir, WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL, 94, 50, 240, 24, hWnd, (HMENU)IDC_EDT_PATH, g_hInstance, NULL);
+            DWORD pathStyle = WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL;
+            if (g_isUpdate) pathStyle |= ES_READONLY;
+            g_hEdtPath = CreateWindowExW(0, L"EDIT", installDir, pathStyle, 94, 50, 240, 24, hWnd, (HMENU)IDC_EDT_PATH, g_hInstance, NULL);
             SendMessageW(g_hEdtPath, WM_SETFONT, (WPARAM)g_hFontBody, TRUE);
 
-            HWND hBtnBrowse = CreateWindowExW(0, L"BUTTON", L"浏览...", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 340, 49, 72, 26, hWnd, (HMENU)IDC_BTN_BROWSE, g_hInstance, NULL);
+            HWND hBtnBrowse = CreateWindowExW(0, L"BUTTON", L"浏览...", WS_CHILD | (g_isUpdate ? 0 : WS_VISIBLE) | (g_isUpdate ? WS_DISABLED : 0) | BS_PUSHBUTTON, 340, 49, 72, 26, hWnd, (HMENU)IDC_BTN_BROWSE, g_hInstance, NULL);
             SendMessageW(hBtnBrowse, WM_SETFONT, (WPARAM)g_hFontBody, TRUE);
 
             // Options
             g_hChkAutoRun = CreateWindowExW(0, L"BUTTON", L"开机自动启动", WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX, 24, 92, 200, 22, hWnd, (HMENU)IDC_CHK_AUTORUN, g_hInstance, NULL);
             SendMessageW(g_hChkAutoRun, WM_SETFONT, (WPARAM)g_hFontBody, TRUE);
-            SendMessageW(g_hChkAutoRun, BM_SETCHECK, BST_CHECKED, 0);
+            SendMessageW(g_hChkAutoRun, BM_SETCHECK,
+                (g_isUpdate ? RunEntryExists() : true) ? BST_CHECKED : BST_UNCHECKED, 0);
 
             g_hChkDesktop = CreateWindowExW(0, L"BUTTON", L"创建桌面快捷方式", WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX, 24, 120, 200, 22, hWnd, (HMENU)IDC_CHK_DESKTOP, g_hInstance, NULL);
             SendMessageW(g_hChkDesktop, WM_SETFONT, (WPARAM)g_hFontBody, TRUE);
@@ -338,7 +469,7 @@ static LRESULT CALLBACK InstallerWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPA
             SendMessageW(g_hChkLaunch, BM_SETCHECK, BST_CHECKED, 0);
 
             // Buttons
-            g_hBtnInstall = CreateWindowExW(0, L"BUTTON", L"安装", WS_CHILD | WS_VISIBLE | BS_DEFPUSHBUTTON, 216, 188, 88, 30, hWnd, (HMENU)IDC_BTN_INSTALL, g_hInstance, NULL);
+            g_hBtnInstall = CreateWindowExW(0, L"BUTTON", g_isUpdate ? L"更新" : L"安装", WS_CHILD | WS_VISIBLE | BS_DEFPUSHBUTTON, 216, 188, 88, 30, hWnd, (HMENU)IDC_BTN_INSTALL, g_hInstance, NULL);
             SendMessageW(g_hBtnInstall, WM_SETFONT, (WPARAM)g_hFontBody, TRUE);
 
             g_hBtnCancel = CreateWindowExW(0, L"BUTTON", L"取消", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON, 314, 188, 88, 30, hWnd, (HMENU)IDC_BTN_CANCEL, g_hInstance, NULL);
@@ -398,6 +529,11 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         return 0;
     }
 
+    // Resolve the existing installation before creating the window so both the
+    // title bar and controls can switch to update mode immediately.
+    g_isUpdate = DetectInstalledDir(g_detectedInstallDir, ARRAYSIZE(g_detectedInstallDir));
+    if (!g_isUpdate) GetInstallDir(g_detectedInstallDir, ARRAYSIZE(g_detectedInstallDir));
+
     // Modern DPI awareness
     HMODULE hUser = GetModuleHandleW(L"user32.dll");
     if (hUser) {
@@ -428,7 +564,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     g_hMainWnd = CreateWindowExW(
         WS_EX_DLGMODALFRAME,
         wc.lpszClassName,
-        L"rapoo-tray Setup",
+        g_isUpdate ? L"rapoo-tray 更新" : L"rapoo-tray Setup",
         WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_VISIBLE,
         screenX, screenY, winWidth, winHeight,
         NULL, NULL, hInstance, NULL
