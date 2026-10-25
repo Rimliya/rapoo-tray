@@ -13,7 +13,7 @@ if %ERRORLEVEL% equ 0 (
     echo [Toolchain] Using Zig C++ 0.16+ ...
     zig rc /c 65001 /I res /fo bin\app.o res\app.rc
     if %ERRORLEVEL% neq 0 goto fail
-    zig c++ -O3 -s -std=c++17 -municode -mwindows -static -Isrc src\main.cpp src\rapoo_protocol.cpp src\device_manager.cpp src\osd_window.cpp src\tray_menu.cpp src\alert_window.cpp src\profile_manager.cpp src\battery_estimator.cpp src\settings_window.cpp src\dpi_window.cpp bin\app.o -lsetupapi -lhid -luser32 -lgdi32 -lshell32 -ladvapi32 -luxtheme -ldwmapi -lcomdlg32 -lcomctl32 -o bin\rapoo-tray.exe
+    zig c++ -O3 -s -std=c++17 -municode -Wl,--subsystem,windows -static -Isrc src\main.cpp src\rapoo_protocol.cpp src\device_manager.cpp src\osd_window.cpp src\tray_menu.cpp src\alert_window.cpp src\profile_manager.cpp src\battery_estimator.cpp src\settings_window.cpp src\dpi_window.cpp bin\app.o -lsetupapi -lhid -luser32 -lgdi32 -lshell32 -ladvapi32 -luxtheme -ldwmapi -lcomdlg32 -lcomctl32 -o bin\rapoo-tray.exe
     if %ERRORLEVEL% neq 0 goto fail
     if exist bin\app.o del bin\app.o
     goto done

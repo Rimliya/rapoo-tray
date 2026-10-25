@@ -29,7 +29,7 @@ jobs:
           New-Item -ItemType Directory -Force bin | Out-Null
           zig rc /c 65001 /I res /fo bin/app.o res/app.rc
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          zig c++ -O3 -s -std=c++17 -municode -mwindows -static -Isrc `
+          zig c++ -O3 -s -std=c++17 -municode '-Wl,--subsystem,windows' -static -Isrc `
             src/main.cpp `
             src/rapoo_protocol.cpp `
             src/device_manager.cpp `
@@ -53,7 +53,7 @@ jobs:
           New-Item -ItemType Directory -Force dist | Out-Null
           zig rc /c 65001 /fo installer/installer.o installer/installer.rc
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          zig c++ -O3 -s -std=c++17 -municode -mwindows -static installer/installer.cpp installer/installer.o -lole32 -lshell32 -luser32 -lgdi32 -ladvapi32 -luuid -o dist/rapoo-tray-setup.exe
+          zig c++ -O3 -s -std=c++17 -municode '-Wl,--subsystem,windows' -static installer/installer.cpp installer/installer.o -lole32 -lshell32 -luser32 -lgdi32 -ladvapi32 -luuid -o dist/rapoo-tray-setup.exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Remove-Item installer/installer.o -Force
 
@@ -62,7 +62,7 @@ jobs:
         run: |
           zig rc /c 65001 /fo plugin/plugin.o plugin/plugin.rc
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          zig c++ -shared -O3 -s -std=c++17 -municode -mwindows -static plugin/rapoo_plugin.cpp plugin/plugin.o -lsetupapi -lhid -luser32 -lgdi32 -lshell32 -ladvapi32 -o bin/rapoo-plugin.dll
+          zig c++ -shared -O3 -s -std=c++17 -municode -static plugin/rapoo_plugin.cpp plugin/plugin.o -lsetupapi -lhid -luser32 -lgdi32 -lshell32 -ladvapi32 -o bin/rapoo-plugin.dll
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Remove-Item plugin/plugin.o -Force
 
