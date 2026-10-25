@@ -97,8 +97,10 @@ bool ParseStatusReport(const BYTE* buf, DWORD bytesRead, DeviceStatus& outStatus
 bool ParseFeatureRead(const BYTE* buf, DWORD bytesRead, BYTE expectedLen, BYTE* outData) {
     if (!buf || bytesRead < 5) return false;
 
-    // Case 1: Windows HID driver stripped Report ID -> buf[0] is ACK (0x01)
-    if (buf[0] == 0x01 && bytesRead >= (DWORD)(4 + expectedLen)) {
+    // Case 1: Windows HID driver stripped Report ID -> buf[0] is an ACK.
+    // VT3 V2 firmware returns 0x02 here, while older firmware returns 0x01.
+    if ((buf[0] == 0x01 || buf[0] == 0x02 || buf[0] == 0x03) &&
+        bytesRead >= (DWORD)(4 + expectedLen)) {
         if (outData) {
             std::memcpy(outData, &buf[4], expectedLen);
         }
