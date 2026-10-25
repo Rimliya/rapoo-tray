@@ -13,7 +13,7 @@ if %ERRORLEVEL% equ 0 (
     echo [Toolchain] Using Zig C++ 0.16+ ...
     zig rc /c 65001 /fo installer.o installer.rc
     if %ERRORLEVEL% neq 0 goto fail
-    zig c++ -O3 -s -std=c++17 -municode -mwindows -static installer.cpp installer.o -lole32 -lshell32 -luser32 -lgdi32 -ladvapi32 -luuid -o ..\dist\rapoo-tray-setup.exe
+    zig c++ -O3 -s -std=c++17 -municode -Wl,--subsystem,windows -static installer.cpp installer.o -lole32 -lshell32 -luser32 -lgdi32 -ladvapi32 -luuid -o ..\dist\rapoo-tray-setup.exe
     if %ERRORLEVEL% neq 0 goto fail
     if exist installer.o del installer.o
     goto done
