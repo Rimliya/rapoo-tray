@@ -17,44 +17,56 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup MinGW Toolchain
-        uses: msys2/setup-msys2@v2
+      - name: Setup Zig Toolchain
+        uses: mlugg/setup-zig@v2
         with:
-          msystem: MINGW64
-          update: false
-          install: mingw-w64-x86_64-gcc mingw-w64-x86_64-binutils
+          version: 0.16.0
 
       - name: Build rapoo-tray.exe (Standalone)
-        shell: msys2 {0}
+        shell: pwsh
         run: |
-          mkdir -p bin
-          windres --codepage 65001 -I res -i res/app.rc -o bin/app.o
-          g++ -O3 -std=c++17 -mwindows -municode -s -static src/main.cpp src/rapoo_protocol.cpp src/device_manager.cpp src/osd_window.cpp src/tray_menu.cpp src/alert_window.cpp src/profile_manager.cpp src/battery_estimator.cpp src/settings_window.cpp src/dpi_window.cpp bin/app.o -lsetupapi -lhid -luser32 -lgdi32 -lshell32 -ladvapi32 -luxtheme -ldwmapi -lcomdlg32 -lcomctl32 -o bin/rapoo-tray.exe
-          rm -f bin/app.o
+          New-Item -ItemType Directory -Force bin | Out-Null
+          zig rc /c 65001 /I res /fo bin/app.o res/app.rc
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          zig c++ -O3 -s -std=c++17 -municode -mwindows -static -Isrc src/main.cpp src/rapoo_protocol.cpp src/device_manager.cpp src/osd_window.cpp src/tray_menu.cpp src/alert_window.cpp src/profile_manager.cpp src/battery_estimator.cpp src/settings_window.cpp src/dpi_window.cpp bin/app.o -lsetupapi -lhid -luser32 -lgdi32 -lshell32 -ladvapi32 -luxtheme -ldwmapi -lcomdlg32 -lcomctl32 -o bin/rapoo-tray.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Remove-Item bin/app.o -Force
 
       - name: Build rapoo-tray-setup.exe (Installer)
-        shell: msys2 {0}
+        shell: pwsh
         run: |
-          mkdir -p dist
-          cd installer
-          windres --codepage 65001 -i installer.rc -o installer.o -O coff
-          g++ -O3 -std=c++17 -mwindows -municode -s -static installer.cpp installer.o -lole32 -lshell32 -luser32 -lgdi32 -ladvapi32 -luuid -o ../dist/rapoo-tray-setup.exe
-          rm -f installer.o
+          New-Item -ItemType Directory -Force dist | Out-Null
+          zig rc /c 65001 /fo installer/installer.o installer/installer.rc
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          zig c++ -O3 -s -std=c++17 -municode -mwindows -static installer/installer.cpp installer/installer.o -lole32 -lshell32 -luser32 -lgdi32 -ladvapi32 -luuid -o dist/rapoo-tray-setup.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Remove-Item installer/installer.o -Force
 
       - name: Build rapoo-plugin.dll (TrafficMonitor Plugin)
-        shell: msys2 {0}
+        shell: pwsh
         run: |
-          mkdir -p bin
-          cd plugin
-          windres --codepage 65001 -i plugin.rc -o plugin.o -O coff
-          g++ -shared -O3 -std=c++17 -mwindows -municode -s -static rapoo_plugin.cpp plugin.o -lsetupapi -lhid -luser32 -lgdi32 -lshell32 -ladvapi32 -o ../bin/rapoo-plugin.dll
-          rm -f plugin.o
+          zig rc /c 65001 /fo plugin/plugin.o plugin/plugin.rc
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          zig c++ -shared -O3 -s -std=c++17 -municode -mwindows -static plugin/rapoo_plugin.cpp plugin/plugin.o -lsetupapi -lhid -luser32 -lgdi32 -lshell32 -ladvapi32 -o bin/rapoo-plugin.dll
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Remove-Item plugin/plugin.o -Force
+
+      - name: Prepare release notes
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: |
+          $tag = '${{ github.ref_name }}'
+          $text = Get-Content CHANGELOG.md -Raw
+          $pattern = "(?ms)^##\s+\[?$([regex]::Escape($tag))\]?[^\r\n]*\r?\n.*?(?=^##\s+|\z)"
+          $entry = [regex]::Match($text, $pattern)
+          if (-not $entry.Success) { throw "No changelog entry for $tag" }
+          $entry.Value.Trim() | Set-Content release-body.md -Encoding utf8
 
       - name: Create GitHub Release & Upload Assets
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          generate_release_notes: true
+          body_path: release-body.md
           files: |
             bin/rapoo-tray.exe
             dist/rapoo-tray-setup.exe
