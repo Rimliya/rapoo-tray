@@ -844,7 +844,15 @@ bool SetRfFull(bool full) {
         if (ReadRegisterByte(Rapoo::BANK_SYSTEM, Rapoo::ADDR_RF_STRENGTHEN, verify)) {
             bool actual = (verify & 0x01) != 0;
             if (actual == full) return true;
-            if (attempt == 2) return false;
+            if (attempt == 2) {
+                EnterCriticalSection(&g_csState);
+                g_currentState.rfAvailable = true;
+                g_currentState.rfFull = actual;
+                State failedSt = g_currentState;
+                LeaveCriticalSection(&g_csState);
+                if (g_callback) g_callback(failedSt, CHANGE_RF);
+                return false;
+            }
             if (!SendRawCommand(Rapoo::BANK_SYSTEM, Rapoo::ADDR_RF_STRENGTHEN, &next, 1)) return false;
         }
     }

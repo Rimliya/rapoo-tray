@@ -26,9 +26,8 @@ struct FullProfile {
 const FullProfile PROFILES[] = {
     { L"vt7",     L"雷柏 VT7 / VT7 V2", 750.0, 10, 30000, 10, 7 },
     { L"vt3v2",   L"雷柏 VT3 V2",       750.0, 10, 30000, 10, 7 },
-    { L"vt3s",    L"雷柏 VT3S",         300.0, 50, 26000, 10, 7 },
-    { L"vt3max",  L"雷柏 VT3 MAX",      600.0, 10, 30000, 10, 7 },
-    { L"vt3",     L"雷柏 VT3",          700.0, 50, 26000, 10, 7 },
+    { L"vt3s",    L"雷柏 VT3S",         750.0, 50, 26000, 10, 7 },
+    { L"vt3max",  L"雷柏 VT3 MAX",      450.0, 1, 60000, 10, 7 },
     { L"generic", L"通用（粗略）",      500.0, 50, 26000, 10, 7 },
 };
 
@@ -130,7 +129,6 @@ std::wstring DetectModelKey(const Device::State& state) {
     if (Contains(state.modelName, L"VT3S")) return L"vt3s";
     if (Contains(state.modelName, L"VT7")) return L"vt7";
     if (Contains(state.modelName, L"VT3 V2")) return L"vt3v2";
-    if (Contains(state.modelName, L"VT3")) return L"vt3";
     return L"generic";
 }
 
