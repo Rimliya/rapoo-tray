@@ -1110,7 +1110,7 @@ export component MainWindow inherits Window {
                                                         text: "版本 " + root.about-version;
                                                         color: Palette.foreground.with-alpha(0.72);
                                                         font-size: 11px;
-                                                        padding-left: 10px;
+                                                        horizontal-alignment: center;
                                                         vertical-alignment: center;
                                                     }
                                                 }
@@ -1245,5 +1245,4 @@ export component MainWindow inherits Window {
         triggered => { root.refresh-tick(); }
     }
 }
-
 

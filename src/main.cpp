@@ -19,6 +19,7 @@ static const UINT WM_APP_TRAYMSG = WM_APP + 1;
 static const UINT WM_APP_STATE_UPDATE = WM_APP + 2;
 static const UINT WM_APP_DEVICE_CONNECTED = WM_APP + 3;
 static const UINT_PTR TIMER_PROFILE_POLL = 0x5101;
+static UINT g_openSettingsMessage = 0;
 
 static HWND g_hMainWnd = NULL;
 static NOTIFYICONDATAW g_nid = {0};
@@ -96,6 +97,11 @@ static void OnDeviceStateChanged(const Device::State& state, DWORD changeMask) {
 }
 
 static LRESULT CALLBACK MainWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    if (g_openSettingsMessage != 0 && msg == g_openSettingsMessage) {
+        Settings::ShowPage(hWnd, (int)wParam);
+        return 0;
+    }
+
     if (msg == g_uTaskbarRestartMsg) {
         Shell_NotifyIconW(NIM_ADD, &g_nid);
         RefreshTrayUI(Device::GetCurrentState());
@@ -184,10 +190,24 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 }
 
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow) {
-    // Single instance protection
+    g_openSettingsMessage = RegisterWindowMessageW(L"RapooTrayOpenSettingsPage");
+    int requestedPage = -1;
+    if (pCmdLine && wcsstr(pCmdLine, L"--about")) requestedPage = 3;
+    else if (pCmdLine && wcsstr(pCmdLine, L"--settings")) requestedPage = 0;
+
+    // Single instance protection. A second launch can request the existing
+    // instance to open a settings page instead of silently exiting.
     HANDLE hMutex = CreateMutexW(NULL, TRUE, L"Local\\rapoo-traySingleInstance");
     if (GetLastError() == ERROR_ALREADY_EXISTS) {
         CloseHandle(hMutex);
+        if (requestedPage >= 0) {
+            HWND existing = NULL;
+            for (int attempt = 0; attempt < 20 && !existing; ++attempt) {
+                existing = FindWindowW(L"RapooTrayMessageWnd", L"RapooTray");
+                if (!existing) Sleep(100);
+            }
+            if (existing) PostMessageW(existing, g_openSettingsMessage, (WPARAM)requestedPage, 0);
+        }
         return 0;
     }
 
@@ -245,6 +265,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     Profiles::Initialize();
     Device::Start(g_hMainWnd, OnDeviceStateChanged);
     SetTimer(g_hMainWnd, TIMER_PROFILE_POLL, 600, NULL);
+    if (requestedPage >= 0) {
+        PostMessageW(g_hMainWnd, g_openSettingsMessage, (WPARAM)requestedPage, 0);
+    }
 
     // Run message pump
     MSG msg;
@@ -272,3 +295,4 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     CloseHandle(hMutex);
     return 0;
 }
+
