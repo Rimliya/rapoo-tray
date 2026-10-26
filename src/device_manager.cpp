@@ -32,7 +32,6 @@ static int g_cachedBattery = 100;
 static std::atomic<bool> g_started{false};
 static std::atomic<bool> g_pollingKnown{false};
 static bool g_dpiConfigValid = false;
-static std::atomic<ULONGLONG> g_rfSettleUntil{0};
 
 // Registry helper for persistent settings
 static DWORD LoadRegistryDword(const WCHAR* valName, DWORD defVal) {
@@ -557,8 +556,6 @@ static DWORD WINAPI HidWorkerThread(LPVOID lpParam) {
 
         BYTE buf[65] = {0};
         DWORD bytesRead = 0;
-        bool gotFirstPacket = false; // no ping-alive judgement until mode is known
-        int pingFailureCount = 0;
 
         while (WaitForSingleObject(g_hStopEvent, 0) == WAIT_TIMEOUT) {
             ResetEvent(hReadEvent);
@@ -567,8 +564,12 @@ static DWORD WINAPI HidWorkerThread(LPVOID lpParam) {
                 DWORD err = GetLastError();
                 if (err == ERROR_IO_PENDING) {
                     HANDLE waitHandles[3] = { g_hStopEvent, hReadEvent, g_hDevChangeEvent };
-                    DWORD waitMs = 3000;
-                    DWORD waitRes = WaitForMultipleObjects(3, waitHandles, FALSE, waitMs);
+
+                    // Keep one passive report read pending. Some Rapoo dongles
+                    // visibly stall mouse input for any vendor register access,
+                    // and cancelling/reissuing the HID read every few seconds
+                    // causes the same kind of intermittent cursor hitch.
+                    DWORD waitRes = WaitForMultipleObjects(3, waitHandles, FALSE, INFINITE);
 
                     if (waitRes == WAIT_OBJECT_0) {
                         CancelIo(hStatus);
@@ -583,46 +584,6 @@ static DWORD WINAPI HidWorkerThread(LPVOID lpParam) {
                         }
                         CancelIo(hStatus);
                         break;
-                    } else if (waitRes == WAIT_TIMEOUT) {
-                        CancelIo(hStatus);
-                        GetOverlappedResult(hStatus, &ov, &bytesRead, FALSE);
-
-                        // Ping-alive probe is only meaningful in dongle mode,
-                        // and only after the packet marker told us the mode.
-                        // (Wired devices may not answer the feature ping, and
-                        // before the first packet isWired is still the default.)
-                        if (gotFirstPacket) {
-                            bool wiredNow;
-                            EnterCriticalSection(&g_csState);
-                            wiredNow = g_currentState.isWired;
-                            LeaveCriticalSection(&g_csState);
-                            if (!wiredNow) {
-                                int hz = 0;
-                                bool alive = PingDevice(hz);
-                                bool inRfSettleWindow = GetTickCount64() < g_rfSettleUntil.load();
-                                if (!alive) {
-                                    ++pingFailureCount;
-                                    if (!inRfSettleWindow && pingFailureCount >= 3) {
-                                        EnterCriticalSection(&g_csState);
-                                        bool wasConn = g_currentState.isConnected;
-                                        g_currentState.isConnected = false;
-                                        g_currentState.isCharging = false;
-                                        State copySt = g_currentState;
-                                        LeaveCriticalSection(&g_csState);
-                                        if (wasConn && g_callback) g_callback(copySt, CHANGE_CONNECTED | CHANGE_BATTERY);
-                                    }
-                                } else {
-                                    pingFailureCount = 0;
-                                    EnterCriticalSection(&g_csState);
-                                    bool wasConn = g_currentState.isConnected;
-                                    g_currentState.isConnected = true;
-                                    State copySt = g_currentState;
-                                    LeaveCriticalSection(&g_csState);
-                                    if (!wasConn && g_callback) g_callback(copySt, CHANGE_CONNECTED);
-                                }
-                            }
-                        }
-                        continue;
                     } else if (waitRes == WAIT_OBJECT_0 + 1) {
                         if (!GetOverlappedResult(hStatus, &ov, &bytesRead, FALSE)) {
                             break;
@@ -639,8 +600,6 @@ static DWORD WINAPI HidWorkerThread(LPVOID lpParam) {
             // Parse status broadcast using ClickSync standard parser
             Rapoo::DeviceStatus devStatus;
             if (Rapoo::ParseStatusReport(buf, bytesRead, devStatus, g_cachedBattery)) {
-                gotFirstPacket = true;
-                pingFailureCount = 0;
                 // NOTE: wired USB direct connect does NOT imply charging.
                 // Trust the protocol-level charging flag for all modes.
 
@@ -853,7 +812,6 @@ bool SetRfFull(bool full) {
     BYTE next = full ? 0x01 : 0x00;
     if (!SendRawCommand(Rapoo::BANK_SYSTEM, Rapoo::ADDR_RF_STRENGTHEN, &next, 1)) return false;
 
-    g_rfSettleUntil.store(GetTickCount64() + 5000);
     EnterCriticalSection(&g_csState);
     g_currentState.rfAvailable = true;
     g_currentState.rfFull = full;
