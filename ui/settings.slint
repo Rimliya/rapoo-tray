@@ -334,7 +334,6 @@ export component MainWindow inherits Window {
                         color: Palette.foreground.with-alpha(0.5);
                         font-size: 11px;
                         font-weight: 600;
-                        padding-left: 10px;
                     }
 
                     SideNavItem {
@@ -494,7 +493,7 @@ export component MainWindow inherits Window {
                                                 VerticalLayout {
                                                     horizontal-stretch: 1;
                                                     spacing: 4px;
-                                                    cross-axis-alignment: center;
+                                                    cross-axis-alignment: start;
                                                     HorizontalLayout {
                                                         spacing: 6px;
                                                         Text {
@@ -506,6 +505,7 @@ export component MainWindow inherits Window {
                                                             overflow: elide;
                                                         }
                                                         if !item.badge.is-empty : Rectangle {
+                                                            width: 44px;
                                                             height: 20px;
                                                             border-radius: 10px;
                                                             background: item.badge == "当前" ? Palette.accent-background.with-alpha(0.14) : Palette.control-background;
@@ -513,10 +513,6 @@ export component MainWindow inherits Window {
                                                                 text: item.badge;
                                                                 color: item.badge == "当前" ? Palette.accent-background : Palette.foreground.with-alpha(0.64);
                                                                 font-size: 10px;
-                                                                padding-top: 0px;
-                                                                padding-right: 7px;
-                                                                padding-bottom: 0px;
-                                                                padding-left: 7px;
                                                                 vertical-alignment: center;
                                                             }
                                                         }
@@ -770,6 +766,7 @@ export component MainWindow inherits Window {
 
                                 SettingsCard {
                                     width: 100%;
+                                    height: 160px;
                                     VerticalLayout {
                                         padding-top: 18px;
                                         padding-right: 20px;
@@ -1091,8 +1088,9 @@ export component MainWindow inherits Window {
                                             }
                                         }
                                         VerticalLayout {
+                                            horizontal-stretch: 1;
                                             spacing: 9px;
-                                            cross-axis-alignment: center;
+                                            cross-axis-alignment: start;
                                             Text {
                                                 text: "rapoo-tray";
                                                 color: Palette.foreground;
@@ -1102,6 +1100,7 @@ export component MainWindow inherits Window {
                                             HorizontalLayout {
                                                 spacing: 8px;
                                                 Rectangle {
+                                                    width: 86px;
                                                     height: 26px;
                                                     border-radius: 13px;
                                                     background: Palette.control-background;
@@ -1111,9 +1110,6 @@ export component MainWindow inherits Window {
                                                         text: "版本 " + root.about-version;
                                                         color: Palette.foreground.with-alpha(0.72);
                                                         font-size: 11px;
-                                                        padding-top: 0px;
-                                                        padding-right: 10px;
-                                                        padding-bottom: 0px;
                                                         padding-left: 10px;
                                                         vertical-alignment: center;
                                                     }
@@ -1249,3 +1245,5 @@ export component MainWindow inherits Window {
         triggered => { root.refresh-tick(); }
     }
 }
+
+

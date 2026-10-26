@@ -74,3 +74,8 @@ add_custom_command(TARGET rapoo-tray POST_BUILD
 
 install(TARGETS rapoo-tray RUNTIME DESTINATION .)
 install(FILES "$<TARGET_FILE:slint_cpp-shared>" DESTINATION . RENAME slint_cpp.dll)
+
+if(MSVC)
+    target_link_options(rapoo-tray PRIVATE /MANIFEST:NO)
+endif()
+
