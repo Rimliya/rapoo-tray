@@ -114,7 +114,9 @@ void NormalizeDpiPair(int& x, int& y) {
     }
 
     BatteryEstimate::DpiSpec spec;
-    BatteryEstimate::GetDpiSpecForState(Device::GetCurrentState(), spec);
+    Device::State state;
+    if (Device::IsStarted()) state = Device::GetCurrentState();
+    BatteryEstimate::GetDpiSpecForState(state, spec);
     const int step = std::max(1, spec.step);
     auto normalize = [&](int value) {
         value = std::clamp(value, spec.minDpi, spec.maxDpi);

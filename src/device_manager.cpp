@@ -28,7 +28,7 @@ static HANDLE g_hControlDev = INVALID_HANDLE_VALUE;
 static HANDLE g_hFeatureDev = INVALID_HANDLE_VALUE;
 
 static int g_cachedBattery = 100;
-static bool g_started = false;
+static std::atomic<bool> g_started{false};
 static bool g_dpiConfigValid = false;
 static std::atomic<ULONGLONG> g_rfSettleUntil{0};
 
@@ -736,12 +736,12 @@ bool Start(HWND hNotifyWnd, StateCallback callback) {
     g_hDevChangeEvent = CreateEventW(NULL, FALSE, FALSE, NULL);
 
     g_hWorkerThread = CreateThread(NULL, 0, HidWorkerThread, NULL, 0, NULL);
-    g_started = (g_hWorkerThread != NULL);
-    return g_started;
+    g_started.store(g_hWorkerThread != NULL, std::memory_order_release);
+    return g_started.load(std::memory_order_acquire);
 }
 
 void Stop() {
-    g_started = false;
+    g_started.store(false, std::memory_order_release);
     if (g_hStopEvent) SetEvent(g_hStopEvent);
     if (g_hWorkerThread) {
         WaitForSingleObject(g_hWorkerThread, 2000);
@@ -997,6 +997,7 @@ bool SetDpiIndex(int index) {
 }
 
 bool IsDpiConfigValid() {
+    if (!g_started.load(std::memory_order_acquire)) return false;
     EnterCriticalSection(&g_csState);
     bool valid = g_dpiConfigValid;
     LeaveCriticalSection(&g_csState);
@@ -1004,7 +1005,7 @@ bool IsDpiConfigValid() {
 }
 
 bool IsStarted() {
-    return g_started;
+    return g_started.load(std::memory_order_acquire);
 }
 
 void ForceRefresh() {
@@ -1036,6 +1037,7 @@ void ForceRefresh() {
 }
 
 State GetCurrentState() {
+    if (!g_started.load(std::memory_order_acquire)) return State();
     EnterCriticalSection(&g_csState);
     State st = g_currentState;
     LeaveCriticalSection(&g_csState);
