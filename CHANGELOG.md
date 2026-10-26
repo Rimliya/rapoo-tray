@@ -14,6 +14,10 @@
 - Slint 设置窗口使用独立事件循环且不再因窗口隐藏而提前退出；托盘、HID 和自动切换继续运行在原生 Win32 主循环中。
 - 安装器同时部署 `rapoo-tray.exe` 与 `slint_cpp.dll`。
 
+### 修复
+
+- 修复关闭设置窗口后再次从托盘打开“关于”时，因重复创建 Slint UI 线程而导致的崩溃。
+
 ### 注意
 
 - 便携版现在需要 `rapoo-tray.exe` 和 `slint_cpp.dll` 放在同一目录。
@@ -126,4 +130,3 @@
 - `rapoo-plugin.dll`：`D55AFC900669D344F4BB23CE9E5FDE3A94D9975F431D3F7A0213C17ADA276270`
 
 **完整变更**：https://github.com/Rimliya/rapoo-tray/compare/v1.6.3...v1.6.4
-
