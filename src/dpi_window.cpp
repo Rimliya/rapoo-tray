@@ -1,6 +1,7 @@
 #include "dpi_window.h"
 #include "battery_estimator.h"
 #include "device_manager.h"
+#include "tray_menu.h"
 
 #include <commctrl.h>
 #include <strsafe.h>
@@ -57,6 +58,8 @@ HBRUSH g_brushBg = NULL;
 HBRUSH g_brushSurface = NULL;
 HBRUSH g_brushField = NULL;
 bool g_classRegistered = false;
+bool g_embedded = false;
+HWND g_parent = NULL;
 bool g_dark = false;
 bool g_loading = false;
 bool g_dirty = false;
@@ -83,6 +86,8 @@ COLORREF ColorText() { return g_dark ? RGB(235, 240, 248) : RGB(20, 24, 32); }
 COLORREF ColorMuted() { return g_dark ? RGB(140, 150, 165) : RGB(105, 115, 130); }
 COLORREF ColorAccent() { return g_dark ? RGB(96, 205, 255) : RGB(0, 110, 215); }
 COLORREF ColorAccentFill() { return g_dark ? RGB(55, 103, 145) : RGB(218, 232, 255); }
+COLORREF ColorButton() { return g_dark ? RGB(38, 42, 52) : RGB(240, 243, 248); }
+COLORREF ColorHover() { return g_dark ? RGB(52, 58, 72) : RGB(232, 238, 248); }
 
 UINT GetSystemDpiSafe() {
     HMODULE hUser = GetModuleHandleW(L"user32.dll");
@@ -100,6 +105,18 @@ UINT GetSystemDpiSafe() {
     return dpi > 0 ? dpi : 96;
 }
 
+UINT GetWindowDpiSafe(HWND hwnd) {
+    HMODULE hUser = GetModuleHandleW(L"user32.dll");
+    if (hUser && hwnd) {
+        typedef UINT (WINAPI *pfnGetDpiForWindow)(HWND);
+        pfnGetDpiForWindow fn = (pfnGetDpiForWindow)GetProcAddress(hUser, "GetDpiForWindow");
+        if (fn) {
+            UINT dpi = fn(hwnd);
+            if (dpi > 0) return dpi;
+        }
+    }
+    return GetSystemDpiSafe();
+}
 HFONT MakeFont(int px, int weight) {
     return CreateFontW(-S(px), 0, 0, 0, weight, FALSE, FALSE, FALSE,
         DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
@@ -116,21 +133,20 @@ void RebuildBrushes() {
 }
 
 void UpdateTheme() {
-    HKEY hKey = NULL;
-    bool dark = true;
-    if (RegOpenKeyExW(HKEY_CURRENT_USER,
-            L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
-            0, KEY_READ, &hKey) == ERROR_SUCCESS) {
-        DWORD value = 1, size = sizeof(value), type = 0;
-        if (RegQueryValueExW(hKey, L"AppsUseLightTheme", NULL, &type,
-                (LPBYTE)&value, &size) == ERROR_SUCCESS) {
-            dark = value == 0;
-        }
-        RegCloseKey(hKey);
-    }
-    g_dark = dark;
+    g_dark = Tray::IsDarkMode();
     RebuildBrushes();
-    if (g_hwnd) InvalidateRect(g_hwnd, NULL, TRUE);
+    if (g_hwnd) {
+        if (!g_embedded) {
+            RECT rc = {0};
+            GetWindowRect(g_hwnd, &rc);
+            Tray::ApplyModernWindowStyle(g_hwnd, g_dark, rc.right - rc.left, rc.bottom - rc.top);
+        }
+        if (g_hSlider) {
+            SetWindowTheme(g_hSlider, g_dark ? L"DarkMode_Explorer" : L"Explorer", NULL);
+            InvalidateRect(g_hSlider, NULL, TRUE);
+        }
+        RedrawWindow(g_hwnd, NULL, NULL, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN);
+    }
 }
 
 int SnapDpi(int value) {
@@ -162,10 +178,20 @@ void FillRounded(HDC dc, const RECT& rect, COLORREF fill, COLORREF border, int r
 void DrawSection(HDC dc, int x, int y, int w, int h, const WCHAR* title) {
     RECT section = {S(x), S(y), S(x + w), S(y + h)};
     FillRounded(dc, section, ColorSurface(), ColorBorder(), S(12));
+
+    HBRUSH dot = CreateSolidBrush(ColorAccent());
+    HGDIOBJ oldBrush = SelectObject(dc, dot);
+    HGDIOBJ oldPen = SelectObject(dc, GetStockObject(NULL_PEN));
+    Ellipse(dc, section.left + S(16), section.top + S(17),
+        section.left + S(22), section.top + S(23));
+    SelectObject(dc, oldBrush);
+    SelectObject(dc, oldPen);
+    DeleteObject(dot);
+
     SetBkMode(dc, TRANSPARENT);
     HGDIOBJ oldFont = SelectObject(dc, g_fontBold ? g_fontBold : GetStockObject(DEFAULT_GUI_FONT));
     SetTextColor(dc, ColorText());
-    RECT titleRect = {section.left + S(16), section.top + S(4), section.right - S(16), section.top + S(30)};
+    RECT titleRect = {section.left + S(29), section.top + S(4), section.right - S(16), section.top + S(30)};
     DrawTextW(dc, title, -1, &titleRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
     SelectObject(dc, oldFont);
 }
@@ -190,8 +216,23 @@ HWND CreateControl(const WCHAR* cls, const WCHAR* text, DWORD style, DWORD exSty
     return control;
 }
 
+LRESULT CALLBACK ButtonSubclassProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam,
+                                    UINT_PTR, DWORD_PTR) {
+    if (msg == WM_MOUSEMOVE) {
+        TRACKMOUSEEVENT track = { sizeof(track), TME_LEAVE, hwnd, 0 };
+        TrackMouseEvent(&track);
+        InvalidateRect(hwnd, NULL, FALSE);
+    } else if (msg == WM_MOUSELEAVE || msg == WM_SETFOCUS || msg == WM_KILLFOCUS) {
+        InvalidateRect(hwnd, NULL, FALSE);
+    }
+    return DefSubclassProc(hwnd, msg, wParam, lParam);
+}
+
 HWND CreateButton(const WCHAR* text, int x, int y, int w, int h, int id) {
-    return CreateControl(L"BUTTON", text, WS_TABSTOP | BS_PUSHBUTTON, 0, x, y, w, h, id);
+    HWND button = CreateControl(L"BUTTON", text, WS_TABSTOP | BS_OWNERDRAW,
+        0, x, y, w, h, id);
+    if (button) SetWindowSubclass(button, ButtonSubclassProc, 1, 0);
+    return button;
 }
 
 int SelectedIndex() {
@@ -440,8 +481,11 @@ void RebuildSlots() {
         }
         int col = i % 2;
         int row = i / 2;
-        SetWindowPos(button, NULL, S(40 + col * 116), S(142 + row * 52),
-            S(106), S(38), SWP_NOZORDER | SWP_SHOWWINDOW);
+        int slotX = g_embedded ? (16 + col * 144) : (40 + col * 116);
+        int slotY = g_embedded ? (68 + row * 48) : (142 + row * 52);
+        int slotW = g_embedded ? 130 : 106;
+        SetWindowPos(button, NULL, S(slotX), S(slotY),
+            S(slotW), S(38), SWP_NOZORDER | SWP_SHOWWINDOW);
         WCHAR text[32] = {0};
         StringCchPrintfW(text, ARRAYSIZE(text), L"%d", g_gears[(size_t)i].x);
         SetWindowTextW(button, text);
@@ -649,6 +693,43 @@ void PaintWindow(HWND hWnd) {
     FillRect(dc, &rc, bg);
     DeleteObject(bg);
 
+    if (g_embedded) {
+        DrawSection(dc, 0, 0, 300, 526, L"DPI 档位");
+        DrawSection(dc, 320, 0, 624, 526, L"DPI 详情");
+
+        WCHAR range[128] = {0};
+        StringCchPrintfW(range, ARRAYSIZE(range), L"%d–%d DPI · 步进 %d · 最多 %d 档",
+            g_spec.minDpi, g_spec.maxDpi, g_spec.step,
+            std::min(g_spec.maxSlots, Device::MAX_DPI_SLOTS));
+        DrawLabel(dc, range, 16, 38, 268, 22, g_fontSmall, ColorMuted());
+        DrawLabel(dc, L"每个档位都可以单独设置 X/Y 数值", 16, 356, 268, 22,
+            g_fontSmall, ColorMuted());
+        DrawLabel(dc, L"档位按 DPI 从小到大自动排序", 16, 380, 268, 22,
+            g_fontSmall, ColorMuted());
+        DrawLabel(dc, L"蓝点表示鼠标当前正在使用的档位", 16, 404, 268, 22,
+            g_fontSmall, ColorMuted());
+
+        RECT xField = { S(444), S(68), S(614), S(102) };
+        RECT yField = { S(444), S(112), S(614), S(146) };
+        FillRounded(dc, xField, ColorField(), ColorBorder(), S(7));
+        FillRounded(dc, yField, ColorField(), ColorBorder(), S(7));
+        DrawLabel(dc, L"横向 X", 346, 78, 84, 24, g_fontNormal, ColorText());
+        DrawLabel(dc, L"纵向 Y", 346, 122, 84, 24, g_fontNormal, ColorText());
+        DrawLabel(dc, L"拖动滑块可连续调整；端点对应当前型号允许的最小与最大 DPI。", 346, 242, 572, 22,
+            g_fontSmall, ColorMuted());
+
+        RECT note = { S(346), S(290), S(918), S(386) };
+        FillRounded(dc, note, ColorField(), ColorBorder(), S(10));
+        DrawLabel(dc, L"编辑不会立即修改鼠标", 362, 302, 330, 22, g_fontBold, ColorText());
+        DrawLabel(dc, L"点击“应用并切换”后才会写入设备并切换档位。", 362, 326, 520, 22,
+            g_fontSmall, ColorMuted());
+        DrawLabel(dc, L"设备未连接时，可以先把档位保存到本机缓存。", 362, 350, 520, 22,
+            g_fontSmall, ColorMuted());
+
+        EndPaint(hWnd, &ps);
+        return;
+    }
+
     DrawSection(dc, 24, 82, 260, 356, L"DPI 档位");
     DrawSection(dc, 300, 82, 496, 356, L"DPI 设置");
 
@@ -708,11 +789,137 @@ LRESULT DrawSlotButton(const DRAWITEMSTRUCT* item) {
     return 1;
 }
 
+void DrawPushButton(const DRAWITEMSTRUCT* item) {
+    if (!item) return;
+    bool pressed = (item->itemState & ODS_SELECTED) != 0;
+    bool disabled = (item->itemState & ODS_DISABLED) != 0;
+    bool focused = (item->itemState & ODS_FOCUS) != 0;
+    bool primary = item->CtlID == IDC_APPLY;
+    POINT cursor = {0};
+    GetCursorPos(&cursor);
+    bool hovered = WindowFromPoint(cursor) == item->hwndItem;
+
+    COLORREF fill;
+    COLORREF textColor;
+    COLORREF border;
+    if (disabled) {
+        fill = ColorSurface();
+        textColor = ColorMuted();
+        border = ColorBorder();
+    } else if (primary) {
+        fill = pressed ? (g_dark ? RGB(73, 180, 230) : RGB(0, 92, 185)) : ColorAccent();
+        textColor = g_dark ? RGB(10, 14, 20) : RGB(255, 255, 255);
+        border = ColorAccent();
+    } else {
+        fill = (pressed || hovered) ? ColorHover() : ColorButton();
+        textColor = ColorText();
+        border = pressed ? ColorAccent() : ColorBorder();
+    }
+
+    RECT rc = item->rcItem;
+    FillRounded(item->hDC, rc, fill, border, S(7));
+    WCHAR text[128] = {0};
+    GetWindowTextW(item->hwndItem, text, ARRAYSIZE(text));
+    HGDIOBJ oldFont = SelectObject(item->hDC, g_fontNormal);
+    SetBkMode(item->hDC, TRANSPARENT);
+    SetTextColor(item->hDC, textColor);
+    DrawTextW(item->hDC, text, -1, &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+    SelectObject(item->hDC, oldFont);
+    if (focused && !disabled) DrawFocusRect(item->hDC, &rc);
+}
+
+void DrawCheckButton(const DRAWITEMSTRUCT* item) {
+    if (!item) return;
+    RECT rc = item->rcItem;
+    bool disabled = (item->itemState & ODS_DISABLED) != 0;
+    bool focused = (item->itemState & ODS_FOCUS) != 0;
+    bool checked = SendMessageW(item->hwndItem, BM_GETCHECK, 0, 0) == BST_CHECKED;
+    POINT cursor = {0};
+    GetCursorPos(&cursor);
+    bool hovered = WindowFromPoint(cursor) == item->hwndItem;
+
+    HBRUSH background = CreateSolidBrush(ColorSurface());
+    FillRect(item->hDC, &rc, background);
+    DeleteObject(background);
+    if (hovered && !disabled) {
+        RECT hover = rc;
+        hover.right = std::min(hover.right, hover.left + S(360));
+        FillRounded(item->hDC, hover, ColorHover(), ColorHover(), S(6));
+    }
+
+    int box = S(17);
+    int boxTop = rc.top + ((rc.bottom - rc.top) - box) / 2;
+    RECT boxRect = { rc.left + S(2), boxTop, rc.left + S(2) + box, boxTop + box };
+    FillRounded(item->hDC, boxRect,
+        checked ? ColorAccent() : ColorField(),
+        checked ? ColorAccent() : ColorBorder(), S(4));
+    if (checked) {
+        HPEN pen = CreatePen(PS_SOLID, std::max(1, S(2)),
+            g_dark ? RGB(10, 14, 20) : RGB(255, 255, 255));
+        HGDIOBJ oldPen = SelectObject(item->hDC, pen);
+        MoveToEx(item->hDC, boxRect.left + S(4), boxRect.top + S(9), NULL);
+        LineTo(item->hDC, boxRect.left + S(7), boxRect.top + S(12));
+        LineTo(item->hDC, boxRect.left + S(13), boxRect.top + S(5));
+        SelectObject(item->hDC, oldPen);
+        DeleteObject(pen);
+    }
+
+    WCHAR text[256] = {0};
+    GetWindowTextW(item->hwndItem, text, ARRAYSIZE(text));
+    RECT textRect = { boxRect.right + S(9), rc.top, rc.right - S(2), rc.bottom };
+    HGDIOBJ oldFont = SelectObject(item->hDC, g_fontNormal);
+    SetBkMode(item->hDC, TRANSPARENT);
+    SetTextColor(item->hDC, disabled ? ColorMuted() : ColorText());
+    DrawTextW(item->hDC, text, -1, &textRect, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+    SelectObject(item->hDC, oldFont);
+    if (focused && !disabled) DrawFocusRect(item->hDC, &rc);
+}
+
+void CreateEmbeddedControls() {
+    g_hTitle = NULL;
+    g_hSubtitle = NULL;
+    g_hDetail = CreateControl(L"STATIC", L"", SS_LEFT, 0, 346, 34, 560, 24, 0);
+    SendMessageW(g_hDetail, WM_SETFONT, (WPARAM)g_fontSmall, TRUE);
+
+    for (int i = 0; i < Device::MAX_DPI_SLOTS; ++i) {
+        g_slotButtons[i] = CreateControl(L"BUTTON", L"", WS_TABSTOP | BS_OWNERDRAW,
+            0, 16, 68, 130, 38, SLOT_BUTTON_BASE + i);
+    }
+    CreateButton(L"+ 添加档位", 16, 304, 130, 34, IDC_ADD_SLOT);
+    CreateButton(L"删除档位", 160, 304, 130, 34, IDC_DELETE_SLOT);
+
+    g_hX = CreateControl(L"EDIT", L"800", WS_TABSTOP | ES_AUTOHSCROLL | ES_NUMBER,
+        0, 444, 68, 170, 34, IDC_DPI_X);
+    g_hY = CreateControl(L"EDIT", L"800", WS_TABSTOP | ES_AUTOHSCROLL | ES_NUMBER,
+        0, 444, 112, 170, 34, IDC_DPI_Y);
+    CreateButton(L"−", 624, 68, 32, 34, IDC_MINUS);
+    CreateButton(L"+", 664, 68, 32, 34, IDC_PLUS);
+
+    g_hSlider = CreateControl(TRACKBAR_CLASSW, L"", WS_TABSTOP | TBS_HORZ | TBS_NOTICKS,
+        0, 346, 196, 572, 40, IDC_DPI_SLIDER);
+    SendMessageW(g_hSlider, TBM_SETPAGESIZE, 10, 0);
+
+    g_hIndependent = CreateControl(L"BUTTON", L"横向 X 与纵向 Y 独立设置",
+        WS_TABSTOP | BS_OWNERDRAW, 0, 346, 154, 350, 28, IDC_INDEPENDENT);
+    SetWindowSubclass(g_hIndependent, ButtonSubclassProc, 1, 0);
+    SendMessageW(g_hIndependent, WM_SETFONT, (WPARAM)g_fontNormal, TRUE);
+
+    g_hStatus = CreateControl(L"STATIC", L"", SS_LEFT, 0, 346, 436, 430, 26, 0);
+    SendMessageW(g_hStatus, WM_SETFONT, (WPARAM)g_fontSmall, TRUE);
+    CreateButton(L"应用并切换", 796, 430, 132, 34, IDC_APPLY);
+    SetWindowTheme(g_hSlider, g_dark ? L"DarkMode_Explorer" : L"Explorer", NULL);
+}
+
 void CreateControls() {
     g_fontTitle = MakeFont(20, FW_BOLD);
     g_fontBold = MakeFont(14, FW_SEMIBOLD);
     g_fontNormal = MakeFont(13, FW_NORMAL);
     g_fontSmall = MakeFont(12, FW_NORMAL);
+
+    if (g_embedded) {
+        CreateEmbeddedControls();
+        return;
+    }
 
     g_hTitle = CreateControl(L"STATIC", L"DPI 设置", SS_LEFT, 0, 24, 14, 500, 32, 0);
     SendMessageW(g_hTitle, WM_SETFONT, (WPARAM)g_fontTitle, TRUE);
@@ -780,11 +987,17 @@ LRESULT CALLBACK DpiWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
         case WM_DRAWITEM: {
             const DRAWITEMSTRUCT* item = (const DRAWITEMSTRUCT*)lParam;
-            if (item && item->CtlID >= SLOT_BUTTON_BASE &&
+            if (!item || item->CtlType != ODT_BUTTON) break;
+            if (item->CtlID >= SLOT_BUTTON_BASE &&
                 item->CtlID < SLOT_BUTTON_BASE + Device::MAX_DPI_SLOTS) {
                 return DrawSlotButton(item);
             }
-            break;
+            if (item->CtlID == IDC_INDEPENDENT) {
+                DrawCheckButton(item);
+                return TRUE;
+            }
+            DrawPushButton(item);
+            return TRUE;
         }
 
         case WM_HSCROLL: {
@@ -885,8 +1098,9 @@ LRESULT CALLBACK DpiWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             HDC dc = (HDC)wParam;
             HWND control = (HWND)lParam;
             SetBkMode(dc, TRANSPARENT);
-            SetTextColor(dc, control == g_hStatus && !g_statusGood ? RGB(225, 78, 78) : ColorText());
-            bool onBackground = control == g_hTitle || control == g_hSubtitle || control == g_hStatus;
+            SetTextColor(dc, control == g_hStatus && !g_statusGood ? RGB(235, 92, 92) : ColorText());
+            bool onBackground = !g_embedded &&
+                (control == g_hTitle || control == g_hSubtitle || control == g_hStatus);
             HBRUSH brush = onBackground ? g_brushBg : g_brushSurface;
             return (LRESULT)(brush ? brush : GetStockObject(WHITE_BRUSH));
         }
@@ -904,6 +1118,7 @@ LRESULT CALLBACK DpiWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         }
 
         case WM_CLOSE: {
+            if (g_embedded) return 0;
             if (g_dirty) {
                 int result = MessageBoxW(hWnd, L"DPI 设置尚未应用，是否立即应用？",
                     L"DPI 设置", MB_YESNOCANCEL | MB_ICONQUESTION);
@@ -932,6 +1147,9 @@ LRESULT CALLBACK DpiWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             g_hX = g_hY = g_hSlider = g_hIndependent = NULL;
             g_hTitle = g_hSubtitle = g_hDetail = g_hStatus = NULL;
             g_hwnd = NULL;
+            g_parent = NULL;
+            g_embedded = false;
+            g_dirty = false;
             return 0;
 
         default:
@@ -941,6 +1159,23 @@ LRESULT CALLBACK DpiWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 }
 
 } // namespace
+
+static bool EnsureWindowClass() {
+    if (g_classRegistered) return true;
+    INITCOMMONCONTROLSEX common = { sizeof(common), ICC_STANDARD_CLASSES | ICC_BAR_CLASSES };
+    InitCommonControlsEx(&common);
+    WNDCLASSEXW wc = {0};
+    wc.cbSize = sizeof(wc);
+    wc.lpfnWndProc = DpiWndProc;
+    wc.hInstance = (HINSTANCE)GetModuleHandleW(NULL);
+    wc.hIcon = LoadIconW(wc.hInstance, MAKEINTRESOURCEW(1));
+    wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+    wc.hbrBackground = NULL;
+    wc.lpszClassName = WINDOW_CLASS;
+    if (!RegisterClassExW(&wc)) return false;
+    g_classRegistered = true;
+    return true;
+}
 
 bool GetQuickSlots(QuickSlotList& out) {
     out = QuickSlotList();
@@ -999,26 +1234,25 @@ bool SelectQuickSlot(int index) {
 
 void Show(HWND owner) {
     if (g_hwnd && IsWindow(g_hwnd)) {
+        if (g_embedded) {
+            HWND parent = GetParent(g_hwnd);
+            if (parent && IsWindow(parent)) {
+                ShowWindow(parent, SW_SHOWNORMAL);
+                SetForegroundWindow(parent);
+            }
+            return;
+        }
         ShowWindow(g_hwnd, SW_SHOWNORMAL);
         SetForegroundWindow(g_hwnd);
         if (!g_dirty) LoadConfig();
         return;
     }
-    INITCOMMONCONTROLSEX common = {sizeof(common), ICC_STANDARD_CLASSES | ICC_BAR_CLASSES};
+    INITCOMMONCONTROLSEX common = { sizeof(common), ICC_STANDARD_CLASSES | ICC_BAR_CLASSES };
     InitCommonControlsEx(&common);
-    if (!g_classRegistered) {
-        WNDCLASSEXW wc = {0};
-        wc.cbSize = sizeof(wc);
-        wc.lpfnWndProc = DpiWndProc;
-        wc.hInstance = (HINSTANCE)GetModuleHandleW(NULL);
-        wc.hIcon = LoadIconW(wc.hInstance, MAKEINTRESOURCEW(1));
-        wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-        wc.hbrBackground = NULL;
-        wc.lpszClassName = WINDOW_CLASS;
-        if (!RegisterClassExW(&wc)) return;
-        g_classRegistered = true;
-    }
+    if (!EnsureWindowClass()) return;
 
+    g_embedded = false;
+    g_parent = NULL;
     g_dpi = (int)GetSystemDpiSafe();
     RECT work = {0};
     SystemParametersInfoW(SPI_GETWORKAREA, 0, &work, 0);
@@ -1042,6 +1276,42 @@ void Show(HWND owner) {
         UpdateWindow(g_hwnd);
         SetForegroundWindow(g_hwnd);
     }
+}
+
+HWND CreateEmbedded(HWND parent, int x, int y, int width, int height) {
+    if (g_hwnd && IsWindow(g_hwnd)) return g_hwnd;
+    if (!parent || !EnsureWindowClass()) return NULL;
+
+    g_embedded = true;
+    g_parent = parent;
+    g_dpi = (int)GetWindowDpiSafe(parent);
+    g_hwnd = CreateWindowExW(
+        WS_EX_CONTROLPARENT,
+        WINDOW_CLASS,
+        L"",
+        WS_CHILD | WS_CLIPCHILDREN,
+        x, y, width, height,
+        parent, NULL, (HINSTANCE)GetModuleHandleW(NULL), NULL);
+    if (!g_hwnd) {
+        g_embedded = false;
+        g_parent = NULL;
+    }
+    return g_hwnd;
+}
+
+void RefreshEmbedded() {
+    if (g_hwnd && IsWindow(g_hwnd) && !g_dirty) LoadConfig();
+}
+
+bool HasUnsavedChanges() {
+    return g_hwnd && IsWindow(g_hwnd) && g_dirty;
+}
+
+bool ApplyPendingChanges() {
+    if (!g_hwnd || !IsWindow(g_hwnd)) return true;
+    if (!g_dirty) return true;
+    ApplyConfig();
+    return !g_dirty;
 }
 
 void Cleanup() {
