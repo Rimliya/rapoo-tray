@@ -236,7 +236,7 @@ export component MainWindow inherits Window {
     in-out property <bool> dpi-dirty: false;
     in-out property <bool> dpi-loading: false;
 
-    in-out property <string> about-version: "1.7.0";
+    in-out property <string> about-version: "1.7.1";
     in-out property <string> update-status: "检查 GitHub Releases 上是否有新版本";
     in-out property <string> update-button-text: "检查更新";
     in-out property <bool> update-busy: false;
@@ -1332,5 +1332,3 @@ export component MainWindow inherits Window {
         triggered => { root.refresh-tick(); }
     }
 }
-
-

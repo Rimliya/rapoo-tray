@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(rapoo-tray VERSION 1.7.0 LANGUAGES CXX RC)
+project(rapoo-tray VERSION 1.7.1 LANGUAGES CXX RC)
 
 if(NOT WIN32)
     message(FATAL_ERROR "rapoo-tray is a Windows application.")
@@ -82,4 +82,3 @@ endif()
 
 
 install(FILES licenses/slint-LICENSE.md licenses/slint-THIRDPARTY.md DESTINATION licenses)
-

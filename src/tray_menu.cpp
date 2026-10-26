@@ -622,7 +622,7 @@ static LRESULT CALLBACK AcrylicSubWndProc(HWND hWnd, UINT msg, WPARAM wParam, LP
                     std::wstring label = profile.name;
                     if (profile.id == defaultId) label = L"★ " + label;
                     SetTextColor(memDC, textCol);
-                    RECT rName = { S(12), y, rc.right - S(142), y + itemH };
+                    RECT rName = { S(12), y, rc.right - S(185), y + itemH };
                     DrawTextW(memDC, label.c_str(), -1, &rName, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
 
                     WCHAR detailText[64] = {0};
@@ -634,12 +634,12 @@ static LRESULT CALLBACK AcrylicSubWndProc(HWND hWnd, UINT msg, WPARAM wParam, LP
                         StringCchPrintfW(detailText, ARRAYSIZE(detailText), L"%d Hz · DPI 当前", profile.pollingHz);
                     }
                     SetTextColor(memDC, mutedCol);
-                    RECT rDetail = { rc.right - S(140), y, rc.right - S(28), y + itemH };
-                    DrawTextW(memDC, detailText, -1, &rDetail, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
+                    RECT rDetail = { rc.right - S(185), y, rc.right - S(30), y + itemH };
+                    DrawTextW(memDC, detailText, -1, &rDetail, DT_RIGHT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
 
                     if (profile.id == currentId) {
                         SetTextColor(memDC, checkCol);
-                        RECT rCheck = { rc.right - S(26), y, rc.right - S(8), y + itemH };
+                        RECT rCheck = { rc.right - S(26), y, rc.right - S(6), y + itemH };
                         DrawTextW(memDC, L"✓", -1, &rCheck, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
                     }
                     y += itemH;
@@ -765,7 +765,7 @@ static void ShowSubMenuWindow(int subType, RECT rItemScreen) {
     if (subType == 4 && g_dpiQuickSlots.slots.empty()) {
         if (!DpiWindow::GetQuickSlots(g_dpiQuickSlots)) g_dpiQuickSlots = DpiWindow::QuickSlotList();
     }
-    int subW = (subType == 1) ? S(140) : ((subType == 3) ? S(300) : ((subType == 4) ? S(180) : S(260)));
+    int subW = (subType == 1) ? S(140) : ((subType == 3) ? S(360) : ((subType == 4) ? S(180) : S(260)));
     int subH = (subType == 1) ? S(212) : ((subType == 3) ? S(16 + (int)profileSnapshot.size() * 32) :
         ((subType == 4) ? S(16 + std::max(1, (int)g_dpiQuickSlots.slots.size()) * 28) : S(138)));
 
