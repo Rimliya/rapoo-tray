@@ -1,4 +1,5 @@
 #include <windows.h>
+#include <slint.h>
 #include <shellapi.h>
 #include <dbt.h>
 extern "C" {
@@ -179,6 +180,7 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
                 DestroyIcon(g_hCurrentTrayIcon);
                 g_hCurrentTrayIcon = NULL;
             }
+            slint::quit_event_loop();
             PostQuitMessage(0);
             return 0;
         }
@@ -269,15 +271,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         PostMessageW(g_hMainWnd, g_openSettingsMessage, (WPARAM)requestedPage, 0);
     }
 
-    // Run message pump
-    MSG msg;
-    while (GetMessageW(&msg, NULL, 0, 0)) {
-        if (About::PreTranslateMessage(&msg)) continue;
-        if (DpiWindow::PreTranslateMessage(&msg)) continue;
-        if (Settings::PreTranslateMessage(&msg)) continue;
-        TranslateMessage(&msg);
-        DispatchMessageW(&msg);
-    }
+    // Slint's Windows backend dispatches this thread's Win32 messages as well,
+    // so it can own the main event loop while tray/HID windows stay active.
+    slint::run_event_loop(slint::EventLoopMode::RunUntilQuit);
 
     // Clean exit
     if (hDevNotify) {
