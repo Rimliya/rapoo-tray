@@ -1,5 +1,25 @@
 # Changelog
 
+## [v1.7.0] - 2026-10-27
+
+### 新增
+
+- 设置中心、DPI 档位编辑器与关于页迁移到 Slint 1.18.1，使用内置 Fluent 控件和 Windows 11 设置页式左侧导航。
+- 新增命令行直达入口：`rapoo-tray.exe --settings` 打开设置，`--about` 打开关于页；重复启动会把请求转交给现有实例。
+
+### 优化
+
+- 配置档案、自动化、DPI 档位和关于页统一在单个 Fluent 窗口中，深浅色主题跟随系统。
+- 设置、任务栏托盘和关于页的中文文本统一使用 UTF-8 编译，修复 MSVC 构建下的乱码。
+- Slint 设置窗口使用独立事件循环且不再因窗口隐藏而提前退出；托盘、HID 和自动切换继续运行在原生 Win32 主循环中。
+- 安装器同时部署 `rapoo-tray.exe` 与 `slint_cpp.dll`。
+
+### 注意
+
+- 便携版现在需要 `rapoo-tray.exe` 和 `slint_cpp.dll` 放在同一目录。
+
+**完整变更**：https://github.com/Rimliya/rapoo-tray/compare/v1.6.9...v1.7.0
+
 ## [v1.6.9] - 2026-10-26
 
 ### 修复
@@ -106,4 +126,3 @@
 - `rapoo-plugin.dll`：`D55AFC900669D344F4BB23CE9E5FDE3A94D9975F431D3F7A0213C17ADA276270`
 
 **完整变更**：https://github.com/Rimliya/rapoo-tray/compare/v1.6.3...v1.6.4
-

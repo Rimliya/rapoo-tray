@@ -88,3 +88,5 @@ jobs:
             bin/slint_cpp.dll
             dist/rapoo-tray-setup.exe
             bin/rapoo-plugin.dll
+            licenses/slint-LICENSE.md
+            licenses/slint-THIRDPARTY.md

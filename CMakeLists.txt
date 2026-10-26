@@ -76,11 +76,10 @@ install(TARGETS rapoo-tray RUNTIME DESTINATION .)
 install(FILES "$<TARGET_FILE:slint_cpp-shared>" DESTINATION . RENAME slint_cpp.dll)
 
 if(MSVC)
+    target_compile_options(rapoo-tray PRIVATE /utf-8 /bigobj)
     target_link_options(rapoo-tray PRIVATE /MANIFEST:NO)
 endif()
 
 
-if(MSVC)
-    target_compile_options(rapoo-tray PRIVATE /utf-8 /bigobj)
-endif()
+install(FILES licenses/slint-LICENSE.md licenses/slint-THIRDPARTY.md DESTINATION licenses)
 
