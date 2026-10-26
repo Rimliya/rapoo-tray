@@ -667,13 +667,11 @@ void PollForeground(bool force) {
 
 void OnDeviceConnected() {
     EnsureInitialized();
-    if (g_store.autoSwitch) {
-        PollForeground(true);
-        return;
-    }
-
-    const Definition* active = FindInternalConst(g_store.activeId);
-    if (active) ApplyInternal(*active, false, false, false);
+    g_autoContextProfileId = 0;
+    g_manualHoldMatchedProfileId = 0;
+    // The device retains its hardware settings across restarts. Reapplying the
+    // active profile here causes unnecessary polling/DPI writes and a visible
+    // cursor freeze at login, so profiles are applied only on an actual switch.
 }
 
 std::wstring MakeUniqueName() {

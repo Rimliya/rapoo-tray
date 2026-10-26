@@ -26,9 +26,11 @@ static CRITICAL_SECTION g_csDevIO;
 static CRITICAL_SECTION g_csState;
 static HANDLE g_hControlDev = INVALID_HANDLE_VALUE;
 static HANDLE g_hFeatureDev = INVALID_HANDLE_VALUE;
+static bool g_controlUnlocked = false;
 
 static int g_cachedBattery = 100;
 static std::atomic<bool> g_started{false};
+static std::atomic<bool> g_pollingKnown{false};
 static bool g_dpiConfigValid = false;
 static std::atomic<ULONGLONG> g_rfSettleUntil{0};
 
@@ -52,9 +54,39 @@ static void SaveRegistryDword(const WCHAR* valName, DWORD val) {
     }
 }
 
+// Caller must hold g_csDevIO. Vendor control traffic is unlocked lazily so a
+// normal startup with no pending setting changes does not touch the mouse.
+static bool EnsureDeviceUnlockedLocked() {
+    if (g_controlUnlocked) return true;
+    if (g_hControlDev == INVALID_HANDLE_VALUE) return false;
+
+    BYTE unlockBuf[33] = {0};
+    DWORD unlockSize = Rapoo::BuildUnlockPacket(unlockBuf, sizeof(unlockBuf));
+    DWORD written = 0;
+    OVERLAPPED ov = {0};
+    ov.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
+    if (!ov.hEvent) return false;
+
+    BOOL ok = WriteFile(g_hControlDev, unlockBuf, unlockSize, &written, &ov);
+    if (!ok && GetLastError() == ERROR_IO_PENDING) {
+        ok = WaitForSingleObject(ov.hEvent, 800) == WAIT_OBJECT_0 &&
+             GetOverlappedResult(g_hControlDev, &ov, &written, FALSE);
+    }
+    CloseHandle(ov.hEvent);
+
+    if (!ok || written != unlockSize) return false;
+    Sleep(50);
+    g_controlUnlocked = true;
+    return true;
+}
+
 static bool SendRawCommand(BYTE bank, BYTE addr, const BYTE* pData, BYTE len) {
     EnterCriticalSection(&g_csDevIO);
     if (g_hControlDev == INVALID_HANDLE_VALUE) {
+        LeaveCriticalSection(&g_csDevIO);
+        return false;
+    }
+    if (!EnsureDeviceUnlockedLocked()) {
         LeaveCriticalSection(&g_csDevIO);
         return false;
     }
@@ -86,6 +118,10 @@ static bool ReadRegisterBytes(BYTE bank, BYTE addr, BYTE len, BYTE* outData) {
 
     EnterCriticalSection(&g_csDevIO);
     if (g_hControlDev == INVALID_HANDLE_VALUE || g_hFeatureDev == INVALID_HANDLE_VALUE) {
+        LeaveCriticalSection(&g_csDevIO);
+        return false;
+    }
+    if (!EnsureDeviceUnlockedLocked()) {
         LeaveCriticalSection(&g_csDevIO);
         return false;
     }
@@ -496,6 +532,8 @@ static DWORD WINAPI HidWorkerThread(LPVOID lpParam) {
                 );
             }
         }
+        g_controlUnlocked = false;
+        g_pollingKnown.store(false, std::memory_order_release);
         LeaveCriticalSection(&g_csDevIO);
 
         EnterCriticalSection(&g_csState);
@@ -510,43 +548,8 @@ static DWORD WINAPI HidWorkerThread(LPVOID lpParam) {
         LeaveCriticalSection(&g_csState);
         if (g_callback) g_callback(connSt, CHANGE_CONNECTED | (isWired ? CHANGE_BATTERY : 0));
 
-        // ClickSync A5 A3 unlock handshake
-        if (g_hControlDev != INVALID_HANDLE_VALUE) {
-            BYTE unlockBuf[33] = {0};
-            DWORD uSize = Rapoo::BuildUnlockPacket(unlockBuf, sizeof(unlockBuf));
-            DWORD written = 0;
-            OVERLAPPED uOv = {0};
-            uOv.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
-            BOOL unlocked = WriteFile(g_hControlDev, unlockBuf, uSize, &written, &uOv);
-            if (!unlocked && GetLastError() == ERROR_IO_PENDING) {
-                unlocked = WaitForSingleObject(uOv.hEvent, 800) == WAIT_OBJECT_0 &&
-                    GetOverlappedResult(g_hControlDev, &uOv, &written, FALSE);
-            }
-            CloseHandle(uOv.hEvent);
-            if (unlocked) Sleep(150);
-        }
-
-        // Query current hardware polling rate
-        int curHz = 1000;
-        if (PingDevice(curHz)) {
-            EnterCriticalSection(&g_csState);
-            g_currentState.pollingHz = curHz;
-            State pollSt = g_currentState;
-            LeaveCriticalSection(&g_csState);
-            if (g_callback) g_callback(pollSt, CHANGE_POLLING);
-        }
-
-        RefreshRfState();
-        DpiConfig initialDpi;
-        ReadDpiConfig(initialDpi);
-
-        // Push saved sleep timeout to device hardware
-        int curSleepMin = 10;
-        EnterCriticalSection(&g_csState);
-        curSleepMin = g_currentState.sleepMinutes;
-        LeaveCriticalSection(&g_csState);
-        BYTE sleepCode = (BYTE)curSleepMin;
-        SendRawCommand(Rapoo::BANK_SYSTEM, Rapoo::ADDR_SLEEP_TIMEOUT, &sleepCode, 1);
+        // Enter the passive status stream first. Hardware reads and writes are
+        // performed lazily when the UI or a profile change actually needs them.
 
         HANDLE hReadEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
         OVERLAPPED ov = {0};
@@ -707,6 +710,8 @@ static DWORD WINAPI HidWorkerThread(LPVOID lpParam) {
             CloseHandle(g_hFeatureDev);
             g_hFeatureDev = INVALID_HANDLE_VALUE;
         }
+        g_controlUnlocked = false;
+        g_pollingKnown.store(false, std::memory_order_release);
         LeaveCriticalSection(&g_csDevIO);
 
         Sleep(300);
@@ -735,8 +740,9 @@ bool Start(HWND hNotifyWnd, StateCallback callback) {
     g_hStopEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
     g_hDevChangeEvent = CreateEventW(NULL, FALSE, FALSE, NULL);
 
-    g_hWorkerThread = CreateThread(NULL, 0, HidWorkerThread, NULL, 0, NULL);
+    g_hWorkerThread = CreateThread(NULL, 0, HidWorkerThread, NULL, CREATE_SUSPENDED, NULL);
     g_started.store(g_hWorkerThread != NULL, std::memory_order_release);
+    if (g_hWorkerThread) ResumeThread(g_hWorkerThread);
     return g_started.load(std::memory_order_acquire);
 }
 
@@ -767,8 +773,15 @@ void NotifyDeviceChange() {
 }
 
 bool SetPollingRate(int hz) {
+    if (!g_started.load(std::memory_order_acquire)) return false;
+    if (g_pollingKnown.load(std::memory_order_acquire)) {
+        const State current = GetCurrentState();
+        if (current.isConnected && current.pollingHz == hz) return true;
+    }
+
     BYTE code = Rapoo::PollingHzToCode(hz);
     if (SendRawCommand(Rapoo::BANK_SYSTEM, Rapoo::ADDR_POLLING_HZ, &code, 1)) {
+        g_pollingKnown.store(true, std::memory_order_release);
         EnterCriticalSection(&g_csState);
         g_currentState.pollingHz = hz;
         State copySt = g_currentState;
@@ -780,7 +793,11 @@ bool SetPollingRate(int hz) {
 }
 
 bool SetSleepTimeout(int minutes) {
+    if (!g_started.load(std::memory_order_acquire)) return false;
     minutes = Rapoo::ClampSleepMinutes(minutes);
+    const State current = GetCurrentState();
+    if (current.isConnected && current.sleepMinutes == minutes) return true;
+
     BYTE code = (BYTE)minutes;
     if (SendRawCommand(Rapoo::BANK_SYSTEM, Rapoo::ADDR_SLEEP_TIMEOUT, &code, 1)) {
         EnterCriticalSection(&g_csState);
@@ -797,6 +814,7 @@ bool SetSleepTimeout(int minutes) {
 bool RefreshPollingRate() {
     int curHz = 1000;
     if (PingDevice(curHz)) {
+        g_pollingKnown.store(true, std::memory_order_release);
         EnterCriticalSection(&g_csState);
         bool changed = (g_currentState.pollingHz != curHz);
         if (changed) g_currentState.pollingHz = curHz;
@@ -953,6 +971,12 @@ bool WriteDpiConfig(const DpiConfig& config) {
 }
 
 bool SetCurrentDpi(int x, int y) {
+    if (!g_started.load(std::memory_order_acquire)) return false;
+    if (IsDpiConfigValid()) {
+        const State current = GetCurrentState();
+        if (current.isConnected && current.dpiX == x && current.dpiY == y) return true;
+    }
+
     DpiConfig config;
     if (!ReadDpiConfig(config) || config.dpiX.empty() || config.dpiY.empty()) return false;
 
