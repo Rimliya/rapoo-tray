@@ -18,9 +18,10 @@
 #include <atomic>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <exception>
 #include <memory>
-#include <optional>
 #include <string>
 #include <thread>
 #include <vector>
@@ -36,10 +37,23 @@ constexpr const WCHAR* SOURCE_URL = L"https://github.com/Rimliya/rapoo-tray";
 constexpr const WCHAR* RELEASES_URL = L"https://github.com/Rimliya/rapoo-tray/releases/latest";
 constexpr int POLLING_RATES[] = { 125, 250, 500, 1000, 2000, 4000, 8000 };
 
-
+void DebugLog(const char* event) {
+    if (!std::getenv("RAPOO_UI_DEBUG")) return;
+    WCHAR temp[MAX_PATH] = {0};
+    if (!GetTempPathW(MAX_PATH, temp)) return;
+    std::wstring path = std::wstring(temp) + L"rapoo-tray-slint.log";
+    HANDLE file = CreateFileW(path.c_str(), FILE_APPEND_DATA,
+        FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (file == INVALID_HANDLE_VALUE) return;
+    DWORD written = 0;
+    WriteFile(file, event, (DWORD)strlen(event), &written, NULL);
+    WriteFile(file, "\r\n", 2, &written, NULL);
+    CloseHandle(file);
+}
 
 HWND g_owner = NULL;
-std::optional<slint::ComponentHandle<MainWindow>> g_ui;
+std::atomic<bool> g_uiOpen{false};
+std::thread g_uiThread;
 bool g_updateAvailable = false;
 std::wstring g_releaseUrl = RELEASES_URL;
 slint::ComponentWeakHandle<MainWindow> g_uiWeak;
@@ -693,8 +707,7 @@ void StartUpdateCheck() {
             }
         }
 
-        try {
-            slint::invoke_from_event_loop([weak, success, newer, latestTag, releaseUrl, error] {
+        slint::invoke_from_event_loop([weak, success, newer, latestTag, releaseUrl, error] {
             auto locked = weak.lock();
             if (!locked) return;
             MainWindow& view = *(*locked);
@@ -715,9 +728,7 @@ void StartUpdateCheck() {
                 view.set_update_status(S(L"已是最新版本 " + latestTag));
                 view.set_update_button_text(S(L"再次检查"));
             }
-            });
-        } catch (...) {
-        }
+        });
     }).detach();
 }
 
@@ -795,42 +806,28 @@ void RegisterCallbacks(MainWindow& ui) {
     });
     view->on_close_window([view] {
         view->hide();
-        slint::invoke_from_event_loop([] {
-            g_ui.reset();
-        });
+        slint::quit_event_loop();
     });
     view->on_refresh_tick([view] { RefreshUi(*view); });
 
     view->window().on_close_requested([] {
-        slint::invoke_from_event_loop([] {
-            if (g_ui) {
-                (**g_ui).hide();
-                g_ui.reset();
-            }
-        });
+        DebugLog("window close requested");
+        slint::quit_event_loop();
         return slint::CloseRequestResponse::HideWindow;
     });
 }
 
-void OpenUiPage(HWND owner, int page) {
-    page = std::clamp(page, 0, 3);
+void RunUiThread(HWND owner, int page) {
     g_owner = owner;
-
-    if (g_ui) {
-        MainWindow& view = **g_ui;
-        view.set_page(page);
-        if (page == 2) LoadDpiState(view, false);
-        if (page == 3) view.set_update_status(S(L"检查 GitHub Releases 上是否有新版本"));
-        view.show();
-        return;
-    }
+    g_dpi = DpiState();
+    g_updateAvailable = false;
+    g_releaseUrl = RELEASES_URL;
 
     try {
         Profiles::Initialize();
         auto handle = MainWindow::create();
-        g_dpi = DpiState();
-        g_updateAvailable = false;
-        g_releaseUrl = RELEASES_URL;
+        g_uiWeak = slint::ComponentWeakHandle(handle);
+    DebugLog("component created");
 
         RefreshDeviceUi(*handle);
         RefreshProfileList(*handle);
@@ -841,7 +838,7 @@ void OpenUiPage(HWND owner, int page) {
         Device::State state = Device::GetCurrentState();
         if (state.rfAvailable) handle->set_rf_full(state.rfFull);
         handle->set_about_version(S(GetExecutableVersion()));
-        handle->set_page(page);
+        handle->set_page(std::clamp(page, 0, 3));
 
         int startProfile = Profiles::ActiveId();
         Profiles::Definition profile;
@@ -851,17 +848,54 @@ void OpenUiPage(HWND owner, int page) {
 
         RegisterCallbacks(*handle);
         if (page == 2) LoadDpiState(*handle, true);
-        g_ui = handle;
-        g_uiWeak = slint::ComponentWeakHandle(handle);
+
+        DebugLog("showing window");
         handle->show();
+        DebugLog("entering event loop");
+        slint::run_event_loop(slint::EventLoopMode::RunUntilQuit);
+        DebugLog("event loop returned");
     } catch (const std::exception& error) {
-        if (g_ui) g_ui.reset();
         std::wstring message = L"Slint 界面启动失败：";
         message += Utf8ToWide(error.what());
         MessageBoxW(owner, message.c_str(), L"rapoo-tray", MB_OK | MB_ICONERROR);
     } catch (...) {
-        if (g_ui) g_ui.reset();
         MessageBoxW(owner, L"Slint 界面发生未知错误。", L"rapoo-tray", MB_OK | MB_ICONERROR);
+    }
+
+    g_owner = NULL;
+    g_dpi = DpiState();
+    g_updateAvailable = false;
+    DebugLog("ShowInternal end");
+    g_uiOpen.store(false);
+}
+
+void OpenUiPage(HWND owner, int page) {
+    page = std::clamp(page, 0, 3);
+    if (g_uiOpen.load(std::memory_order_acquire)) {
+        try {
+            slint::invoke_from_event_loop([page] {
+                auto locked = g_uiWeak.lock();
+                if (!locked) return;
+                MainWindow& view = *(*locked);
+                view.set_page(page);
+                if (page == 2) LoadDpiState(view, false);
+                if (page == 3) view.set_update_status(S(L"检查 GitHub Releases 上是否有新版本"));
+                view.show();
+            });
+        } catch (...) {
+        }
+        return;
+    }
+
+    if (g_uiThread.joinable()) g_uiThread.join();
+    g_uiOpen.store(true, std::memory_order_release);
+    try {
+        g_uiThread = std::thread([owner, page] { RunUiThread(owner, page); });
+    } catch (const std::exception& error) {
+        g_uiOpen.store(false, std::memory_order_release);
+        std::wstring message = L"无法启动 Slint 界面线程：";
+        message += Utf8ToWide(error.what());
+        MessageBoxW(owner, message.c_str(), L"rapoo-tray", MB_OK | MB_ICONERROR);
     }
 }
 
@@ -876,8 +910,16 @@ void ShowPage(HWND owner, int page) {
 }
 
 void Cleanup() {
-    g_ui.reset();
-    g_owner = NULL;
+    DebugLog("Cleanup");
+    if (g_uiOpen.load(std::memory_order_acquire)) {
+        try {
+            slint::invoke_from_event_loop([] { slint::quit_event_loop(); });
+        } catch (...) {
+        }
+    }
+    if (g_uiThread.joinable() && g_uiThread.get_id() != std::this_thread::get_id()) {
+        g_uiThread.join();
+    }
 }
 
 bool PreTranslateMessage(MSG*) {
@@ -885,6 +927,8 @@ bool PreTranslateMessage(MSG*) {
 }
 
 } // namespace Settings
+
+
 
 
 
