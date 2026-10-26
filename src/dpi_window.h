@@ -27,6 +27,7 @@ bool PreTranslateMessage(MSG* msg);
 // from the device first and falls back to the per-model local DPI cache.
 bool GetQuickSlots(QuickSlotList& out);
 bool SelectQuickSlot(int index);
+bool ApplyQuickSlots(const QuickSlotList& list, int selectedIndex);
 
 // Embeds the editor as a page inside the unified settings window.
 HWND CreateEmbedded(HWND parent, int x, int y, int width, int height);

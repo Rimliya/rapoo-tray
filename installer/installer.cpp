@@ -16,6 +16,7 @@
 #include <tlhelp32.h>
 
 #define IDR_APP_PAYLOAD      1001
+#define IDR_SLINT_PAYLOAD    1002
 
 #define IDC_BTN_INSTALL      2001
 #define IDC_BTN_CANCEL       2002
@@ -116,8 +117,8 @@ static bool CreateShellShortcut(LPCWSTR targetPath, LPCWSTR lnkPath, LPCWSTR des
 }
 
 // Extract payload resource to file
-static bool ExtractPayloadToFile(LPCWSTR destPath) {
-    HRSRC hRes = FindResourceW(g_hInstance, MAKEINTRESOURCEW(IDR_APP_PAYLOAD), RT_RCDATA);
+static bool ExtractPayloadToFile(WORD resourceId, LPCWSTR destPath) {
+    HRSRC hRes = FindResourceW(g_hInstance, MAKEINTRESOURCEW(resourceId), RT_RCDATA);
     if (!hRes) return false;
 
     HGLOBAL hMem = LoadResource(g_hInstance, hRes);
@@ -339,12 +340,15 @@ static void DoInstall() {
 
     WCHAR appExePath[MAX_PATH];
     StringCchPrintfW(appExePath, MAX_PATH, L"%s\\rapoo-tray.exe", installDir);
+    WCHAR slintDllPath[MAX_PATH];
+    StringCchPrintfW(slintDllPath, MAX_PATH, L"%s\\slint_cpp.dll", installDir);
 
     WCHAR uninstallerPath[MAX_PATH];
     StringCchPrintfW(uninstallerPath, MAX_PATH, L"%s\\Uninstall.exe", installDir);
 
-    // 3. Extract rapoo-tray.exe
-    if (!ExtractPayloadToFile(appExePath)) {
+    // 3. Extract application and Slint runtime
+    if (!ExtractPayloadToFile(IDR_APP_PAYLOAD, appExePath) ||
+        !ExtractPayloadToFile(IDR_SLINT_PAYLOAD, slintDllPath)) {
         MessageBoxW(g_hMainWnd, L"旧程序已停止，但写入文件仍失败。请检查安装目录权限后重试。", L"错误", MB_ICONERROR);
         SetWindowTextW(g_hBtnInstall, g_isUpdate ? L"更新" : L"安装");
         EnableWindow(g_hBtnInstall, TRUE);
