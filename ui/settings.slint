@@ -29,43 +29,42 @@ export struct DpiGearItem {
 
 component SideNavItem inherits Rectangle {
     in property <string> label;
-    in property <string> glyph;
+    in property <image> icon;
     in property <bool> selected;
     callback clicked();
 
-    height: 42px;
+    height: 36px;
     border-radius: 6px;
     background: selected ? Palette.control-background : (touch.has-hover ? Palette.control-background.with-alpha(0.55) : transparent);
 
     Rectangle {
         visible: root.selected;
         x: 0;
-        y: 9px;
+        y: 8px;
         width: 3px;
-        height: root.height - 18px;
+        height: root.height - 16px;
         border-radius: 2px;
         background: Palette.accent-background;
     }
 
     HorizontalLayout {
-        padding-left: 13px;
-        padding-right: 10px;
-        spacing: 12px;
+        padding-left: 10px;
+        padding-right: 8px;
+        spacing: 10px;
         cross-axis-alignment: center;
 
-        Text {
-            width: 22px;
-            text: root.glyph;
-            color: root.selected ? Palette.accent-background : Palette.foreground;
-            font-size: 16px;
-            horizontal-alignment: center;
-            vertical-alignment: center;
+        Image {
+            width: 18px;
+            height: 18px;
+            source: root.icon;
+            image-fit: contain;
+            colorize: root.selected ? Palette.accent-background : Palette.foreground.with-alpha(0.78);
         }
 
         Text {
             text: root.label;
             color: Palette.foreground;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: root.selected ? 600 : 400;
             vertical-alignment: center;
             horizontal-stretch: 1;
@@ -88,28 +87,40 @@ component SettingsCard inherits Rectangle {
 component SettingRow inherits Rectangle {
     in property <string> title;
     in property <string> description;
+    in property <image> icon;
     in property <bool> last;
     in-out property <bool> checked;
     callback toggled(bool);
-    height: 74px;
+    height: 62px;
     background: transparent;
 
+    Image {
+        x: 2px;
+        y: (root.height - self.height) / 2;
+        width: 18px;
+        height: 18px;
+        source: root.icon;
+        image-fit: contain;
+        colorize: Palette.accent-background;
+    }
+
     VerticalLayout {
-        width: root.width - 76px;
-        padding-top: 11px;
-        padding-bottom: 9px;
-        spacing: 4px;
+        width: root.width - 84px;
+        padding-left: 38px;
+        padding-top: 8px;
+        padding-bottom: 7px;
+        spacing: 2px;
         Text {
             text: root.title;
             color: Palette.foreground;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 600;
             horizontal-alignment: left;
         }
         Text {
             text: root.description;
             color: Palette.foreground.with-alpha(0.62);
-            font-size: 12px;
+            font-size: 11px;
             wrap: word-wrap;
             horizontal-alignment: left;
         }
@@ -117,24 +128,24 @@ component SettingRow inherits Rectangle {
 
     Switch {
         x: root.width - self.width;
-        y: 18px;
+        y: 15px;
         checked <=> root.checked;
         toggled => { root.toggled(root.checked); }
     }
 
     Rectangle {
         visible: !root.last;
-        x: 0;
+        x: 38px;
         y: root.height - 1px;
-        width: root.width;
+        width: root.width - 38px;
         height: 1px;
-        background: Palette.border.with-alpha(0.45);
+        background: Palette.border.with-alpha(0.35);
     }
 }
 
 component FieldLabel inherits Text {
     color: Palette.foreground.with-alpha(0.68);
-    font-size: 12px;
+    font-size: 11px;
     vertical-alignment: center;
 }
 
@@ -149,27 +160,27 @@ component StatusDot inherits Rectangle {
 component PageTitle inherits VerticalLayout {
     in property <string> title;
     in property <string> subtitle;
-    spacing: 5px;
+    spacing: 4px;
 
     Text {
         text: root.title;
         color: Palette.foreground;
-        font-size: 25px;
+        font-size: 22px;
         font-weight: 600;
     }
     Text {
         text: root.subtitle;
         color: Palette.foreground.with-alpha(0.62);
-        font-size: 13px;
+        font-size: 11px;
     }
 }
 
 export component MainWindow inherits Window {
     title: "rapoo-tray 设置";
-    preferred-width: 1180px;
-    preferred-height: 780px;
-    min-width: 1020px;
-    min-height: 700px;
+    preferred-width: 1040px;
+    preferred-height: 680px;
+    min-width: 980px;
+    min-height: 640px;
     background: Palette.background;
 
     in-out property <int> page: 0;
@@ -277,33 +288,33 @@ export component MainWindow inherits Window {
             vertical-stretch: 1;
 
             Rectangle {
-                width: 236px;
+                width: 210px;
                 background: Palette.alternate-background;
                 border-width: 1px;
                 border-color: Palette.border;
 
                 VerticalLayout {
-                    padding-top: 22px;
-                    padding-right: 14px;
-                    padding-bottom: 18px;
-                    padding-left: 14px;
-                    spacing: 8px;
+                    padding-top: 16px;
+                    padding-right: 10px;
+                    padding-bottom: 8px;
+                    padding-left: 10px;
+                    spacing: 6px;
 
                     HorizontalLayout {
-                        height: 48px;
-                        spacing: 11px;
-                        padding-left: 8px;
+                        height: 40px;
+                        spacing: 9px;
+                        padding-left: 6px;
                         cross-axis-alignment: center;
 
                         Rectangle {
-                            width: 34px;
-                            height: 34px;
+                            width: 30px;
+                            height: 30px;
                             border-radius: 8px;
                             background: @linear-gradient(135deg, #6D28D9 0%, #9B6CFF 54%, #E9D5FF 100%);
                             Text {
                                 text: "R";
                                 color: white;
-                                font-size: 17px;
+                                font-size: 15px;
                                 font-weight: 700;
                                 horizontal-alignment: center;
                                 vertical-alignment: center;
@@ -316,47 +327,47 @@ export component MainWindow inherits Window {
                             Text {
                                 text: "rapoo-tray";
                                 color: Palette.foreground;
-                                font-size: 16px;
+                                font-size: 14px;
                                 font-weight: 600;
                             }
                             Text {
                                 text: "雷柏鼠标控制";
                                 color: Palette.foreground.with-alpha(0.58);
-                                font-size: 11px;
+                                font-size: 10px;
                             }
                         }
                     }
 
-                    Rectangle { height: 12px; background: transparent; }
+                    Rectangle { height: 8px; background: transparent; }
 
                     Text {
                         text: "设置";
                         color: Palette.foreground.with-alpha(0.5);
-                        font-size: 11px;
+                        font-size: 10px;
                         font-weight: 600;
                     }
 
                     SideNavItem {
                         label: "配置档案";
-                        glyph: "◫";
+                        icon: @image-url("icons/profiles.svg");
                         selected: root.page == 0;
                         clicked => { root.go(0); }
                     }
                     SideNavItem {
                         label: "自动化";
-                        glyph: "⚡";
+                        icon: @image-url("icons/automation.svg");
                         selected: root.page == 1;
                         clicked => { root.go(1); }
                     }
                     SideNavItem {
                         label: "DPI 档位";
-                        glyph: "◉";
+                        icon: @image-url("icons/dpi.svg");
                         selected: root.page == 2;
                         clicked => { root.go(2); }
                     }
                     SideNavItem {
                         label: "关于";
-                        glyph: "i";
+                        icon: @image-url("icons/about.svg");
                         selected: root.page == 3;
                         clicked => { root.go(3); }
                     }
@@ -364,32 +375,39 @@ export component MainWindow inherits Window {
                     Rectangle { vertical-stretch: 1; background: transparent; }
 
                     Rectangle {
-                        height: 74px;
+                        height: 64px;
                         border-radius: 7px;
                         background: Palette.background.with-alpha(0.58);
                         border-width: 1px;
                         border-color: Palette.border;
                         VerticalLayout {
-                            padding-top: 10px;
+                            padding-top: 8px;
                             padding-right: 12px;
-                            padding-bottom: 10px;
+                            padding-bottom: 8px;
                             padding-left: 12px;
                             spacing: 3px;
                             HorizontalLayout {
                                 spacing: 7px;
                                 cross-axis-alignment: center;
+                                Image {
+                                    width: 14px;
+                                    height: 14px;
+                                    source: @image-url("icons/mouse.svg");
+                                    image-fit: contain;
+                                    colorize: Palette.foreground.with-alpha(0.7);
+                                }
                                 StatusDot { good: root.connected; }
                                 Text {
                                     text: root.connected ? "设备已连接" : "设备未连接";
                                     color: Palette.foreground;
-                                    font-size: 12px;
+                                    font-size: 10px;
                                     font-weight: 600;
                                 }
                             }
                             Text {
                                 text: root.device-name + " · " + root.battery + "%";
                                 color: Palette.foreground.with-alpha(0.6);
-                                font-size: 11px;
+                                font-size: 10px;
                                 overflow: elide;
                             }
                         }
@@ -403,13 +421,13 @@ export component MainWindow inherits Window {
 
                 VerticalLayout {
                     HorizontalLayout {
-                        height: 104px;
-                        padding-top: 24px;
-                        padding-right: 30px;
-                        padding-bottom: 14px;
-                        padding-left: 30px;
+                        height: 88px;
+                        padding-top: 18px;
+                        padding-right: 24px;
+                        padding-bottom: 8px;
+                        padding-left: 24px;
                         cross-axis-alignment: center;
-                        spacing: 18px;
+                        spacing: 14px;
 
                         PageTitle {
                             horizontal-stretch: 1;
@@ -418,21 +436,28 @@ export component MainWindow inherits Window {
                         }
 
                         Rectangle {
-                            height: 36px;
-                            border-radius: 18px;
+                            height: 32px;
+                            border-radius: 16px;
                             background: Palette.control-background;
                             border-width: 1px;
                             border-color: Palette.border;
                             HorizontalLayout {
-                                padding-left: 13px;
-                                padding-right: 14px;
-                                spacing: 8px;
+                                padding-left: 10px;
+                                padding-right: 10px;
+                                spacing: 7px;
                                 cross-axis-alignment: center;
+                                Image {
+                                    width: 15px;
+                                    height: 15px;
+                                    source: @image-url("icons/mouse.svg");
+                                    image-fit: contain;
+                                    colorize: Palette.foreground.with-alpha(0.72);
+                                }
                                 StatusDot { good: root.connected; }
                                 Text {
                                     text: root.connected ? root.device-mode + "  ·  " + root.battery + "%" : "等待设备连接";
                                     color: Palette.foreground.with-alpha(0.75);
-                                    font-size: 12px;
+                                    font-size: 10px;
                                     vertical-alignment: center;
                                 }
                             }
@@ -446,31 +471,31 @@ export component MainWindow inherits Window {
 
                         if root.page == 0 : HorizontalLayout {
                             padding-top: 0px;
-                            padding-right: 30px;
-                            padding-bottom: 18px;
-                            padding-left: 30px;
-                            spacing: 18px;
+                            padding-right: 24px;
+                            padding-bottom: 8px;
+                            padding-left: 24px;
+                            spacing: 14px;
 
                             SettingsCard {
-                                width: 350px;
+                                width: 320px;
                                 VerticalLayout {
-                                    padding-top: 20px;
-                                    padding-right: 18px;
-                                    padding-bottom: 16px;
-                                    padding-left: 18px;
-                                    spacing: 13px;
+                                    padding-top: 16px;
+                                    padding-right: 14px;
+                                    padding-bottom: 12px;
+                                    padding-left: 14px;
+                                    spacing: 9px;
                                     HorizontalLayout {
                                         Text {
                                             text: "所有配置";
                                             color: Palette.foreground;
-                                            font-size: 16px;
+                                            font-size: 14px;
                                             font-weight: 600;
                                             horizontal-stretch: 1;
                                         }
                                         Text {
                                             text: root.profiles.length;
                                             color: Palette.foreground.with-alpha(0.5);
-                                            font-size: 12px;
+                                            font-size: 10px;
                                             vertical-alignment: center;
                                         }
                                     }
@@ -478,16 +503,16 @@ export component MainWindow inherits Window {
                                     ListView {
                                         vertical-stretch: 1;
                                         for item[i] in root.profiles : Rectangle {
-                                            height: 68px;
+                                            height: 56px;
                                             border-radius: 6px;
                                             background: item.id == root.selected-profile-id ? Palette.control-background : (profile-touch.has-hover ? Palette.control-background.with-alpha(0.45) : transparent);
                                             border-width: item.id == root.selected-profile-id ? 1px : 0px;
                                             border-color: Palette.border;
 
                                             HorizontalLayout {
-                                                padding-top: 10px;
+                                                padding-top: 8px;
                                                 padding-right: 11px;
-                                                padding-bottom: 10px;
+                                                padding-bottom: 8px;
                                                 padding-left: 11px;
                                                 spacing: 9px;
                                                 VerticalLayout {
@@ -499,7 +524,7 @@ export component MainWindow inherits Window {
                                                         Text {
                                                             text: item.name;
                                                             color: Palette.foreground;
-                                                            font-size: 14px;
+                                                            font-size: 13px;
                                                             font-weight: 600;
                                                             horizontal-stretch: 1;
                                                             overflow: elide;
@@ -520,7 +545,7 @@ export component MainWindow inherits Window {
                                                     Text {
                                                         text: item.polling + "  ·  " + item.dpi + " DPI  ·  " + item.app;
                                                         color: Palette.foreground.with-alpha(0.55);
-                                                        font-size: 11px;
+                                                        font-size: 10px;
                                                         overflow: elide;
                                                     }
                                                 }
@@ -543,11 +568,13 @@ export component MainWindow inherits Window {
                                         spacing: 8px;
                                         Button {
                                             text: "新建";
+                                            icon: @image-url("icons/add.svg");
                                             horizontal-stretch: 1;
                                             clicked => { root.profile-add(); }
                                         }
                                         Button {
                                             text: "删除";
+                                            icon: @image-url("icons/delete.svg");
                                             enabled: root.profiles.length > 1;
                                             horizontal-stretch: 1;
                                             clicked => { root.profile-delete(); }
@@ -559,17 +586,17 @@ export component MainWindow inherits Window {
                             SettingsCard {
                                 horizontal-stretch: 1;
                                 VerticalLayout {
-                                    padding-top: 20px;
-                                    padding-right: 22px;
-                                    padding-bottom: 16px;
-                                    padding-left: 22px;
+                                    padding-top: 16px;
+                                    padding-right: 14px;
+                                    padding-bottom: 12px;
+                                    padding-left: 14px;
                                     spacing: 12px;
 
                                     HorizontalLayout {
                                         Text {
                                             text: "配置详情";
                                             color: Palette.foreground;
-                                            font-size: 16px;
+                                            font-size: 14px;
                                             font-weight: 600;
                                             horizontal-stretch: 1;
                                         }
@@ -577,13 +604,13 @@ export component MainWindow inherits Window {
                                             visible: root.profile-dirty;
                                             text: "未保存";
                                             color: #C27A00;
-                                            font-size: 11px;
+                                            font-size: 10px;
                                             vertical-alignment: center;
                                         }
                                     }
 
                                     VerticalLayout {
-                                        spacing: 5px;
+                                        spacing: 4px;
                                         FieldLabel { text: "名称"; }
                                         LineEdit {
                                             text <=> root.profile-name;
@@ -596,7 +623,7 @@ export component MainWindow inherits Window {
                                         spacing: 12px;
                                         VerticalLayout {
                                             horizontal-stretch: 1;
-                                            spacing: 5px;
+                                            spacing: 4px;
                                             FieldLabel { text: "回报率"; }
                                             ComboBox {
                                                 current-index <=> root.profile-poll-index;
@@ -606,7 +633,7 @@ export component MainWindow inherits Window {
                                         }
                                         VerticalLayout {
                                             horizontal-stretch: 1;
-                                            spacing: 5px;
+                                            spacing: 4px;
                                             FieldLabel { text: "休眠时间（分钟）"; }
                                             SpinBox {
                                                 minimum: 5;
@@ -619,7 +646,7 @@ export component MainWindow inherits Window {
                                     }
 
                                     VerticalLayout {
-                                        spacing: 5px;
+                                        spacing: 4px;
                                         FieldLabel { text: "关联程序（进入前台时自动切换）"; }
                                         HorizontalLayout {
                                             spacing: 8px;
@@ -631,10 +658,12 @@ export component MainWindow inherits Window {
                                             }
                                             Button {
                                                 text: "浏览";
+                                                icon: @image-url("icons/browse.svg");
                                                 clicked => { root.profile-browse(); }
                                             }
                                             Button {
                                                 text: "清除";
+                                                icon: @image-url("icons/delete.svg");
                                                 enabled: !root.profile-app-path.is-empty;
                                                 clicked => { root.profile-clear-app(); }
                                             }
@@ -647,14 +676,14 @@ export component MainWindow inherits Window {
                                         Text {
                                             text: "配置 DPI";
                                             color: Palette.foreground;
-                                            font-size: 14px;
+                                            font-size: 13px;
                                             font-weight: 600;
                                             horizontal-stretch: 1;
                                         }
                                         Text {
                                             text: "随配置一起切换";
                                             color: Palette.foreground.with-alpha(0.5);
-                                            font-size: 11px;
+                                            font-size: 10px;
                                             vertical-alignment: center;
                                         }
                                     }
@@ -663,7 +692,7 @@ export component MainWindow inherits Window {
                                         spacing: 10px;
                                         VerticalLayout {
                                             horizontal-stretch: 1;
-                                            spacing: 5px;
+                                            spacing: 4px;
                                             FieldLabel { text: "X 轴"; }
                                             SpinBox {
                                                 minimum: 10;
@@ -675,7 +704,7 @@ export component MainWindow inherits Window {
                                         }
                                         VerticalLayout {
                                             horizontal-stretch: 1;
-                                            spacing: 5px;
+                                            spacing: 4px;
                                             FieldLabel { text: "Y 轴"; }
                                             SpinBox {
                                                 minimum: 10;
@@ -686,17 +715,18 @@ export component MainWindow inherits Window {
                                             }
                                         }
                                         VerticalLayout {
-                                            spacing: 5px;
+                                            spacing: 4px;
                                             FieldLabel { text: " "; }
                                             Button {
                                                 text: "读取当前";
+                                                icon: @image-url("icons/locate.svg");
                                                 clicked => { root.profile-capture-dpi(); }
                                             }
                                         }
                                     }
 
                                     HorizontalLayout {
-                                        height: 36px;
+                                        height: 32px;
                                         spacing: 8px;
                                         CheckBox {
                                             checked <=> root.profile-is-default;
@@ -712,12 +742,13 @@ export component MainWindow inherits Window {
                                         Text {
                                             text: "切换配置会一次性应用回报率、休眠与 DPI";
                                             color: Palette.foreground.with-alpha(0.5);
-                                            font-size: 11px;
+                                            font-size: 10px;
                                             horizontal-stretch: 1;
                                             vertical-alignment: center;
                                         }
                                         Button {
                                             text: root.profile-dirty ? "保存并应用" : "已保存";
+                                            icon: @image-url("icons/save.svg");
                                             primary: root.profile-dirty;
                                             enabled: root.profile-dirty;
                                             clicked => { root.profile-save(); }
@@ -729,20 +760,21 @@ export component MainWindow inherits Window {
 
                         if root.page == 1 : ScrollView {
                             VerticalLayout {
-                                padding-right: 30px;
-                                padding-bottom: 18px;
-                                padding-left: 30px;
-                                spacing: 16px;
+                                padding-right: 24px;
+                                padding-bottom: 8px;
+                                padding-left: 24px;
+                                spacing: 12px;
                                 SettingsCard {
                                     width: 100%;
                                     VerticalLayout {
                                         padding-top: 4px;
-                                        padding-right: 20px;
+                                        padding-right: 16px;
                                         padding-bottom: 4px;
-                                        padding-left: 20px;
+                                        padding-left: 16px;
                                         SettingRow {
                                             title: "前台程序自动切换";
                                             description: "进入关联程序时自动应用对应配置，离开后恢复默认配置。";
+                                            icon: @image-url("icons/switch.svg");
                                             last: false;
                                             checked: root.auto-switch-enabled;
                                             toggled(value) => { root.auto-switch-enabled = value; root.auto-switch-changed(value); }
@@ -750,6 +782,7 @@ export component MainWindow inherits Window {
                                         SettingRow {
                                             title: "悬浮窗提示";
                                             description: "在 DPI、连接状态和配置切换时显示轻量 OSD。";
+                                            icon: @image-url("icons/osd.svg");
                                             last: false;
                                             checked: root.osd-enabled;
                                             toggled(value) => { root.osd-enabled = value; root.osd-changed(value); }
@@ -757,6 +790,7 @@ export component MainWindow inherits Window {
                                         SettingRow {
                                             title: "开机自启动";
                                             description: "登录 Windows 后自动启动托盘程序。";
+                                            icon: @image-url("icons/startup.svg");
                                             last: true;
                                             checked: root.auto-run-enabled;
                                             toggled(value) => { root.auto-run-enabled = value; root.startup-changed(value); }
@@ -766,29 +800,41 @@ export component MainWindow inherits Window {
 
                                 SettingsCard {
                                     width: 100%;
-                                    height: 160px;
+                                    height: 140px;
                                     VerticalLayout {
                                         padding-top: 18px;
-                                        padding-right: 20px;
-                                        padding-bottom: 18px;
-                                        padding-left: 20px;
+                                        padding-right: 16px;
+                                        padding-bottom: 8px;
+                                        padding-left: 16px;
                                         spacing: 10px;
-                                        Text {
-                                            text: "设备与续航";
-                                            color: Palette.foreground;
-                                            font-size: 16px;
-                                            font-weight: 600;
+                                        HorizontalLayout {
+                                            height: 22px;
+                                            spacing: 6px;
+                                            Image {
+                                                width: 16px;
+                                                height: 16px;
+                                                source: @image-url("icons/mouse.svg");
+                                                image-fit: contain;
+                                                colorize: Palette.accent-background;
+                                            }
+                                            Text {
+                                                text: "设备与续航";
+                                                color: Palette.foreground;
+                                                font-size: 14px;
+                                                font-weight: 600;
+                                                vertical-alignment: center;
+                                            }
                                         }
                                         Text {
                                             text: "型号会用于续航估算和 DPI 范围校验。";
                                             color: Palette.foreground.with-alpha(0.58);
-                                            font-size: 12px;
+                                            font-size: 10px;
                                         }
                                         HorizontalLayout {
                                             spacing: 12px;
                                             VerticalLayout {
                                                 horizontal-stretch: 1;
-                                                spacing: 5px;
+                                                spacing: 4px;
                                                 FieldLabel { text: "鼠标型号"; }
                                                 ComboBox {
                                                     current-index <=> root.model-index;
@@ -798,7 +844,7 @@ export component MainWindow inherits Window {
                                             }
                                             VerticalLayout {
                                                 horizontal-stretch: 1;
-                                                spacing: 5px;
+                                                spacing: 4px;
                                                 FieldLabel { text: "射频策略"; }
                                                 HorizontalLayout {
                                                     spacing: 10px;
@@ -809,7 +855,7 @@ export component MainWindow inherits Window {
                                                     Text {
                                                         text: root.rf-full ? "满格射频（功耗较高）" : "智能调节（推荐）";
                                                         color: Palette.foreground;
-                                                        font-size: 12px;
+                                                        font-size: 10px;
                                                         vertical-alignment: center;
                                                     }
                                                 }
@@ -823,22 +869,34 @@ export component MainWindow inherits Window {
                                     height: 128px;
                                     VerticalLayout {
                                         padding-top: 18px;
-                                        padding-right: 20px;
-                                        padding-bottom: 18px;
-                                        padding-left: 20px;
+                                        padding-right: 16px;
+                                        padding-bottom: 8px;
+                                        padding-left: 16px;
                                         spacing: 8px;
-                                        Text {
-                                            text: "当前设备";
-                                            color: Palette.foreground;
-                                            font-size: 16px;
-                                            font-weight: 600;
+                                        HorizontalLayout {
+                                            height: 22px;
+                                            spacing: 6px;
+                                            Image {
+                                                width: 16px;
+                                                height: 16px;
+                                                source: @image-url("icons/mouse.svg");
+                                                image-fit: contain;
+                                                colorize: Palette.accent-background;
+                                            }
+                                            Text {
+                                                text: "当前设备";
+                                                color: Palette.foreground;
+                                                font-size: 14px;
+                                                font-weight: 600;
+                                                vertical-alignment: center;
+                                            }
                                         }
                                         HorizontalLayout {
                                             spacing: 30px;
-                                            Text { text: "型号  " + root.model-label; color: Palette.foreground.with-alpha(0.7); font-size: 12px; }
-                                            Text { text: "连接  " + root.device-mode; color: Palette.foreground.with-alpha(0.7); font-size: 12px; }
-                                            Text { text: "电量  " + root.battery + "%"; color: Palette.foreground.with-alpha(0.7); font-size: 12px; }
-                                            Text { text: "DPI  " + root.device-dpi-x + (root.device-dpi-x == root.device-dpi-y ? "" : " × " + root.device-dpi-y); color: Palette.foreground.with-alpha(0.7); font-size: 12px; }
+                                            Text { text: "型号  " + root.model-label; color: Palette.foreground.with-alpha(0.7); font-size: 10px; }
+                                            Text { text: "连接  " + root.device-mode; color: Palette.foreground.with-alpha(0.7); font-size: 10px; }
+                                            Text { text: "电量  " + root.battery + "%"; color: Palette.foreground.with-alpha(0.7); font-size: 10px; }
+                                            Text { text: "DPI  " + root.device-dpi-x + (root.device-dpi-x == root.device-dpi-y ? "" : " × " + root.device-dpi-y); color: Palette.foreground.with-alpha(0.7); font-size: 10px; }
                                         }
                                     }
                                 }
@@ -847,70 +905,70 @@ export component MainWindow inherits Window {
 
                         if root.page == 2 : HorizontalLayout {
                             padding-top: 0px;
-                            padding-right: 30px;
-                            padding-bottom: 18px;
-                            padding-left: 30px;
-                            spacing: 18px;
+                            padding-right: 24px;
+                            padding-bottom: 8px;
+                            padding-left: 24px;
+                            spacing: 9px;
 
                             SettingsCard {
-                                width: 320px;
+                                width: 280px;
                                 VerticalLayout {
-                                    padding-top: 20px;
-                                    padding-right: 18px;
-                                    padding-bottom: 16px;
-                                    padding-left: 18px;
-                                    spacing: 12px;
+                                    padding-top: 16px;
+                                    padding-right: 14px;
+                                    padding-bottom: 9px;
+                                    padding-left: 14px;
+                                    spacing: 9px;
                                     HorizontalLayout {
                                         Text {
                                             text: "DPI 档位";
                                             color: Palette.foreground;
-                                            font-size: 16px;
+                                            font-size: 14px;
                                             font-weight: 600;
                                             horizontal-stretch: 1;
                                         }
                                         Text {
                                             text: root.dpi-gears.length + " / " + 7;
                                             color: Palette.foreground.with-alpha(0.5);
-                                            font-size: 11px;
+                                            font-size: 10px;
                                             vertical-alignment: center;
                                         }
                                     }
                                     Text {
                                         text: root.dpi-min + "–" + root.dpi-max + " DPI · 步进 " + root.dpi-step + " · 最多 7 档";
                                         color: Palette.foreground.with-alpha(0.56);
-                                        font-size: 11px;
+                                        font-size: 10px;
                                     }
 
                                     ListView {
                                         vertical-stretch: 1;
                                         for gear[i] in root.dpi-gears : Rectangle {
-                                            height: 48px;
+                                            height: 40px;
                                             border-radius: 6px;
                                             background: gear.index == root.selected-dpi-index ? Palette.accent-background.with-alpha(0.12) : (gear-touch.has-hover ? Palette.control-background.with-alpha(0.5) : transparent);
                                             border-width: gear.index == root.selected-dpi-index ? 1px : 0px;
                                             border-color: Palette.accent-background.with-alpha(0.48);
 
                                             HorizontalLayout {
-                                                padding-left: 14px;
-                                                padding-right: 12px;
+                                                padding-left: 10px;
+                                                padding-right: 10px;
                                                 cross-axis-alignment: center;
                                                 Text {
                                                     text: (i + 1) + "";
                                                     width: 24px;
                                                     color: Palette.foreground.with-alpha(0.45);
-                                                    font-size: 11px;
+                                                    font-size: 10px;
                                                 }
                                                 Text {
                                                     text: gear.value;
                                                     color: Palette.foreground;
-                                                    font-size: 14px;
+                                                    font-size: 13px;
                                                     font-weight: gear.index == root.selected-dpi-index ? 600 : 400;
                                                     horizontal-stretch: 1;
                                                 }
                                                 if gear.active : Text {
                                                     text: "当前";
                                                     color: Palette.accent-background;
-                                                    font-size: 11px;
+                                                    font-size: 10px;
                                                 }
                                             }
                                             gear-touch := TouchArea {
@@ -924,12 +982,14 @@ export component MainWindow inherits Window {
                                         spacing: 8px;
                                         Button {
                                             text: "+ 添加";
+                                            icon: @image-url("icons/add.svg");
                                             horizontal-stretch: 1;
                                             enabled: root.dpi-gears.length < 7;
                                             clicked => { root.dpi-gear-add(); }
                                         }
                                         Button {
                                             text: "删除";
+                                            icon: @image-url("icons/delete.svg");
                                             horizontal-stretch: 1;
                                             enabled: root.dpi-gears.length > 1;
                                             clicked => { root.dpi-gear-delete(); }
@@ -941,28 +1001,28 @@ export component MainWindow inherits Window {
                             SettingsCard {
                                 horizontal-stretch: 1;
                                 VerticalLayout {
-                                    padding-top: 20px;
-                                    padding-right: 22px;
-                                    padding-bottom: 16px;
-                                    padding-left: 22px;
-                                    spacing: 14px;
+                                    padding-top: 16px;
+                                    padding-right: 14px;
+                                    padding-bottom: 9px;
+                                    padding-left: 14px;
+                                    spacing: 9px;
                                     Text {
                                         text: "第 " + (root.selected-dpi-index + 1) + " 档";
                                         color: Palette.foreground;
-                                        font-size: 17px;
+                                        font-size: 15px;
                                         font-weight: 600;
                                     }
                                     Text {
                                         text: root.connected ? ("鼠标当前第 " + (root.dpi-active-index + 1) + " 档使用 " + root.device-dpi-x + " DPI") : "鼠标未连接，可先保存到本机缓存";
                                         color: Palette.foreground.with-alpha(0.6);
-                                        font-size: 12px;
+                                        font-size: 10px;
                                     }
 
                                     HorizontalLayout {
-                                        spacing: 12px;
+                                        spacing: 9px;
                                         VerticalLayout {
                                             horizontal-stretch: 1;
-                                            spacing: 6px;
+                                            spacing: 4px;
                                             FieldLabel { text: "横向 X"; }
                                             SpinBox {
                                                 minimum: root.dpi-min;
@@ -978,7 +1038,7 @@ export component MainWindow inherits Window {
                                         }
                                         VerticalLayout {
                                             horizontal-stretch: 1;
-                                            spacing: 6px;
+                                            spacing: 4px;
                                             FieldLabel { text: "纵向 Y"; }
                                             SpinBox {
                                                 minimum: root.dpi-min;
@@ -1012,27 +1072,27 @@ export component MainWindow inherits Window {
                                     }
 
                                     Rectangle {
-                                        height: 92px;
+                                        height: 76px;
                                         border-radius: 7px;
                                         background: Palette.background.with-alpha(0.46);
                                         border-width: 1px;
                                         border-color: Palette.border;
                                         VerticalLayout {
-                                            padding-top: 12px;
-                                            padding-right: 15px;
-                                            padding-bottom: 12px;
-                                            padding-left: 15px;
-                                            spacing: 5px;
+                                            padding-top: 9px;
+                                            padding-right: 12px;
+                                            padding-bottom: 9px;
+                                            padding-left: 12px;
+                                            spacing: 4px;
                                             Text {
                                                 text: "安全写入";
                                                 color: Palette.foreground;
-                                                font-size: 13px;
+                                                font-size: 10px;
                                                 font-weight: 600;
                                             }
                                             Text {
                                                 text: "编辑只会修改当前视图；点击“应用并切换”后才会写入鼠标并保存本机缓存。";
                                                 color: Palette.foreground.with-alpha(0.58);
-                                                font-size: 11px;
+                                                font-size: 10px;
                                                 wrap: word-wrap;
                                             }
                                         }
@@ -1045,12 +1105,13 @@ export component MainWindow inherits Window {
                                         Text {
                                             text: root.dpi-dirty ? "有尚未写入的修改" : "当前档位与设备同步";
                                             color: root.dpi-dirty ? #C27A00 : Palette.foreground.with-alpha(0.54);
-                                            font-size: 11px;
+                                            font-size: 10px;
                                             horizontal-stretch: 1;
                                             vertical-alignment: center;
                                         }
                                         Button {
                                             text: "应用并切换";
+                                            icon: @image-url("icons/save.svg");
                                             primary: true;
                                             clicked => { root.dpi-apply(); }
                                         }
@@ -1061,27 +1122,27 @@ export component MainWindow inherits Window {
 
                         if root.page == 3 : ScrollView {
                             VerticalLayout {
-                                padding-right: 30px;
-                                padding-bottom: 18px;
-                                padding-left: 30px;
-                                spacing: 16px;
+                                padding-right: 24px;
+                                padding-bottom: 8px;
+                                padding-left: 24px;
+                                spacing: 12px;
 
                                 SettingsCard {
                                     width: 100%;
-                                    height: 214px;
+                                    height: 180px;
                                     HorizontalLayout {
-                                        padding: 28px;
+                                        padding: 20px;
                                         spacing: 24px;
                                         cross-axis-alignment: center;
                                         Rectangle {
-                                            width: 116px;
-                                            height: 116px;
+                                            width: 96px;
+                                            height: 96px;
                                             border-radius: 22px;
                                             background: @linear-gradient(135deg, #4C1D95 0%, #7C3AED 45%, #C4B5FD 100%);
                                             Text {
                                                 text: "R";
                                                 color: white;
-                                                font-size: 54px;
+                                                font-size: 44px;
                                                 font-weight: 700;
                                                 horizontal-alignment: center;
                                                 vertical-alignment: center;
@@ -1094,7 +1155,7 @@ export component MainWindow inherits Window {
                                             Text {
                                                 text: "rapoo-tray";
                                                 color: Palette.foreground;
-                                                font-size: 28px;
+                                                font-size: 24px;
                                                 font-weight: 600;
                                             }
                                             HorizontalLayout {
@@ -1109,7 +1170,7 @@ export component MainWindow inherits Window {
                                                     Text {
                                                         text: "版本 " + root.about-version;
                                                         color: Palette.foreground.with-alpha(0.72);
-                                                        font-size: 11px;
+                                                        font-size: 10px;
                                                         horizontal-alignment: center;
                                                         vertical-alignment: center;
                                                     }
@@ -1117,14 +1178,14 @@ export component MainWindow inherits Window {
                                                 Text {
                                                     text: "Fluent · 原生 · 开源";
                                                     color: Palette.foreground.with-alpha(0.52);
-                                                    font-size: 11px;
+                                                    font-size: 10px;
                                                     vertical-alignment: center;
                                                 }
                                             }
                                             Text {
                                                 text: "雷柏 VT 系列游戏鼠标托盘工具";
                                                 color: Palette.foreground.with-alpha(0.64);
-                                                font-size: 13px;
+                                                font-size: 10px;
                                             }
                                         }
                                     }
@@ -1132,31 +1193,44 @@ export component MainWindow inherits Window {
 
                                 SettingsCard {
                                     width: 100%;
-                                    height: 132px;
+                                    height: 100px;
                                     HorizontalLayout {
-                                        padding-top: 20px;
-                                        padding-right: 22px;
+                                        padding-top: 16px;
+                                        padding-right: 14px;
                                         padding-bottom: 20px;
-                                        padding-left: 22px;
+                                        padding-left: 14px;
                                         spacing: 20px;
                                         cross-axis-alignment: center;
                                         VerticalLayout {
                                             horizontal-stretch: 1;
                                             spacing: 6px;
-                                            Text {
-                                                text: "项目源码";
-                                                color: Palette.foreground;
-                                                font-size: 14px;
-                                                font-weight: 600;
+                                            HorizontalLayout {
+                                                spacing: 6px;
+                                                height: 22px;
+                                                Image {
+                                                    width: 16px;
+                                                    height: 16px;
+                                                    source: @image-url("icons/source.svg");
+                                                    image-fit: contain;
+                                                    colorize: Palette.accent-background;
+                                                }
+                                                Text {
+                                                    text: "项目源码";
+                                                    color: Palette.foreground;
+                                                    font-size: 13px;
+                                                    font-weight: 600;
+                                                    vertical-alignment: center;
+                                                }
                                             }
                                             Text {
                                                 text: "github.com/Rimliya/rapoo-tray";
                                                 color: Palette.accent-background;
-                                                font-size: 12px;
+                                                font-size: 10px;
                                             }
                                         }
                                         Button {
                                             text: "打开 GitHub";
+                                            icon: @image-url("icons/external.svg");
                                             clicked => { root.open-source(); }
                                         }
                                     }
@@ -1164,23 +1238,35 @@ export component MainWindow inherits Window {
 
                                 SettingsCard {
                                     width: 100%;
-                                    height: 146px;
+                                    height: 110px;
                                     VerticalLayout {
-                                        padding-top: 20px;
-                                        padding-right: 22px;
+                                        padding-top: 16px;
+                                        padding-right: 14px;
                                         padding-bottom: 20px;
-                                        padding-left: 22px;
+                                        padding-left: 14px;
                                         spacing: 9px;
-                                        Text {
-                                            text: "软件更新";
-                                            color: Palette.foreground;
-                                            font-size: 14px;
-                                            font-weight: 600;
+                                        HorizontalLayout {
+                                            spacing: 6px;
+                                            height: 22px;
+                                            Image {
+                                                width: 16px;
+                                                height: 16px;
+                                                source: @image-url("icons/update.svg");
+                                                image-fit: contain;
+                                                colorize: Palette.accent-background;
+                                            }
+                                            Text {
+                                                text: "软件更新";
+                                                color: Palette.foreground;
+                                                font-size: 13px;
+                                                font-weight: 600;
+                                                vertical-alignment: center;
+                                            }
                                         }
                                         Text {
                                             text: root.update-status;
                                             color: Palette.foreground.with-alpha(0.62);
-                                            font-size: 12px;
+                                            font-size: 10px;
                                             wrap: word-wrap;
                                             horizontal-stretch: 1;
                                         }
@@ -1188,6 +1274,7 @@ export component MainWindow inherits Window {
                                             alignment: end;
                                             Button {
                                                 text: root.update-button-text;
+                                                icon: @image-url("icons/update.svg");
                                                 enabled: !root.update-busy;
                                                 primary: true;
                                                 clicked => { root.check-update(); }
@@ -1200,7 +1287,7 @@ export component MainWindow inherits Window {
                                 Text {
                                     text: "MIT License · © 2026 Iris · Slint Fluent UI";
                                     color: Palette.foreground.with-alpha(0.42);
-                                    font-size: 11px;
+                                    font-size: 10px;
                                     horizontal-alignment: center;
                                 }
                             }
@@ -1208,22 +1295,22 @@ export component MainWindow inherits Window {
                     }
 
                     Rectangle {
-                        height: 58px;
+                        height: 50px;
                         background: Palette.alternate-background;
                         border-width: 1px;
                         border-color: Palette.border;
                         HorizontalLayout {
-                            padding-top: 10px;
-                            padding-right: 22px;
-                            padding-bottom: 10px;
-                            padding-left: 30px;
+                            padding-top: 8px;
+                            padding-right: 14px;
+                            padding-bottom: 8px;
+                            padding-left: 24px;
                             spacing: 10px;
                             cross-axis-alignment: center;
                             StatusDot { good: root.status-good; }
                             Text {
                                 text: root.status-text;
                                 color: Palette.foreground.with-alpha(0.66);
-                                font-size: 11px;
+                                font-size: 10px;
                                 horizontal-stretch: 1;
                                 overflow: elide;
                                 vertical-alignment: center;
@@ -1245,3 +1332,5 @@ export component MainWindow inherits Window {
         triggered => { root.refresh-tick(); }
     }
 }
+
+

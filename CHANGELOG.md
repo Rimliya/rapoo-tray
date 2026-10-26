@@ -126,3 +126,4 @@
 - `rapoo-plugin.dll`：`D55AFC900669D344F4BB23CE9E5FDE3A94D9975F431D3F7A0213C17ADA276270`
 
 **完整变更**：https://github.com/Rimliya/rapoo-tray/compare/v1.6.3...v1.6.4
+
