@@ -1232,6 +1232,33 @@ bool SelectQuickSlot(int index) {
     return Device::SetDpiIndex(index);
 }
 
+bool ApplyQuickSlots(const QuickSlotList& list, int selectedIndex) {
+    if (list.slots.empty()) return false;
+    int selected = std::clamp(selectedIndex, 0, (int)list.slots.size() - 1);
+
+    Device::State state = Device::GetCurrentState();
+    BatteryEstimate::DpiSpec spec;
+    BatteryEstimate::GetDpiSpecForState(state, spec);
+    std::vector<QuickSlot> slots = list.slots;
+    for (QuickSlot& slot : slots) {
+        slot.x = std::clamp(slot.x, spec.minDpi, spec.maxDpi);
+        slot.y = std::clamp(slot.y, spec.minDpi, spec.maxDpi);
+    }
+
+    if (state.isConnected) {
+        Device::DpiConfig config;
+        config.currentIndex = selected;
+        for (const QuickSlot& slot : slots) {
+            config.dpiX.push_back(slot.x);
+            config.dpiY.push_back(slot.y);
+        }
+        if (!Device::WriteDpiConfig(config)) return false;
+    }
+
+    SaveQuickCache(list.modelKey, slots, selected);
+    return true;
+}
+
 void Show(HWND owner) {
     if (g_hwnd && IsWindow(g_hwnd)) {
         if (g_embedded) {
