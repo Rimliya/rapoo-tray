@@ -789,13 +789,13 @@ void RegisterCallbacks(MainWindow& ui) {
         OpenUrl(SOURCE_URL);
     });
     view->on_close_window([view] {
+        // Slint binds its platform loop to the first UI thread. Keep that
+        // thread alive so reopening Settings/About cannot create a second loop.
         view->hide();
-        slint::quit_event_loop();
     });
     view->on_refresh_tick([view] { RefreshUi(*view); });
 
     view->window().on_close_requested([] {
-        slint::quit_event_loop();
         return slint::CloseRequestResponse::HideWindow;
     });
 }
