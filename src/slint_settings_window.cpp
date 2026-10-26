@@ -36,7 +36,8 @@ constexpr const WCHAR* RELEASES_URL = L"https://github.com/Rimliya/rapoo-tray/re
 constexpr int POLLING_RATES[] = { 125, 250, 500, 1000, 2000, 4000, 8000 };
 
 HWND g_owner = NULL;
-bool g_running = false;
+std::atomic<bool> g_uiOpen{false};
+std::thread g_uiThread;
 bool g_updateAvailable = false;
 std::wstring g_releaseUrl = RELEASES_URL;
 slint::ComponentWeakHandle<MainWindow> g_uiWeak;
@@ -799,70 +800,103 @@ void RegisterCallbacks(MainWindow& ui) {
     });
 }
 
-void ShowInternal(HWND owner, int page) {
-    if (g_running) return;
-    Profiles::Initialize();
-
+void RunUiThread(HWND owner, int page) {
     g_owner = owner;
     g_dpi = DpiState();
     g_updateAvailable = false;
     g_releaseUrl = RELEASES_URL;
 
-    auto handle = MainWindow::create();
-    g_uiWeak = slint::ComponentWeakHandle(handle);
-
-    RefreshDeviceUi(*handle);
-    RefreshProfileList(*handle);
-    InitializeModelOptions(*handle);
-    handle->set_auto_switch_enabled(Profiles::AutoSwitchEnabled());
-    handle->set_osd_enabled(Osd::IsEnabled());
-    handle->set_auto_run_enabled(Tray::IsAutoRunEnabled());
-    Device::State state = Device::GetCurrentState();
-    if (state.rfAvailable) handle->set_rf_full(state.rfFull);
-    handle->set_about_version(S(GetExecutableVersion()));
-    handle->set_page(std::clamp(page, 0, 3));
-
-    int startProfile = Profiles::ActiveId();
-    Profiles::Definition profile;
-    if (!Profiles::Find(startProfile, profile)) startProfile = Profiles::DefaultId();
-    LoadProfileEditor(*handle, startProfile);
-    SetStatus(*handle, L"选择配置进行编辑，或新增一个配置");
-
-    RegisterCallbacks(*handle);
-    if (page == 2) LoadDpiState(*handle, true);
-
     try {
+        Profiles::Initialize();
+        auto handle = MainWindow::create();
+        g_uiWeak = slint::ComponentWeakHandle(handle);
+
+        RefreshDeviceUi(*handle);
+        RefreshProfileList(*handle);
+        InitializeModelOptions(*handle);
+        handle->set_auto_switch_enabled(Profiles::AutoSwitchEnabled());
+        handle->set_osd_enabled(Osd::IsEnabled());
+        handle->set_auto_run_enabled(Tray::IsAutoRunEnabled());
+        Device::State state = Device::GetCurrentState();
+        if (state.rfAvailable) handle->set_rf_full(state.rfFull);
+        handle->set_about_version(S(GetExecutableVersion()));
+        handle->set_page(std::clamp(page, 0, 3));
+
+        int startProfile = Profiles::ActiveId();
+        Profiles::Definition profile;
+        if (!Profiles::Find(startProfile, profile)) startProfile = Profiles::DefaultId();
+        LoadProfileEditor(*handle, startProfile);
+        SetStatus(*handle, L"选择配置进行编辑，或新增一个配置");
+
+        RegisterCallbacks(*handle);
+        if (page == 2) LoadDpiState(*handle, true);
+
         handle->show();
-        g_running = true;
         slint::run_event_loop();
-        g_running = false;
     } catch (const std::exception& error) {
-        g_running = false;
         std::wstring message = L"Slint 界面启动失败：";
         message += Utf8ToWide(error.what());
         MessageBoxW(owner, message.c_str(), L"rapoo-tray", MB_OK | MB_ICONERROR);
     } catch (...) {
-        g_running = false;
         MessageBoxW(owner, L"Slint 界面发生未知错误。", L"rapoo-tray", MB_OK | MB_ICONERROR);
     }
 
     g_owner = NULL;
     g_dpi = DpiState();
     g_updateAvailable = false;
+    g_uiOpen.store(false);
+}
+
+void OpenUiPage(HWND owner, int page) {
+    page = std::clamp(page, 0, 3);
+    if (g_uiOpen.load(std::memory_order_acquire)) {
+        try {
+            slint::invoke_from_event_loop([page] {
+                auto locked = g_uiWeak.lock();
+                if (!locked) return;
+                MainWindow& view = *(*locked);
+                view.set_page(page);
+                if (page == 2) LoadDpiState(view, false);
+                if (page == 3) view.set_update_status(S(L"检查 GitHub Releases 上是否有新版本"));
+                view.show();
+            });
+        } catch (...) {
+        }
+        return;
+    }
+
+    if (g_uiThread.joinable()) g_uiThread.join();
+    g_uiOpen.store(true, std::memory_order_release);
+    try {
+        g_uiThread = std::thread([owner, page] { RunUiThread(owner, page); });
+    } catch (const std::exception& error) {
+        g_uiOpen.store(false, std::memory_order_release);
+        std::wstring message = L"无法启动 Slint 界面线程：";
+        message += Utf8ToWide(error.what());
+        MessageBoxW(owner, message.c_str(), L"rapoo-tray", MB_OK | MB_ICONERROR);
+    }
 }
 
 } // namespace
 
 void Show(HWND owner) {
-    ShowInternal(owner, 0);
+    OpenUiPage(owner, 0);
 }
 
 void ShowPage(HWND owner, int page) {
-    ShowInternal(owner, page);
+    OpenUiPage(owner, page);
 }
 
 void Cleanup() {
-    if (g_running) slint::quit_event_loop();
+    if (g_uiOpen.load(std::memory_order_acquire)) {
+        try {
+            slint::invoke_from_event_loop([] { slint::quit_event_loop(); });
+        } catch (...) {
+        }
+    }
+    if (g_uiThread.joinable() && g_uiThread.get_id() != std::this_thread::get_id()) {
+        g_uiThread.join();
+    }
 }
 
 bool PreTranslateMessage(MSG*) {
@@ -870,3 +904,6 @@ bool PreTranslateMessage(MSG*) {
 }
 
 } // namespace Settings
+
+
+

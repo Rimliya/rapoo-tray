@@ -9,6 +9,7 @@
 #include <cstring>
 #include <cwchar>
 #include <cwctype>
+#include <mutex>
 
 namespace Profiles {
 namespace {
@@ -26,6 +27,7 @@ struct Store {
 };
 
 Store g_store;
+std::recursive_mutex g_apiMutex;
 
 // Runtime-only state for application switching.
 int g_autoContextProfileId = 0;
@@ -421,22 +423,26 @@ int NormalizePollingRate(int hz) {
 }
 
 bool Initialize() {
+    std::lock_guard<std::recursive_mutex> lock(g_apiMutex);
     if (!g_store.initialized) LoadState();
     return !g_store.profiles.empty();
 }
 
 void Reload() {
+    std::lock_guard<std::recursive_mutex> lock(g_apiMutex);
     g_autoContextProfileId = 0;
     g_manualHoldMatchedProfileId = 0;
     LoadState();
 }
 
 std::vector<Definition> GetAll() {
+    std::lock_guard<std::recursive_mutex> lock(g_apiMutex);
     EnsureInitialized();
     return g_store.profiles;
 }
 
 bool Find(int id, Definition& outProfile) {
+    std::lock_guard<std::recursive_mutex> lock(g_apiMutex);
     EnsureInitialized();
     const Definition* profile = FindInternalConst(id);
     if (!profile) return false;
@@ -445,20 +451,24 @@ bool Find(int id, Definition& outProfile) {
 }
 
 int DefaultId() {
+    std::lock_guard<std::recursive_mutex> lock(g_apiMutex);
     EnsureInitialized();
     return g_store.defaultId;
 }
 
 int ActiveId() {
+    std::lock_guard<std::recursive_mutex> lock(g_apiMutex);
     EnsureInitialized();
     return g_store.activeId;
 }
 
 bool HasAppRule(const Definition& profile) {
+    std::lock_guard<std::recursive_mutex> lock(g_apiMutex);
     return !profile.appPath.empty();
 }
 
 int Create(const std::wstring& requestedName, int pollingHz, int sleepMinutes, int dpiX, int dpiY) {
+    std::lock_guard<std::recursive_mutex> lock(g_apiMutex);
     EnsureInitialized();
     if ((int)g_store.profiles.size() >= MAX_PROFILES) return 0;
 
@@ -480,6 +490,7 @@ int Create(const std::wstring& requestedName, int pollingHz, int sleepMinutes, i
 }
 
 bool Update(const Definition& requested) {
+    std::lock_guard<std::recursive_mutex> lock(g_apiMutex);
     EnsureInitialized();
     Definition* profile = FindInternal(requested.id);
     if (!profile) return false;
@@ -506,6 +517,7 @@ bool Update(const Definition& requested) {
 }
 
 bool Delete(int id) {
+    std::lock_guard<std::recursive_mutex> lock(g_apiMutex);
     EnsureInitialized();
     if (g_store.profiles.size() <= 1) return false;
 
@@ -532,6 +544,7 @@ bool Delete(int id) {
 }
 
 void SetDefault(int id) {
+    std::lock_guard<std::recursive_mutex> lock(g_apiMutex);
     EnsureInitialized();
     if (!FindInternalConst(id)) return;
     g_store.defaultId = id;
@@ -539,6 +552,7 @@ void SetDefault(int id) {
 }
 
 bool Select(int id) {
+    std::lock_guard<std::recursive_mutex> lock(g_apiMutex);
     EnsureInitialized();
     const Definition* profile = FindInternalConst(id);
     if (!profile) return false;
@@ -555,6 +569,7 @@ bool Select(int id) {
 }
 
 bool SetCurrentPolling(int hz) {
+    std::lock_guard<std::recursive_mutex> lock(g_apiMutex);
     EnsureInitialized();
     hz = ValidPollingRate(hz) ? hz : NormalizePollingRate(hz);
     Definition* active = FindInternal(g_store.activeId);
@@ -573,6 +588,7 @@ bool SetCurrentPolling(int hz) {
 }
 
 bool SetCurrentSleep(int minutes) {
+    std::lock_guard<std::recursive_mutex> lock(g_apiMutex);
     EnsureInitialized();
     minutes = Rapoo::ClampSleepMinutes(minutes);
     Definition* active = FindInternal(g_store.activeId);
@@ -591,6 +607,7 @@ bool SetCurrentSleep(int minutes) {
 }
 
 bool SetCurrentDpi(int x, int y) {
+    std::lock_guard<std::recursive_mutex> lock(g_apiMutex);
     EnsureInitialized();
     NormalizeDpiPair(x, y);
     if (x <= 0 || y <= 0) return false;
@@ -612,11 +629,13 @@ bool SetCurrentDpi(int x, int y) {
 }
 
 bool AutoSwitchEnabled() {
+    std::lock_guard<std::recursive_mutex> lock(g_apiMutex);
     EnsureInitialized();
     return g_store.autoSwitch;
 }
 
 void SetAutoSwitchEnabled(bool enabled) {
+    std::lock_guard<std::recursive_mutex> lock(g_apiMutex);
     EnsureInitialized();
     g_store.autoSwitch = enabled;
     if (!enabled) {
@@ -627,6 +646,7 @@ void SetAutoSwitchEnabled(bool enabled) {
 }
 
 void PollForeground(bool force) {
+    std::lock_guard<std::recursive_mutex> lock(g_apiMutex);
     EnsureInitialized();
     if (!g_store.autoSwitch) return;
 
@@ -666,6 +686,7 @@ void PollForeground(bool force) {
 }
 
 void OnDeviceConnected() {
+    std::lock_guard<std::recursive_mutex> lock(g_apiMutex);
     EnsureInitialized();
     g_autoContextProfileId = 0;
     g_manualHoldMatchedProfileId = 0;
@@ -675,6 +696,7 @@ void OnDeviceConnected() {
 }
 
 std::wstring MakeUniqueName() {
+    std::lock_guard<std::recursive_mutex> lock(g_apiMutex);
     EnsureInitialized();
     const std::wstring base = L"新配置";
     if (!ProfileNameExists(base, 0)) return base;
@@ -686,3 +708,4 @@ std::wstring MakeUniqueName() {
 }
 
 } // namespace Profiles
+
