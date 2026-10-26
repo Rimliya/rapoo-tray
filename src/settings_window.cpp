@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <cwchar>
 #include <string>
+#include <vector>
 
 #pragma comment(lib, "comctl32.lib")
 #pragma comment(lib, "comdlg32.lib")
@@ -23,8 +24,8 @@ namespace Settings {
 namespace {
 
 constexpr const WCHAR* WINDOW_CLASS = L"RapooProfilesSettingsWnd";
-constexpr int WINDOW_WIDTH = 780;
-constexpr int WINDOW_HEIGHT = 720;
+constexpr int WINDOW_WIDTH = 1000;
+constexpr int WINDOW_HEIGHT = 780;
 
 enum ControlId {
     IDC_PROFILE_LIST = 3001,
@@ -47,11 +48,20 @@ enum ControlId {
     IDC_OPEN_DPI,
     IDC_DPI_X,
     IDC_DPI_Y,
-    IDC_CAPTURE_DPI
+    IDC_CAPTURE_DPI,
+    IDC_TAB_PROFILES,
+    IDC_TAB_AUTOMATION,
+    IDC_TAB_DPI
 };
 
 constexpr UINT_PTR TIMER_ADVANCED_INIT = 0x4101;
 constexpr UINT_PTR TIMER_ADVANCED_REFRESH = 0x4102;
+
+enum class SettingsTab {
+    Profiles = 0,
+    Automation = 1,
+    Dpi = 2
+};
 
 HWND g_hwnd = NULL;
 HWND g_hOwner = NULL;
@@ -76,6 +86,13 @@ bool g_applyingTheme = false;
 HBRUSH g_brushBg = NULL;
 HBRUSH g_brushSurface = NULL;
 HBRUSH g_brushField = NULL;
+HIMAGELIST g_profileRowImageList = NULL;
+std::vector<HWND> g_hProfilePageControls;
+std::vector<HWND> g_automationPageControls;
+HWND g_hDpiPage = NULL;
+HWND g_hTabButtons[3] = {0};
+SettingsTab g_activeTab = SettingsTab::Profiles;
+std::wstring g_headerStatus = L"正在连接鼠标…";
 bool g_checkDefault = false;
 bool g_checkAutoSwitch = true;
 bool g_checkOsd = true;
@@ -97,6 +114,8 @@ COLORREF ColorText() { return g_dark ? RGB(235, 240, 248) : RGB(20, 24, 32); }
 COLORREF ColorMuted() { return g_dark ? RGB(140, 150, 165) : RGB(105, 115, 130); }
 COLORREF ColorAccent() { return g_dark ? RGB(96, 205, 255) : RGB(0, 110, 215); }
 COLORREF ColorButton() { return g_dark ? RGB(38, 42, 52) : RGB(240, 243, 248); }
+COLORREF ColorAccentFill() { return g_dark ? RGB(55, 103, 145) : RGB(218, 232, 255); }
+COLORREF ColorDanger() { return g_dark ? RGB(235, 92, 92) : RGB(190, 48, 48); }
 
 void GetCurrentDpiDefaults(int& x, int& y) {
     const Device::State state = Device::GetCurrentState();
@@ -164,6 +183,69 @@ void SetStatus(const WCHAR* text, bool good = true, bool clearDirty = false) {
 
 HFONT GetNormalFont() {
     return g_fontNormal ? g_fontNormal : (HFONT)GetStockObject(DEFAULT_GUI_FONT);
+}
+
+RECT TabRect(int index) {
+    static const int xs[] = { 28, 190, 314 };
+    static const int widths[] = { 154, 116, 116 };
+    if (index < 0 || index > 2) return RECT{0, 0, 0, 0};
+    return RECT{ S(xs[index]), S(94), S(xs[index] + widths[index]), S(130) };
+}
+
+int HitTestTab(POINT point) {
+    for (int i = 0; i < 3; ++i) {
+        RECT tab = TabRect(i);
+        if (PtInRect(&tab, point)) return i;
+    }
+    return -1;
+}
+
+void TrackPageControl(std::vector<HWND>& group, HWND control) {
+    if (control) group.push_back(control);
+}
+
+void ShowPageControls() {
+    for (HWND control : g_hProfilePageControls) {
+        ShowWindow(control, g_activeTab == SettingsTab::Profiles ? SW_SHOWNA : SW_HIDE);
+    }
+    for (HWND control : g_automationPageControls) {
+        ShowWindow(control, g_activeTab == SettingsTab::Automation ? SW_SHOWNA : SW_HIDE);
+    }
+    if (g_hDpiPage && IsWindow(g_hDpiPage)) {
+        ShowWindow(g_hDpiPage, g_activeTab == SettingsTab::Dpi ? SW_SHOWNA : SW_HIDE);
+    }
+    if (g_hStatus) ShowWindow(g_hStatus, g_activeTab == SettingsTab::Dpi ? SW_HIDE : SW_SHOWNA);
+    HWND save = g_hwnd ? GetDlgItem(g_hwnd, IDC_SAVE) : NULL;
+    if (save) ShowWindow(save, g_activeTab == SettingsTab::Dpi ? SW_HIDE : SW_SHOWNA);
+}
+
+void SwitchTab(SettingsTab tab) {
+    if (tab == g_activeTab) return;
+    g_activeTab = tab;
+    if (tab == SettingsTab::Profiles) {
+        SetStatus(g_dirty ? L"有未保存的更改" : L"选择配置进行编辑，或新增一个配置", true);
+    } else if (tab == SettingsTab::Automation) {
+        SetStatus(L"自动化和全局选项会随当前配置一起保存", true);
+    }
+    if (tab == SettingsTab::Dpi) {
+        if (!g_hDpiPage || !IsWindow(g_hDpiPage)) {
+            g_hDpiPage = DpiWindow::CreateEmbedded(g_hwnd, S(28), S(152), S(944), S(526));
+        }
+        if (g_hDpiPage) {
+            ShowWindow(g_hDpiPage, SW_SHOWNA);
+            DpiWindow::RefreshEmbedded();
+            SetFocus(g_hDpiPage);
+        }
+    }
+    ShowPageControls();
+    for (int i = 0; i < 3; ++i) {
+        if (!g_hTabButtons[i]) continue;
+        SendMessageW(g_hTabButtons[i], WM_SETFONT,
+            (WPARAM)((int)tab == i ? g_fontBold : g_fontNormal), TRUE);
+        InvalidateRect(g_hTabButtons[i], NULL, TRUE);
+    }
+    RECT page = { S(20), S(146), S(980), S(686) };
+    InvalidateRect(g_hwnd, &page, FALSE);
 }
 
 HWND CreateControl(const WCHAR* className, const WCHAR* text, DWORD style, DWORD exStyle, int x, int y, int w, int h, int id) {
@@ -283,6 +365,9 @@ void UpdateTheme() {
     GetWindowRect(g_hwnd, &rc);
     Tray::ApplyModernWindowStyle(g_hwnd, g_dark, rc.right - rc.left, rc.bottom - rc.top);
     ApplyNativeTheme();
+    if (g_hDpiPage && IsWindow(g_hDpiPage)) {
+        SendMessageW(g_hDpiPage, WM_THEMECHANGED, 0, 0);
+    }
     RedrawWindow(g_hwnd, NULL, NULL, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN);
     g_applyingTheme = false;
 }
@@ -355,20 +440,26 @@ void DrawOwnerButton(const DRAWITEMSTRUCT* item) {
         HBRUSH cardBackground = CreateSolidBrush(ColorSurface());
         FillRect(dc, &rc, cardBackground);
         DeleteObject(cardBackground);
-        int box = S(16);
+        if (hovered && !disabled) {
+            RECT hover = rc;
+            hover.right = std::min(hover.right, hover.left + S(330));
+            FillRounded(dc, hover, ColorHover(), ColorHover(), S(6));
+        }
+        int box = S(17);
         int boxTop = rc.top + ((rc.bottom - rc.top) - box) / 2;
         int boxLeft = rc.left + S(2);
         RECT boxRect = { boxLeft, boxTop, boxLeft + box, boxTop + box };
-        COLORREF fill = checked ? ColorAccent() : (hovered ? ColorHover() : ColorField());
+        COLORREF fill = checked ? ColorAccent() : ColorField();
         COLORREF border = checked ? ColorAccent() : ColorBorder();
         FillRounded(dc, boxRect, fill, border, S(4));
 
         if (checked) {
-            HPEN checkPen = CreatePen(PS_SOLID, S(2), g_dark ? RGB(10, 14, 20) : RGB(255, 255, 255));
+            HPEN checkPen = CreatePen(PS_SOLID, std::max(1, S(2)),
+                g_dark ? RGB(10, 14, 20) : RGB(255, 255, 255));
             HGDIOBJ oldPen = SelectObject(dc, checkPen);
-            MoveToEx(dc, boxRect.left + S(4), boxRect.top + S(8), NULL);
-            LineTo(dc, boxRect.left + S(7), boxRect.top + S(11));
-            LineTo(dc, boxRect.left + S(12), boxRect.top + S(5));
+            MoveToEx(dc, boxRect.left + S(4), boxRect.top + S(9), NULL);
+            LineTo(dc, boxRect.left + S(7), boxRect.top + S(12));
+            LineTo(dc, boxRect.left + S(13), boxRect.top + S(5));
             SelectObject(dc, oldPen);
             DeleteObject(checkPen);
         }
@@ -463,14 +554,28 @@ void RefreshDeviceState() {
     // Writing the strategy only needs a live control endpoint. A transient
     // register-read timeout must not make the checkbox look disconnected.
     if (rfControl) EnableWindow(rfControl, g_deviceState.isConnected ? TRUE : FALSE);
-    RECT advanced = { S(386), S(526), S(756), S(650) };
+
+    WCHAR status[220] = {0};
+    if (!g_deviceState.isConnected) {
+        StringCchCopyW(status, ARRAYSIZE(status), L"● 设备休眠 / 未连接");
+    } else {
+        StringCchPrintfW(status, ARRAYSIZE(status), L"● %s · %s · 已连接 · %d%%",
+            g_deviceState.modelName[0] ? g_deviceState.modelName : L"通用",
+            g_deviceState.isWired ? L"USB 有线" : L"2.4G 无线",
+            g_deviceState.battery);
+    }
+    g_headerStatus = status;
+
+    RECT header = { S(60), S(42), S(790), S(76) };
+    InvalidateRect(g_hwnd, &header, FALSE);
+    RECT advanced = { S(496), S(346), S(972), S(658) };
     InvalidateRect(g_hwnd, &advanced, FALSE);
 }
 
 void DrawBatteryEstimate(HDC dc) {
     BatteryEstimate::Result estimate = BatteryEstimate::Calculate(g_deviceState);
     if (!estimate.available) {
-        DrawLabel(dc, L"续航数据暂不可用", 400, 618, 340, 20, g_fontSmall, ColorMuted());
+        DrawLabel(dc, L"续航数据暂不可用", 512, 552, 422, 22, g_fontSmall, ColorMuted());
         return;
     }
 
@@ -491,7 +596,126 @@ void DrawBatteryEstimate(HDC dc) {
             estimate.remainingMaxHours
         );
     }
-    DrawLabel(dc, text, 400, 618, 340, 20, g_fontSmall, ColorAccent());
+    DrawLabel(dc, text, 512, 552, 422, 22, g_fontSmall, ColorAccent());
+}
+
+void DrawTabButton(const DRAWITEMSTRUCT* item) {
+    if (!item) return;
+    int index = (int)item->CtlID - IDC_TAB_PROFILES;
+    if (index < 0 || index > 2) return;
+    static const WCHAR* labels[] = { L"配置档案", L"自动化", L"DPI 档位" };
+    RECT tab = item->rcItem;
+    bool active = (int)g_activeTab == index;
+    POINT cursor = {0};
+    GetCursorPos(&cursor);
+    bool hovered = WindowFromPoint(cursor) == item->hwndItem;
+    COLORREF fill = active ? ColorAccentFill() : (hovered ? ColorHover() : ColorField());
+    COLORREF border = active ? ColorAccent() : ColorBorder();
+    HBRUSH background = CreateSolidBrush(ColorBg());
+    FillRect(item->hDC, &tab, background);
+    DeleteObject(background);
+    FillRounded(item->hDC, tab, fill, border, S(9));
+    HGDIOBJ oldFont = SelectObject(item->hDC, active ? g_fontBold : g_fontNormal);
+    SetBkMode(item->hDC, TRANSPARENT);
+    SetTextColor(item->hDC, active ? ColorAccent() : (hovered ? ColorText() : ColorMuted()));
+    DrawTextW(item->hDC, labels[index], -1, &tab, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    SelectObject(item->hDC, oldFont);
+}
+
+void PaintHeader(HDC dc) {
+    HICON icon = LoadIconW((HINSTANCE)GetModuleHandleW(NULL), MAKEINTRESOURCEW(1));
+    if (icon) DrawIconEx(dc, S(28), S(20), icon, S(34), S(34), 0, NULL, DI_NORMAL);
+
+    DrawLabel(dc, L"配置中心", 72, 14, 360, 34, g_fontTitle, ColorText());
+    COLORREF statusColor = ColorMuted();
+    if (g_deviceStateValid && g_deviceState.isConnected) {
+        statusColor = g_dark ? RGB(80, 220, 135) : RGB(16, 145, 60);
+    }
+    DrawLabel(dc, g_headerStatus.c_str(), 72, 48, 650, 22, g_fontSmall, statusColor);
+    DrawLabel(dc, L"rapoo-tray", 812, 24, 160, 22, g_fontSmall, ColorMuted());
+}
+
+void PaintProfilesPage(HDC dc) {
+    DrawSection(dc, 28, 152, 390, 524, L"配置档案");
+    DrawSection(dc, 436, 152, 536, 524, L"配置详情");
+
+    RECT listFrame = { S(44), S(202), S(402), S(548) };
+    FillRounded(dc, listFrame, ColorField(), ColorBorder(), S(9));
+    RECT listHeader = { S(46), S(204), S(400), S(232) };
+    HBRUSH headerBrush = CreateSolidBrush(g_dark ? RGB(36, 39, 48) : RGB(238, 241, 246));
+    FillRect(dc, &listHeader, headerBrush);
+    DeleteObject(headerBrush);
+    HPEN line = CreatePen(PS_SOLID, 1, ColorBorder());
+    HGDIOBJ oldPen = SelectObject(dc, line);
+    MoveToEx(dc, listHeader.left, listHeader.bottom - 1, NULL);
+    LineTo(dc, listHeader.right, listHeader.bottom - 1);
+    SelectObject(dc, oldPen);
+    DeleteObject(line);
+
+    SetBkMode(dc, TRANSPARENT);
+    HGDIOBJ oldFont = SelectObject(dc, g_fontSmall);
+    SetTextColor(dc, ColorMuted());
+    const int headerX[] = { 4, 104, 160, 220, 296 };
+    const int headerW[] = { 100, 56, 60, 76, 42 };
+    const WCHAR* headers[] = { L"名称", L"Hz", L"DPI", L"程序", L"状态" };
+    for (int i = 0; i < 5; ++i) {
+        RECT cell = { listHeader.left + S(headerX[i]), listHeader.top,
+                      listHeader.left + S(headerX[i] + headerW[i]), listHeader.bottom };
+        DrawTextW(dc, headers[i], -1, &cell, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+    }
+    SelectObject(dc, oldFont);
+    DrawLabel(dc, L"每个配置同时保存回报率、DPI 与休眠时间", 44, 602, 350, 22, g_fontSmall, ColorMuted());
+    DrawLabel(dc, L"切换配置时会一次性应用到鼠标。", 44, 624, 350, 22, g_fontSmall, ColorMuted());
+
+    RECT fields[] = {
+        { S(460), S(224), S(948), S(258) },
+        { S(460), S(296), S(696), S(330) },
+        { S(714), S(296), S(948), S(330) },
+        { S(506), S(440), S(646), S(474) },
+        { S(702), S(440), S(840), S(474) }
+    };
+    for (const RECT& field : fields) FillRounded(dc, field, ColorField(), ColorBorder(), S(7));
+
+    DrawLabel(dc, L"名称", 460, 198, 140, 22, g_fontSmall, ColorMuted());
+    DrawLabel(dc, L"回报率", 460, 270, 140, 22, g_fontSmall, ColorMuted());
+    DrawLabel(dc, L"休眠时间", 714, 270, 140, 22, g_fontSmall, ColorMuted());
+
+    HPEN divider = CreatePen(PS_SOLID, 1, ColorBorder());
+    oldPen = SelectObject(dc, divider);
+    MoveToEx(dc, S(460), S(378), NULL);
+    LineTo(dc, S(948), S(378));
+    SelectObject(dc, oldPen);
+    DeleteObject(divider);
+
+    DrawLabel(dc, L"DPI 参数", 460, 384, 140, 24, g_fontBold, ColorText());
+    DrawLabel(dc, L"随配置一起切换", 566, 386, 180, 20, g_fontSmall, ColorMuted());
+    DrawLabel(dc, L"X 轴", 460, 414, 40, 22, g_fontSmall, ColorMuted());
+    DrawLabel(dc, L"Y 轴", 656, 414, 40, 22, g_fontSmall, ColorMuted());
+    DrawLabel(dc, L"在这里管理档位列表；档位编辑器已合并到上方标签页。", 460, 526, 488, 20, g_fontSmall, ColorMuted());
+    DrawLabel(dc, L"配置只保存当前 X/Y 数值，不会在未保存时改写鼠标。", 460, 548, 488, 20, g_fontSmall, ColorMuted());
+}
+
+void PaintAutomationPage(HDC dc) {
+    DrawSection(dc, 28, 152, 944, 178, L"前台程序自动切换");
+    DrawLabel(dc, L"关联程序", 44, 190, 140, 22, g_fontNormal, ColorText());
+    RECT appField = { S(44), S(214), S(826), S(250) };
+    FillRounded(dc, appField, ColorField(), ColorBorder(), S(7));
+    DrawLabel(dc, L"当该程序进入前台（含无边框 / 独占全屏）时，自动应用当前配置；离开后恢复默认配置。",
+        44, 258, 880, 22, g_fontSmall, ColorMuted());
+
+    DrawSection(dc, 28, 346, 456, 312, L"全局选项");
+    DrawLabel(dc, L"控制自动化的总开关；关闭后不影响托盘里的手动设置。",
+        44, 500, 410, 22, g_fontSmall, ColorMuted());
+    DrawLabel(dc, L"悬浮窗会显示设备状态和配置切换结果。",
+        44, 524, 410, 22, g_fontSmall, ColorMuted());
+
+    DrawSection(dc, 496, 346, 476, 312, L"高级设置");
+    DrawLabel(dc, L"满格射频会增加功耗；不勾选时使用智能调节。",
+        512, 426, 430, 22, g_fontSmall, ColorMuted());
+    DrawLabel(dc, L"鼠标型号", 512, 462, 90, 26, g_fontNormal, ColorText());
+    RECT modelField = { S(512), S(486), S(934), S(522) };
+    FillRounded(dc, modelField, ColorField(), ColorBorder(), S(7));
+    DrawBatteryEstimate(dc);
 }
 
 void PaintSettingsWindow(HWND hWnd) {
@@ -504,82 +728,20 @@ void PaintSettingsWindow(HWND hWnd) {
     FillRect(dc, &rc, background);
     DeleteObject(background);
 
-    DrawSection(dc, 22, 82, 334, 310, L"配置档案");
-    DrawSection(dc, 370, 82, 386, 310, L"配置详情");
-    DrawSection(dc, 24, 400, 732, 118, L"前台程序自动切换");
-    DrawSection(dc, 24, 526, 350, 124, L"全局选项");
-    DrawSection(dc, 386, 526, 370, 124, L"高级设置");
+    PaintHeader(dc);
 
-    RECT listFrame = { S(22), S(106), S(356), S(350) };
-    FillRounded(dc, listFrame, ColorField(), ColorBorder(), S(7));
+    if (g_activeTab == SettingsTab::Profiles) PaintProfilesPage(dc);
+    else if (g_activeTab == SettingsTab::Automation) PaintAutomationPage(dc);
 
-    RECT listHeader = { S(24), S(108), S(354), S(136) };
-    HBRUSH headerBrush = CreateSolidBrush(g_dark ? RGB(36, 39, 48) : RGB(238, 241, 246));
-    FillRect(dc, &listHeader, headerBrush);
-    DeleteObject(headerBrush);
-    HPEN headerLine = CreatePen(PS_SOLID, 1, ColorBorder());
-    HGDIOBJ oldHeaderPen = SelectObject(dc, headerLine);
-    MoveToEx(dc, listHeader.left, listHeader.bottom - 1, NULL);
-    LineTo(dc, listHeader.right, listHeader.bottom - 1);
-    SelectObject(dc, oldHeaderPen);
-    DeleteObject(headerLine);
-
-    SetBkMode(dc, TRANSPARENT);
-    SelectObject(dc, g_fontSmall ? g_fontSmall : GetNormalFont());
-    SetTextColor(dc, ColorMuted());
-    const int headerX[] = { 4, 84, 142, 206, 278 };
-    const int headerW[] = { 80, 58, 64, 72, 50 };
-    const WCHAR* headersWithDpi[] = { L"名称", L"Hz", L"DPI", L"程序", L"状态" };
-    for (int i = 0; i < 5; ++i) {
-        RECT cell = { listHeader.left + S(headerX[i]), listHeader.top, listHeader.left + S(headerX[i] + headerW[i]), listHeader.bottom };
-        DrawTextW(dc, headersWithDpi[i], -1, &cell, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
-    }
-    RECT fieldRects[] = {
-        { S(460), S(112), S(740), S(144) },
-        { S(460), S(150), S(740), S(182) },
-        { S(460), S(188), S(740), S(220) },
-        { S(38), S(450), S(594), S(482) },
-        { S(432), S(299), S(524), S(331) },
-        { S(558), S(299), S(658), S(331) },
-        { S(458), S(579), S(638), S(617) }
-    };
-    for (const RECT& field : fieldRects) {
-        FillRounded(dc, field, ColorField(), ColorBorder(), S(6));
-    }
-
-    DrawLabel(dc, L"名称", 388, 115, 70, 28, g_fontNormal, ColorText());
-    DrawLabel(dc, L"回报率", 388, 153, 70, 28, g_fontNormal, ColorText());
-    DrawLabel(dc, L"休眠时间", 388, 191, 70, 28, g_fontNormal, ColorText());
-    DrawLabel(dc, L"默认配置是自动切换结束后的回退配置。", 388, 254, 350, 22, g_fontSmall, ColorMuted());
-
-    HPEN dpiDivider = CreatePen(PS_SOLID, 1, ColorBorder());
-    HGDIOBJ oldDividerPen = SelectObject(dc, dpiDivider);
-    MoveToEx(dc, S(388), S(277), NULL);
-    LineTo(dc, S(738), S(277));
-    SelectObject(dc, oldDividerPen);
-    DeleteObject(dpiDivider);
-    DrawLabel(dc, L"DPI 参数", 388, 280, 72, 20, g_fontBold, ColorText());
-    DrawLabel(dc, L"切换档案时写入当前 DPI 档位", 462, 280, 276, 20, g_fontSmall, ColorMuted());
-    DrawLabel(dc, L"X 轴", 388, 303, 40, 22, g_fontSmall, ColorMuted());
-    DrawLabel(dc, L"Y 轴", 534, 303, 24, 22, g_fontSmall, ColorMuted());
-    DrawLabel(dc, L"打开编辑器可增删档位；此档案只保存当前 X/Y 数值。", 388, 373, 358, 18, g_fontSmall, ColorMuted());
-
-    DrawLabel(dc, L"关联程序", 40, 425, 100, 24, g_fontNormal, ColorText());
-    DrawLabel(dc, L"当该程序处于前台（含无边框 / 独占全屏）时应用此配置；切到其他程序后恢复默认配置。", 40, 487, 700, 24, g_fontSmall, ColorMuted());
-    DrawLabel(dc, L"可随时关闭自动切换与 OSD 提示。", 40, 610, 310, 20, g_fontSmall, ColorMuted());
-    DrawLabel(dc, L"鼠标型号", 400, 585, 58, 28, g_fontNormal, ColorText());
-    DrawBatteryEstimate(dc);
-    HPEN border = CreatePen(PS_SOLID, 1, ColorBorder());
-    HGDIOBJ oldPen = SelectObject(dc, border);
-    HGDIOBJ oldBrush = SelectObject(dc, GetStockObject(NULL_BRUSH));
-    RoundRect(dc, 0, 0, rc.right, rc.bottom, S(12), S(12));
+    HPEN footerLine = CreatePen(PS_SOLID, 1, ColorBorder());
+    HGDIOBJ oldPen = SelectObject(dc, footerLine);
+    MoveToEx(dc, S(28), S(690), NULL);
+    LineTo(dc, S(972), S(690));
     SelectObject(dc, oldPen);
-    SelectObject(dc, oldBrush);
-    DeleteObject(border);
+    DeleteObject(footerLine);
 
     EndPaint(hWnd, &ps);
 }
-
 void MarkDirty() {
     if (g_loading) return;
     g_dirty = true;
@@ -852,40 +1014,68 @@ void ClearApp() {
 }
 
 void CreateControls() {
-    g_hTitle = CreateText(L"配置与自动化", 24, 18, 400, 32);
-    g_hSubtitle = CreateText(
-        L"让回报率、DPI 与休眠随配置一起切换；指定前台程序后自动应用，离开时恢复默认配置。",
-        24, 50, 730, 22
-    );
+    g_hProfilePageControls.clear();
+    g_automationPageControls.clear();
+    g_hTitle = NULL;
+    g_hSubtitle = NULL;
+
+    static const WCHAR* tabLabels[] = { L"配置档案", L"自动化", L"DPI 档位" };
+    static const int tabX[] = { 28, 190, 314 };
+    static const int tabW[] = { 154, 116, 116 };
+    for (int i = 0; i < 3; ++i) {
+        g_hTabButtons[i] = CreateButton(tabLabels[i], tabX[i], 94, tabW[i], 36,
+            IDC_TAB_PROFILES + i);
+        if (g_hTabButtons[i]) {
+            SendMessageW(g_hTabButtons[i], WM_SETFONT,
+                (WPARAM)(i == 0 ? g_fontBold : g_fontNormal), TRUE);
+        }
+    }
+
     g_hProfileList = CreateControl(
         WC_LISTVIEWW, L"", WS_TABSTOP | LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS | LVS_NOCOLUMNHEADER,
-        0, 24, 136, 330, 212, IDC_PROFILE_LIST
-    );
+        0, 46, 232, 354, 314, IDC_PROFILE_LIST);
     ListView_SetExtendedListViewStyle(g_hProfileList, LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER);
 
     LVCOLUMNW col = {0};
     col.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_SUBITEM;
     col.pszText = (LPWSTR)L"名称";
-    col.cx = S(80);
+    col.cx = S(100);
     ListView_InsertColumn(g_hProfileList, 0, &col);
     col.pszText = (LPWSTR)L"Hz";
-    col.cx = S(58);
+    col.cx = S(56);
     ListView_InsertColumn(g_hProfileList, 1, &col);
     col.pszText = (LPWSTR)L"DPI";
-    col.cx = S(64);
+    col.cx = S(60);
     ListView_InsertColumn(g_hProfileList, 2, &col);
-    col.pszText = (LPWSTR)L"关联程序";
-    col.cx = S(72);
+    col.pszText = (LPWSTR)L"程序";
+    col.cx = S(76);
     ListView_InsertColumn(g_hProfileList, 3, &col);
     col.pszText = (LPWSTR)L"状态";
-    col.cx = S(50);
+    col.cx = S(42);
     ListView_InsertColumn(g_hProfileList, 4, &col);
 
-    CreateButton(L"新增配置", 24, 356, 100, 28, IDC_ADD_PROFILE);
-    CreateButton(L"删除配置", 132, 356, 100, 28, IDC_DELETE_PROFILE);
+    g_profileRowImageList = ImageList_Create(1, S(30), ILC_COLOR32, 1, 0);
+    if (g_profileRowImageList) {
+        HDC screen = GetDC(g_hwnd);
+        HBITMAP rowBitmap = screen ? CreateCompatibleBitmap(screen, 1, S(30)) : NULL;
+        if (screen) ReleaseDC(g_hwnd, screen);
+        if (rowBitmap) {
+            ImageList_Add(g_profileRowImageList, rowBitmap, NULL);
+            DeleteObject(rowBitmap);
+        }
+        ListView_SetImageList(g_hProfileList, g_profileRowImageList, LVSIL_SMALL);
+    }
 
-    CreateControl(L"EDIT", L"", WS_TABSTOP | ES_AUTOHSCROLL, 0, 462, 114, 276, 28, IDC_PROFILE_NAME);
-    HWND pollCombo = CreateControl(L"COMBOBOX", L"", WS_TABSTOP | CBS_DROPDOWNLIST | WS_VSCROLL, 0, 462, 152, 276, 160, IDC_POLLING_RATE);
+    TrackPageControl(g_hProfilePageControls, g_hProfileList);
+    TrackPageControl(g_hProfilePageControls, CreateButton(L"新增配置", 44, 562, 100, 32, IDC_ADD_PROFILE));
+    TrackPageControl(g_hProfilePageControls, CreateButton(L"删除配置", 152, 562, 100, 32, IDC_DELETE_PROFILE));
+
+    TrackPageControl(g_hProfilePageControls,
+        CreateControl(L"EDIT", L"", WS_TABSTOP | ES_AUTOHSCROLL, 0, 468, 224, 472, 34, IDC_PROFILE_NAME));
+
+    HWND pollCombo = CreateControl(
+        L"COMBOBOX", L"", WS_TABSTOP | CBS_DROPDOWNLIST | WS_VSCROLL,
+        0, 468, 300, 220, 170, IDC_POLLING_RATE);
     const int rates[] = { 125, 250, 500, 1000, 2000, 4000, 8000 };
     for (int rate : rates) {
         WCHAR label[32] = {0};
@@ -893,63 +1083,74 @@ void CreateControls() {
         int index = (int)SendMessageW(pollCombo, CB_ADDSTRING, 0, (LPARAM)label);
         SendMessageW(pollCombo, CB_SETITEMDATA, index, rate);
     }
+    SendMessageW(pollCombo, CB_SETITEMHEIGHT, (WPARAM)-1, S(26));
+    TrackPageControl(g_hProfilePageControls, pollCombo);
 
     HWND sleepCombo = CreateControl(
         L"COMBOBOX", L"", WS_TABSTOP | CBS_DROPDOWN | WS_VSCROLL | ES_NUMBER,
-        0, 462, 190, 276, 160, IDC_SLEEP_TIME
-    );
+        0, 722, 300, 218, 170, IDC_SLEEP_TIME);
     const int sleeps[] = { 2, 5, 10, 15, 30, 60, 90, 120 };
     for (int minutes : sleeps) {
         WCHAR label[32] = {0};
         StringCchPrintfW(label, ARRAYSIZE(label), L"%d", minutes);
         SendMessageW(sleepCombo, CB_ADDSTRING, 0, (LPARAM)label);
     }
+    SendMessageW(sleepCombo, CB_SETITEMHEIGHT, (WPARAM)-1, S(26));
+    TrackPageControl(g_hProfilePageControls, sleepCombo);
 
-    CreateCheck(L"设为默认配置（离开关联程序后恢复）", 388, 229, 350, 24, IDC_DEFAULT_PROFILE);
+    TrackPageControl(g_hProfilePageControls,
+        CreateCheck(L"设为默认配置（离开关联程序后恢复）", 460, 338, 488, 28, IDC_DEFAULT_PROFILE));
 
-    CreateControl(L"EDIT", L"", WS_TABSTOP | ES_NUMBER | ES_AUTOHSCROLL, 0, 434, 301, 88, 28, IDC_DPI_X);
-    CreateControl(L"EDIT", L"", WS_TABSTOP | ES_NUMBER | ES_AUTOHSCROLL, 0, 560, 301, 96, 28, IDC_DPI_Y);
-    CreateButton(L"读取当前", 668, 300, 88, 30, IDC_CAPTURE_DPI);
-    CreateButton(L"打开 DPI 档位编辑器…", 388, 338, 358, 30, IDC_OPEN_DPI);
+    TrackPageControl(g_hProfilePageControls,
+        CreateControl(L"EDIT", L"", WS_TABSTOP | ES_NUMBER | ES_AUTOHSCROLL, 0, 514, 440, 124, 34, IDC_DPI_X));
+    TrackPageControl(g_hProfilePageControls,
+        CreateControl(L"EDIT", L"", WS_TABSTOP | ES_NUMBER | ES_AUTOHSCROLL, 0, 710, 440, 122, 34, IDC_DPI_Y));
+    TrackPageControl(g_hProfilePageControls,
+        CreateButton(L"读取当前", 852, 438, 96, 38, IDC_CAPTURE_DPI));
+    TrackPageControl(g_hProfilePageControls,
+        CreateButton(L"打开 DPI 档位", 460, 482, 488, 36, IDC_OPEN_DPI));
 
-    CreateControl(
+    HWND appPath = CreateControl(
         L"EDIT", L"", ES_AUTOHSCROLL | ES_READONLY,
-        0, 40, 452, 552, 28, IDC_APP_PATH
-    );
-    CreateButton(L"浏览…", 600, 451, 84, 30, IDC_BROWSE_APP);
-    CreateButton(L"清除", 692, 451, 48, 30, IDC_CLEAR_APP);
+        0, 52, 222, 766, 26, IDC_APP_PATH);
+    TrackPageControl(g_automationPageControls, appPath);
+    TrackPageControl(g_automationPageControls, CreateButton(L"浏览…", 836, 214, 64, 36, IDC_BROWSE_APP));
+    TrackPageControl(g_automationPageControls, CreateButton(L"清除", 908, 214, 48, 36, IDC_CLEAR_APP));
 
-    CreateCheck(L"启用前台程序自动切换", 40, 550, 300, 24, IDC_AUTO_SWITCH);
-    CreateCheck(L"显示悬浮窗提示 (OSD)", 40, 578, 300, 24, IDC_OSD_ENABLED);
+    TrackPageControl(g_automationPageControls,
+        CreateCheck(L"启用前台程序自动切换", 44, 386, 420, 32, IDC_AUTO_SWITCH));
+    TrackPageControl(g_automationPageControls,
+        CreateCheck(L"显示悬浮窗提示 (OSD)", 44, 434, 420, 32, IDC_OSD_ENABLED));
 
-    CreateCheck(L"满格射频（不勾选 = 智能调节）", 400, 550, 340, 24, IDC_RF_FULL);
+    TrackPageControl(g_automationPageControls,
+        CreateCheck(L"满格射频（不勾选 = 智能调节）", 512, 388, 430, 32, IDC_RF_FULL));
     g_hModelCombo = CreateControl(
         L"COMBOBOX", L"", WS_TABSTOP | CBS_DROPDOWNLIST | WS_VSCROLL,
-        0, 460, 581, 180, 160, IDC_MODEL_SELECT
-    );
+        0, 520, 490, 406, 170, IDC_MODEL_SELECT);
     if (g_hModelCombo) {
         const auto& models = BatteryEstimate::Models();
         for (size_t i = 0; i < models.size(); ++i) {
             int index = (int)SendMessageW(g_hModelCombo, CB_ADDSTRING, 0, (LPARAM)models[i].label.c_str());
             SendMessageW(g_hModelCombo, CB_SETITEMDATA, index, i);
         }
+        SendMessageW(g_hModelCombo, CB_SETITEMHEIGHT, (WPARAM)-1, S(26));
         SelectSavedModel();
     }
+    TrackPageControl(g_automationPageControls, g_hModelCombo);
 
-    g_hStatus = CreateText(L"", 24, 668, 500, 24, IDC_STATUS);
-    CreateButton(L"保存并应用", 550, 663, 110, 32, IDC_SAVE);
-    CreateButton(L"关闭", 670, 663, 86, 32, IDC_CLOSE);
+    g_hStatus = CreateText(L"", 28, 704, 700, 28, IDC_STATUS);
+    HWND save = CreateButton(L"保存并应用", 742, 702, 128, 38, IDC_SAVE);
+    CreateButton(L"关闭", 884, 702, 88, 38, IDC_CLOSE);
 
     ApplyFonts();
-    SendMessageW(g_hTitle, WM_SETFONT, (WPARAM)g_fontTitle, TRUE);
-    SendMessageW(g_hSubtitle, WM_SETFONT, (WPARAM)g_fontSmall, TRUE);
-    SendMessageW(g_hStatus, WM_SETFONT, (WPARAM)g_fontSmall, TRUE);
+    if (g_hStatus) SendMessageW(g_hStatus, WM_SETFONT, (WPARAM)g_fontSmall, TRUE);
+    if (save) SendMessageW(save, WM_SETFONT, (WPARAM)g_fontBold, TRUE);
 
     SetOwnedChecked(IDC_AUTO_SWITCH, Profiles::AutoSwitchEnabled());
     SetOwnedChecked(IDC_OSD_ENABLED, Osd::IsEnabled());
     EnableClearButton(false);
+    ShowPageControls();
 }
-
 void OnProfileSelectionChanged() {
     if (g_refreshingList) return;
     int id = SelectedProfileId();
@@ -973,8 +1174,9 @@ LRESULT CALLBACK SettingsWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
             RebuildBrushes();
             g_fontNormal = MakeFont(13, FW_NORMAL);
             g_fontBold = MakeFont(13, FW_SEMIBOLD);
-            g_fontTitle = MakeFont(20, FW_BOLD);
+            g_fontTitle = MakeFont(22, FW_BOLD);
             g_fontSmall = MakeFont(11, FW_NORMAL);
+            g_activeTab = SettingsTab::Profiles;
             CreateControls();
             UpdateTheme();
             DragAcceptFiles(hWnd, TRUE);
@@ -998,7 +1200,11 @@ LRESULT CALLBACK SettingsWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
         case WM_DRAWITEM: {
             DRAWITEMSTRUCT* item = (DRAWITEMSTRUCT*)lParam;
             if (item && item->CtlType == ODT_BUTTON) {
-                DrawOwnerButton(item);
+                if (item->CtlID >= IDC_TAB_PROFILES && item->CtlID <= IDC_TAB_DPI) {
+                    DrawTabButton(item);
+                } else {
+                    DrawOwnerButton(item);
+                }
                 return TRUE;
             }
             break;
@@ -1025,6 +1231,11 @@ LRESULT CALLBACK SettingsWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
         case WM_COMMAND: {
             const int id = LOWORD(wParam);
             const int notification = HIWORD(wParam);
+
+            if (notification == BN_CLICKED && id >= IDC_TAB_PROFILES && id <= IDC_TAB_DPI) {
+                SwitchTab((SettingsTab)(id - IDC_TAB_PROFILES));
+                return 0;
+            }
 
             if (notification == BN_CLICKED && IsCheckControlId(id)) {
                 ToggleOwnedCheck(id);
@@ -1062,7 +1273,7 @@ LRESULT CALLBACK SettingsWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
             }
 
             if (id == IDC_OPEN_DPI && notification == BN_CLICKED) {
-                DpiWindow::Show(hWnd);
+                SwitchTab(SettingsTab::Dpi);
                 return 0;
             }
             if (id == IDC_CAPTURE_DPI && notification == BN_CLICKED) {
@@ -1108,6 +1319,17 @@ LRESULT CALLBACK SettingsWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
 
         case WM_NOTIFY: {
             LPNMHDR header = (LPNMHDR)lParam;
+            if (header && header->idFrom == IDC_PROFILE_LIST && header->code == NM_CUSTOMDRAW) {
+                LPNMLVCUSTOMDRAW draw = (LPNMLVCUSTOMDRAW)lParam;
+                if (draw->nmcd.dwDrawStage == CDDS_PREPAINT) return CDRF_NOTIFYITEMDRAW;
+                if (draw->nmcd.dwDrawStage == CDDS_ITEMPREPAINT) {
+                    bool selected = (draw->nmcd.uItemState & CDIS_SELECTED) != 0;
+                    draw->nmcd.uItemState &= ~(CDIS_SELECTED | CDIS_FOCUS);
+                    draw->clrTextBk = selected ? ColorAccentFill() : ColorField();
+                    draw->clrText = selected ? ColorAccent() : ColorText();
+                    return CDRF_NEWFONT;
+                }
+            }
             if (header && header->idFrom == IDC_PROFILE_LIST && header->code == LVN_ITEMCHANGED) {
                 LPNMLISTVIEW change = (LPNMLISTVIEW)lParam;
                 if ((change->uChanged & LVIF_STATE) && (change->uNewState & LVIS_SELECTED)) {
@@ -1143,7 +1365,7 @@ LRESULT CALLBACK SettingsWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
             if (control == g_hSubtitle) {
                 SetTextColor(dc, ColorMuted());
             } else if (control == g_hStatus && !g_statusGood) {
-                SetTextColor(dc, RGB(235, 92, 92));
+                SetTextColor(dc, ColorDanger());
             } else if (control == g_hStatus) {
                 SetTextColor(dc, ColorAccent());
             } else {
@@ -1163,14 +1385,17 @@ LRESULT CALLBACK SettingsWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
         }
 
         case WM_CTLCOLORBTN: {
-            HWND control = (HWND)lParam;
-            int id = control ? GetDlgCtrlID(control) : 0;
-            HBRUSH background = IsCheckControlId(id) ? g_brushSurface : g_brushBg;
-            return (LRESULT)(background ? background : GetStockObject(WHITE_BRUSH));
+            return (LRESULT)(g_brushSurface ? g_brushSurface : GetStockObject(WHITE_BRUSH));
         }
 
         case WM_CLOSE: {
             if (!CommitEditor(true)) return 0;
+            if (DpiWindow::HasUnsavedChanges()) {
+                int result = MessageBoxW(hWnd, L"DPI 设置尚未应用，是否立即应用？",
+                    L"DPI 设置", MB_YESNOCANCEL | MB_ICONQUESTION);
+                if (result == IDCANCEL) return 0;
+                if (result == IDYES && !DpiWindow::ApplyPendingChanges()) return 0;
+            }
             DestroyWindow(hWnd);
             return 0;
         }
@@ -1178,6 +1403,10 @@ LRESULT CALLBACK SettingsWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
         case WM_DESTROY: {
             KillTimer(hWnd, TIMER_ADVANCED_INIT);
             KillTimer(hWnd, TIMER_ADVANCED_REFRESH);
+            DpiWindow::Cleanup();
+            if (g_hProfileList) ListView_SetImageList(g_hProfileList, NULL, LVSIL_SMALL);
+            if (g_profileRowImageList) ImageList_Destroy(g_profileRowImageList);
+            g_profileRowImageList = NULL;
             if (g_brushBg) DeleteObject(g_brushBg);
             if (g_brushSurface) DeleteObject(g_brushSurface);
             if (g_brushField) DeleteObject(g_brushField);
@@ -1190,6 +1419,10 @@ LRESULT CALLBACK SettingsWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPar
             g_hwnd = NULL;
             g_hProfileList = NULL;
             g_hModelCombo = NULL;
+            g_hDpiPage = NULL;
+            g_hProfilePageControls.clear();
+            g_automationPageControls.clear();
+            g_activeTab = SettingsTab::Profiles;
             g_lastAutoModelName[0] = 0;
             g_hTitle = g_hSubtitle = g_hStatus = NULL;
             return 0;
@@ -1256,7 +1489,7 @@ void Show(HWND owner) {
     HWND hwnd = CreateWindowExW(
         exStyle,
         WINDOW_CLASS,
-        L"配置与自动化 - rapoo-tray",
+        L"配置中心 - rapoo-tray",
         style,
         x, y, width, height,
         owner, NULL, (HINSTANCE)GetModuleHandleW(NULL), NULL

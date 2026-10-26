@@ -28,4 +28,10 @@ bool PreTranslateMessage(MSG* msg);
 bool GetQuickSlots(QuickSlotList& out);
 bool SelectQuickSlot(int index);
 
+// Embeds the editor as a page inside the unified settings window.
+HWND CreateEmbedded(HWND parent, int x, int y, int width, int height);
+void RefreshEmbedded();
+bool HasUnsavedChanges();
+bool ApplyPendingChanges();
+
 } // namespace DpiWindow

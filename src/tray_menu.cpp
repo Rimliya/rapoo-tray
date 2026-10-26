@@ -2,6 +2,7 @@
 #include "osd_window.h"
 #include "profile_manager.h"
 #include "settings_window.h"
+#include "about_window.h"
 #include "dpi_window.h"
 #include <dwmapi.h>
 #include <strsafe.h>
@@ -918,6 +919,8 @@ static LRESULT CALLBACK AcrylicMainWndProc(HWND hWnd, UINT msg, WPARAM wParam, L
                     }
                 } else if (cmd == 1005) { // Foreground app switching
                     Profiles::SetAutoSwitchEnabled(!Profiles::AutoSwitchEnabled());
+                } else if (cmd == 1006) { // About
+                    About::Show(g_hParentAppWnd);
                 }
             }
             return 0;
@@ -1166,7 +1169,7 @@ void ShowMenu(HWND hWndOwner) {
     g_mainItems.push_back(itemOsd);
 
     MenuItemData itemSettings = { 1003 };
-    itemSettings.label = L"配置与自动化…";
+    itemSettings.label = L"配置中心…";
     itemSettings.isInteractive = true;
     g_mainItems.push_back(itemSettings);
 
@@ -1183,6 +1186,11 @@ void ShowMenu(HWND hWndOwner) {
     MenuItemData sep2 = { 0 };
     sep2.isSeparator = true;
     g_mainItems.push_back(sep2);
+
+    MenuItemData itemAbout = { 1006 };
+    itemAbout.label = L"关于 rapoo-tray…";
+    itemAbout.isInteractive = true;
+    g_mainItems.push_back(itemAbout);
 
     MenuItemData itemExit = { 1002 };
     itemExit.label = L"退出程序";

@@ -41,9 +41,10 @@ jobs:
             src/battery_estimator.cpp \
             src/settings_window.cpp \
             src/dpi_window.cpp \
+            src/about_window.cpp \
             bin/app.o \
             -lsetupapi -lhid -luser32 -lgdi32 -lshell32 -ladvapi32 \
-            -luxtheme -ldwmapi -lcomdlg32 -lcomctl32 \
+            -luxtheme -ldwmapi -lcomdlg32 -lcomctl32 -lwinhttp -lversion \
             -o bin/rapoo-tray.exe
           rm -f bin/app.o
 
