@@ -35,6 +35,8 @@ constexpr const WCHAR* SOURCE_URL = L"https://github.com/Rimliya/rapoo-tray";
 constexpr const WCHAR* RELEASES_URL = L"https://github.com/Rimliya/rapoo-tray/releases/latest";
 constexpr int POLLING_RATES[] = { 125, 250, 500, 1000, 2000, 4000, 8000 };
 
+
+
 HWND g_owner = NULL;
 std::atomic<bool> g_uiOpen{false};
 std::thread g_uiThread;
@@ -691,7 +693,8 @@ void StartUpdateCheck() {
             }
         }
 
-        slint::invoke_from_event_loop([weak, success, newer, latestTag, releaseUrl, error] {
+        try {
+            slint::invoke_from_event_loop([weak, success, newer, latestTag, releaseUrl, error] {
             auto locked = weak.lock();
             if (!locked) return;
             MainWindow& view = *(*locked);
@@ -712,7 +715,9 @@ void StartUpdateCheck() {
                 view.set_update_status(S(L"已是最新版本 " + latestTag));
                 view.set_update_button_text(S(L"再次检查"));
             }
-        });
+            });
+        } catch (...) {
+        }
     }).detach();
 }
 
@@ -904,6 +909,9 @@ bool PreTranslateMessage(MSG*) {
 }
 
 } // namespace Settings
+
+
+
 
 
 

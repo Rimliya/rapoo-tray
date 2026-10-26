@@ -79,3 +79,8 @@ if(MSVC)
     target_link_options(rapoo-tray PRIVATE /MANIFEST:NO)
 endif()
 
+
+if(MSVC)
+    target_compile_options(rapoo-tray PRIVATE /utf-8 /bigobj)
+endif()
+
