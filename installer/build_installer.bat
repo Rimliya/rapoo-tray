@@ -3,6 +3,14 @@ setlocal
 cd /d "%~dp0"
 
 if not exist ..\dist mkdir ..\dist
+if not exist ..\bin\rapoo-tray.exe (
+    echo [ERROR] bin\rapoo-tray.exe not found. Run build.bat first.
+    exit /b 1
+)
+if not exist ..\bin\slint_cpp.dll (
+    echo [ERROR] bin\slint_cpp.dll not found. Run build.bat first.
+    exit /b 1
+)
 
 echo [Building Installer Resource...]
 windres --codepage 65001 -i installer.rc -o installer.o -O coff

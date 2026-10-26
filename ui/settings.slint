@@ -225,7 +225,7 @@ export component MainWindow inherits Window {
     in-out property <bool> dpi-dirty: false;
     in-out property <bool> dpi-loading: false;
 
-    in-out property <string> about-version: "1.6.8";
+    in-out property <string> about-version: "1.7.0";
     in-out property <string> update-status: "检查 GitHub Releases 上是否有新版本";
     in-out property <string> update-button-text: "检查更新";
     in-out property <bool> update-busy: false;
@@ -1115,7 +1115,7 @@ export component MainWindow inherits Window {
                                                     }
                                                 }
                                                 Text {
-                                                    text: "轻量 · 原生 · 开源";
+                                                    text: "Fluent · 原生 · 开源";
                                                     color: Palette.foreground.with-alpha(0.52);
                                                     font-size: 11px;
                                                     vertical-alignment: center;
@@ -1245,4 +1245,3 @@ export component MainWindow inherits Window {
         triggered => { root.refresh-tick(); }
     }
 }
-

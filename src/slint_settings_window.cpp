@@ -18,8 +18,6 @@
 #include <atomic>
 #include <cmath>
 #include <cstdio>
-#include <cstdlib>
-#include <cstring>
 #include <exception>
 #include <memory>
 #include <string>
@@ -36,20 +34,6 @@ using RapooUi::ProfileItem;
 constexpr const WCHAR* SOURCE_URL = L"https://github.com/Rimliya/rapoo-tray";
 constexpr const WCHAR* RELEASES_URL = L"https://github.com/Rimliya/rapoo-tray/releases/latest";
 constexpr int POLLING_RATES[] = { 125, 250, 500, 1000, 2000, 4000, 8000 };
-
-void DebugLog(const char* event) {
-    if (!std::getenv("RAPOO_UI_DEBUG")) return;
-    WCHAR temp[MAX_PATH] = {0};
-    if (!GetTempPathW(MAX_PATH, temp)) return;
-    std::wstring path = std::wstring(temp) + L"rapoo-tray-slint.log";
-    HANDLE file = CreateFileW(path.c_str(), FILE_APPEND_DATA,
-        FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-    if (file == INVALID_HANDLE_VALUE) return;
-    DWORD written = 0;
-    WriteFile(file, event, (DWORD)strlen(event), &written, NULL);
-    WriteFile(file, "\r\n", 2, &written, NULL);
-    CloseHandle(file);
-}
 
 HWND g_owner = NULL;
 std::atomic<bool> g_uiOpen{false};
@@ -811,7 +795,6 @@ void RegisterCallbacks(MainWindow& ui) {
     view->on_refresh_tick([view] { RefreshUi(*view); });
 
     view->window().on_close_requested([] {
-        DebugLog("window close requested");
         slint::quit_event_loop();
         return slint::CloseRequestResponse::HideWindow;
     });
@@ -827,8 +810,6 @@ void RunUiThread(HWND owner, int page) {
         Profiles::Initialize();
         auto handle = MainWindow::create();
         g_uiWeak = slint::ComponentWeakHandle(handle);
-    DebugLog("component created");
-
         RefreshDeviceUi(*handle);
         RefreshProfileList(*handle);
         InitializeModelOptions(*handle);
@@ -848,12 +829,8 @@ void RunUiThread(HWND owner, int page) {
 
         RegisterCallbacks(*handle);
         if (page == 2) LoadDpiState(*handle, true);
-
-        DebugLog("showing window");
         handle->show();
-        DebugLog("entering event loop");
         slint::run_event_loop(slint::EventLoopMode::RunUntilQuit);
-        DebugLog("event loop returned");
     } catch (const std::exception& error) {
         std::wstring message = L"Slint 界面启动失败：";
         message += Utf8ToWide(error.what());
@@ -865,7 +842,6 @@ void RunUiThread(HWND owner, int page) {
     g_owner = NULL;
     g_dpi = DpiState();
     g_updateAvailable = false;
-    DebugLog("ShowInternal end");
     g_uiOpen.store(false);
 }
 
@@ -910,7 +886,6 @@ void ShowPage(HWND owner, int page) {
 }
 
 void Cleanup() {
-    DebugLog("Cleanup");
     if (g_uiOpen.load(std::memory_order_acquire)) {
         try {
             slint::invoke_from_event_loop([] { slint::quit_event_loop(); });
@@ -927,8 +902,3 @@ bool PreTranslateMessage(MSG*) {
 }
 
 } // namespace Settings
-
-
-
-
-
