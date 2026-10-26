@@ -908,7 +908,7 @@ static LRESULT CALLBACK AcrylicMainWndProc(HWND hWnd, UINT msg, WPARAM wParam, L
                 if (cmd == 1001) { // Toggle Auto Run
                     ToggleAutoRun();
                 } else if (cmd == 1002) { // Exit
-                    PostQuitMessage(0);
+                    PostMessageW(g_hParentAppWnd, WM_CLOSE, 0, 0);
                 } else if (cmd == 1003) { // Profile settings
                     Settings::Show(g_hParentAppWnd);
                 } else if (cmd == 1004) { // OSD switch
@@ -1701,3 +1701,4 @@ void UpdateTooltip(NOTIFYICONDATAW& nid, const Device::State& state) {
 }
 
 } // namespace Tray
+
