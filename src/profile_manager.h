@@ -10,6 +10,7 @@ struct Definition {
     int id = 0;
     std::wstring name;
     int pollingHz = 1000;
+    int performanceMode = -1;
     int sleepMinutes = 10;
     std::wstring appPath;
     std::wstring appName;
@@ -32,18 +33,19 @@ bool HasAppRule(const Definition& profile);
 
 // Profile editing. Names are trimmed and must be unique (case-insensitive).
 int Create(const std::wstring& name, int pollingHz = 1000, int sleepMinutes = 10,
-           int dpiX = 0, int dpiY = 0);
+           int dpiX = 0, int dpiY = 0, int performanceMode = -1);
 bool Update(const Definition& profile);
 bool Delete(int id);
 void SetDefault(int id);
 
 // Quick/manual profile switch. The profile remains active until an app rule takes
 // control or the user selects another profile.
-bool Select(int id);
+bool Select(int id, bool showOsd = true);
 
 // Keeps a manually selected current profile in sync when the existing tray
 // polling/sleep controls are used directly.
 bool SetCurrentPolling(int hz);
+bool SetCurrentPerformanceMode(int mode);
 bool SetCurrentSleep(int minutes);
 bool SetCurrentDpi(int x, int y);
 

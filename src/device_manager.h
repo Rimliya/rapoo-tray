@@ -22,6 +22,8 @@ struct State {
     int dpiX = 800;
     int dpiY = 800;
     int pollingHz = 1000;
+    int perfMode = Rapoo::PERF_OFFICE;
+    bool perfModeKnown = false;
     int sleepMinutes = 10;
     bool rfFull = false;
     bool rfAvailable = false;
@@ -36,6 +38,7 @@ constexpr DWORD CHANGE_DPI       = 0x04;
 constexpr DWORD CHANGE_POLLING   = 0x08;
 constexpr DWORD CHANGE_SLEEP     = 0x10;
 constexpr DWORD CHANGE_RF        = 0x20;
+constexpr DWORD CHANGE_PERF      = 0x40;
 
 bool Start(HWND hNotifyWnd, StateCallback callback);
 void Stop();
@@ -43,8 +46,10 @@ void Stop();
 void NotifyDeviceChange();
 
 bool SetPollingRate(int hz);
+bool SetPerformanceMode(int mode);
 bool SetSleepTimeout(int minutes);
 bool RefreshPollingRate();
+bool RefreshPerformanceMode();
 bool RefreshRfState();
 bool SetRfFull(bool full);
 bool ReadDpiConfig(DpiConfig& outConfig);

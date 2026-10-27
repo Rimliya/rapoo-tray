@@ -15,6 +15,7 @@ export struct ProfileItem {
     id: int,
     name: string,
     polling: string,
+    perf: string,
     dpi: string,
     app: string,
     badge: string,
@@ -149,6 +150,75 @@ component FieldLabel inherits Text {
     vertical-alignment: center;
 }
 
+component PerfModeCard inherits Rectangle {
+    in property <string> title;
+    in property <string> subtitle;
+    in property <bool> available;
+    in property <bool> selected;
+    callback clicked();
+
+    height: 44px;
+    horizontal-stretch: 1;
+    border-radius: 7px;
+    border-width: 1px;
+    border-color: root.selected
+        ? Palette.accent-background
+        : Palette.foreground.with-alpha(root.available ? 0.14 : 0.07);
+    background: root.selected
+        ? Palette.accent-background.with-alpha(0.12)
+        : (mode-touch.has-hover && root.available
+            ? Palette.control-background.with-alpha(0.84)
+            : Palette.control-background.with-alpha(root.available ? 0.48 : 0.12));
+
+    HorizontalLayout {
+        padding-top: 4px;
+        padding-right: 10px;
+        padding-bottom: 4px;
+        padding-left: 10px;
+        spacing: 8px;
+        cross-axis-alignment: center;
+
+        VerticalLayout {
+            horizontal-stretch: 1;
+            spacing: 1px;
+
+            Text {
+                text: root.title;
+                color: root.selected
+                    ? Palette.accent-background
+                    : Palette.foreground.with-alpha(root.available ? 0.92 : 0.28);
+                font-size: 11.5px;
+                font-weight: root.selected ? 700 : 600;
+                horizontal-alignment: left;
+                overflow: elide;
+            }
+
+            Text {
+                text: root.subtitle;
+                color: root.selected
+                    ? Palette.accent-background.with-alpha(0.72)
+                    : Palette.foreground.with-alpha(root.available ? 0.46 : 0.18);
+                font-size: 9px;
+                horizontal-alignment: left;
+                overflow: elide;
+            }
+        }
+
+        Rectangle {
+            width: 6px;
+            height: 6px;
+            border-radius: 3px;
+            background: root.selected ? Palette.accent-background : transparent;
+        }
+    }
+
+    mode-touch := TouchArea {
+        enabled: root.available;
+        mouse-cursor: root.available ? pointer : default;
+        clicked => { root.clicked(); }
+    }
+}
+
 component StatusDot inherits Rectangle {
     in property <bool> good;
     width: 8px;
@@ -198,12 +268,13 @@ export component MainWindow inherits Window {
     in-out property <bool> status-good: true;
 
     in property <[ProfileItem]> profiles: [
-        { id: 1, name: "日常", polling: "1000 Hz", dpi: "1000", app: "—", badge: "当前", is-default: true },
-        { id: 2, name: "高性能", polling: "4000 Hz", dpi: "1600", app: "—", badge: "默认", is-default: false },
+        { id: 1, name: "日常", polling: "1000 Hz", perf: "均衡模式", dpi: "1000", app: "—", badge: "当前", is-default: true },
+        { id: 2, name: "高性能", polling: "4000 Hz", perf: "超核模式", dpi: "1600", app: "—", badge: "默认", is-default: false },
     ];
     in-out property <int> selected-profile-id: 1;
     in-out property <string> profile-name: "日常";
     in-out property <int> profile-poll-index: 3;
+    in-out property <int> profile-perf-mode: 1;
     in-out property <int> profile-sleep: 10;
     in-out property <int> profile-dpi-x: 1000;
     in-out property <int> profile-dpi-y: 1000;
@@ -211,6 +282,7 @@ export component MainWindow inherits Window {
     in-out property <bool> profile-is-default: true;
     in-out property <bool> profile-dirty: false;
     in-out property <bool> profile-loading: false;
+    in-out property <bool> profile-apply-busy: false;
 
     in property <[string]> polling-options: ["125 Hz", "250 Hz", "500 Hz", "1000 Hz", "2000 Hz", "4000 Hz", "8000 Hz"];
 
@@ -236,7 +308,7 @@ export component MainWindow inherits Window {
     in-out property <bool> dpi-dirty: false;
     in-out property <bool> dpi-loading: false;
 
-    in-out property <string> about-version: "1.7.0";
+    in-out property <string> about-version: "1.8.0";
     in-out property <string> update-status: "检查 GitHub Releases 上是否有新版本";
     in-out property <string> update-button-text: "检查更新";
     in-out property <bool> update-busy: false;
@@ -246,6 +318,8 @@ export component MainWindow inherits Window {
     callback profile-add();
     callback profile-delete();
     callback profile-save();
+    callback profile-apply();
+    callback profile-poll-changed(int);
     callback profile-browse();
     callback profile-clear-app();
     callback profile-capture-dpi();
@@ -281,6 +355,27 @@ export component MainWindow inherits Window {
         root.dpi-dirty = true;
         root.status-text = "DPI 修改尚未写入鼠标";
         root.status-good = true;
+    }
+
+    function perf-mode-enabled(mode: int) -> bool {
+        if mode == 0 { return root.profile-poll-index <= 2; }
+        if mode == 1 { return root.profile-poll-index <= 3; }
+        if mode == 2 { return root.profile-poll-index >= 2 && root.profile-poll-index <= 4; }
+        return root.profile-poll-index >= 3;
+    }
+
+    function perf-mode-count() -> int {
+        if root.profile-poll-index <= 1 { return 2; }
+        if root.profile-poll-index == 2 { return 3; }
+        if root.profile-poll-index == 3 { return 5; }
+        if root.profile-poll-index == 4 { return 4; }
+        return 3;
+    }
+
+    function select-perf-mode(mode: int) {
+        if !root.perf-mode-enabled(mode) { return; }
+        root.profile-perf-mode = mode;
+        root.mark-profile-dirty();
     }
 
     VerticalLayout {
@@ -432,7 +527,7 @@ export component MainWindow inherits Window {
                         PageTitle {
                             horizontal-stretch: 1;
                             title: root.page == 0 ? "配置档案" : root.page == 1 ? "自动化" : root.page == 2 ? "DPI 档位" : "关于";
-                            subtitle: root.page == 0 ? "为不同应用保存回报率、DPI、休眠和启动规则" : root.page == 1 ? "管理前台程序联动、悬浮提示与设备策略" : root.page == 2 ? "编辑鼠标内建 DPI 档位并安全写入设备" : "版本信息、项目源码与更新检查";
+                            subtitle: root.page == 0 ? "为不同应用保存回报率、性能模式、DPI、休眠和启动规则" : root.page == 1 ? "管理前台程序联动、悬浮提示与设备策略" : root.page == 2 ? "编辑鼠标内建 DPI 档位并安全写入设备" : "版本信息、项目源码与更新检查";
                         }
 
                         Rectangle {
@@ -543,7 +638,7 @@ export component MainWindow inherits Window {
                                                         }
                                                     }
                                                     Text {
-                                                        text: item.polling + "  ·  " + item.dpi + " DPI  ·  " + item.app;
+                                                        text: item.polling + "  ·  " + item.perf + "  ·  " + item.dpi + " DPI  ·  " + item.app;
                                                         color: Palette.foreground.with-alpha(0.55);
                                                         font-size: 10px;
                                                         overflow: elide;
@@ -586,11 +681,11 @@ export component MainWindow inherits Window {
                             SettingsCard {
                                 horizontal-stretch: 1;
                                 VerticalLayout {
-                                    padding-top: 16px;
+                                    padding-top: 12px;
                                     padding-right: 14px;
-                                    padding-bottom: 12px;
+                                    padding-bottom: 8px;
                                     padding-left: 14px;
-                                    spacing: 12px;
+                                    spacing: 8px;
 
                                     HorizontalLayout {
                                         Text {
@@ -601,7 +696,14 @@ export component MainWindow inherits Window {
                                             horizontal-stretch: 1;
                                         }
                                         Text {
-                                            visible: root.profile-dirty;
+                                            visible: root.profile-apply-busy;
+                                            text: "应用中…";
+                                            color: Palette.accent-background;
+                                            font-size: 10px;
+                                            vertical-alignment: center;
+                                        }
+                                        Text {
+                                            visible: root.profile-dirty && !root.profile-apply-busy;
                                             text: "未保存";
                                             color: #C27A00;
                                             font-size: 10px;
@@ -628,7 +730,12 @@ export component MainWindow inherits Window {
                                             ComboBox {
                                                 current-index <=> root.profile-poll-index;
                                                 model: root.polling-options;
-                                                changed current-index => { if !root.profile-loading { root.mark-profile-dirty(); } }
+                                                changed current-index => {
+                                                    if !root.profile-loading {
+                                                        root.profile-poll-changed(self.current-index);
+                                                        root.mark-profile-dirty();
+                                                    }
+                                                }
                                             }
                                         }
                                         VerticalLayout {
@@ -641,6 +748,70 @@ export component MainWindow inherits Window {
                                                 step-size: 5;
                                                 value <=> root.profile-sleep;
                                                 edited(value) => { root.profile-sleep = value; root.mark-profile-dirty(); }
+                                            }
+                                        }
+                                    }
+
+                                    VerticalLayout {
+                                        spacing: 5px;
+                                        HorizontalLayout {
+                                            FieldLabel {
+                                                horizontal-stretch: 1;
+                                                text: "性能模式";
+                                            }
+                                            Text {
+                                                text: "当前回报率可用 " + root.perf-mode-count() + " 档";
+                                                color: Palette.foreground.with-alpha(0.42);
+                                                font-size: 9.5px;
+                                                vertical-alignment: center;
+                                            }
+                                        }
+                                        HorizontalLayout {
+                                            spacing: 7px;
+                                            PerfModeCard {
+                                                title: "狂暴竞技";
+                                                subtitle: "Corded Gaming";
+                                                available: root.perf-mode-enabled(5);
+                                                selected: root.profile-perf-mode == 5;
+                                                clicked => { root.select-perf-mode(5); }
+                                            }
+                                            PerfModeCard {
+                                                title: "竞技超核";
+                                                subtitle: "Corded Gaming";
+                                                available: root.perf-mode-enabled(4);
+                                                selected: root.profile-perf-mode == 4;
+                                                clicked => { root.select-perf-mode(4); }
+                                            }
+                                            PerfModeCard {
+                                                title: "超核";
+                                                subtitle: "Corded Gaming";
+                                                available: root.perf-mode-enabled(3);
+                                                selected: root.profile-perf-mode == 3;
+                                                clicked => { root.select-perf-mode(3); }
+                                            }
+                                        }
+                                        HorizontalLayout {
+                                            spacing: 7px;
+                                            PerfModeCard {
+                                                title: "火力";
+                                                subtitle: "High Performance";
+                                                available: root.perf-mode-enabled(2);
+                                                selected: root.profile-perf-mode == 2;
+                                                clicked => { root.select-perf-mode(2); }
+                                            }
+                                            PerfModeCard {
+                                                title: "均衡";
+                                                subtitle: "Low Power";
+                                                available: root.perf-mode-enabled(1);
+                                                selected: root.profile-perf-mode == 1;
+                                                clicked => { root.select-perf-mode(1); }
+                                            }
+                                            PerfModeCard {
+                                                title: "办公";
+                                                subtitle: "Office";
+                                                available: root.perf-mode-enabled(0);
+                                                selected: root.profile-perf-mode == 0;
+                                                clicked => { root.select-perf-mode(0); }
                                             }
                                         }
                                     }
@@ -740,18 +911,25 @@ export component MainWindow inherits Window {
                                     HorizontalLayout {
                                         spacing: 8px;
                                         Text {
-                                            text: "切换配置会一次性应用回报率、休眠与 DPI";
+                                            text: "保存只更新本机配置；“应用”才会写入鼠标并切换当前配置";
                                             color: Palette.foreground.with-alpha(0.5);
                                             font-size: 10px;
                                             horizontal-stretch: 1;
                                             vertical-alignment: center;
                                         }
                                         Button {
-                                            text: root.profile-dirty ? "保存并应用" : "已保存";
+                                            text: root.profile-dirty ? "保存" : "已保存";
                                             icon: @image-url("icons/save.svg");
                                             primary: root.profile-dirty;
-                                            enabled: root.profile-dirty;
+                                            enabled: root.profile-dirty && !root.profile-apply-busy;
                                             clicked => { root.profile-save(); }
+                                        }
+                                        Button {
+                                            text: root.profile-apply-busy ? "应用中…" : "应用";
+                                            icon: @image-url("icons/switch.svg");
+                                            primary: !root.profile-dirty && !root.profile-apply-busy;
+                                            enabled: !root.profile-dirty && !root.profile-apply-busy;
+                                            clicked => { root.profile-apply(); }
                                         }
                                     }
                                 }

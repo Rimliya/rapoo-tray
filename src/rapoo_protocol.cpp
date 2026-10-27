@@ -1,6 +1,7 @@
 #include "rapoo_protocol.h"
-#include <cstring>
 #include <algorithm>
+#include <cstdlib>
+#include <cstring>
 
 namespace Rapoo {
 
@@ -121,6 +122,26 @@ bool ParseFeatureRead(const BYTE* buf, DWORD bytesRead, BYTE expectedLen, BYTE* 
     return false;
 }
 
+namespace {
+
+constexpr int POLLING_RATES[] = { 125, 250, 500, 1000, 2000, 4000, 8000 };
+constexpr BYTE PERF_MODE_MASKS[] = { 0x03, 0x03, 0x07, 0x3E, 0x3C, 0x38, 0x38 };
+
+int PollingRateIndex(int hz) {
+    int best = 3;
+    int distance = 0x7fffffff;
+    for (int i = 0; i < (int)(sizeof(POLLING_RATES) / sizeof(POLLING_RATES[0])); ++i) {
+        int candidate = std::abs(POLLING_RATES[i] - hz);
+        if (candidate < distance) {
+            best = i;
+            distance = candidate;
+        }
+    }
+    return best;
+}
+
+} // namespace
+
 int CodeToPollingHz(BYTE code) {
     switch (code) {
         case 0x08: return 125;
@@ -144,6 +165,49 @@ BYTE PollingHzToCode(int hz) {
         case 4000: return 0x82;
         case 8000: return 0x81;
         default:   return 0x01;
+    }
+}
+
+bool IsValidPerfMode(int mode) {
+    return mode >= PERF_OFFICE && mode <= PERF_FURY_GAMING;
+}
+
+bool IsPerfModeAllowed(int mode, int pollingHz) {
+    if (!IsValidPerfMode(mode)) return false;
+    const int index = PollingRateIndex(pollingHz);
+    return (PERF_MODE_MASKS[index] & (BYTE)(1u << mode)) != 0;
+}
+
+int NearestPerfMode(int mode, int pollingHz) {
+    const int index = PollingRateIndex(pollingHz);
+    const BYTE mask = PERF_MODE_MASKS[index];
+    const int desired = IsValidPerfMode(mode) ? mode : PERF_OFFICE;
+    int best = PERF_OFFICE;
+    int bestDistance = 0x7fffffff;
+    for (int candidate = PERF_OFFICE; candidate <= PERF_FURY_GAMING; ++candidate) {
+        if ((mask & (BYTE)(1u << candidate)) == 0) continue;
+        int distance = std::abs(candidate - desired);
+        if (distance < bestDistance) {
+            best = candidate;
+            bestDistance = distance;
+        }
+    }
+    return best;
+}
+
+BYTE PerfModeAddress(int pollingHz) {
+    return (BYTE)(ADDR_PERF_MODE_BASE + PollingRateIndex(pollingHz));
+}
+
+const WCHAR* PerfModeName(int mode) {
+    switch (mode) {
+        case PERF_OFFICE:            return L"办公模式";
+        case PERF_BALANCED:          return L"均衡模式";
+        case PERF_FIRE:              return L"火力模式";
+        case PERF_HYPER_CORE:        return L"超核模式";
+        case PERF_GAMING_HYPER_CORE: return L"竞技超核模式";
+        case PERF_FURY_GAMING:       return L"狂暴竞技模式";
+        default:                     return L"未知模式";
     }
 }
 

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(rapoo-tray VERSION 1.7.0 LANGUAGES CXX RC)
+project(rapoo-tray VERSION 1.8.0 LANGUAGES CXX RC)
 
 if(NOT WIN32)
     message(FATAL_ERROR "rapoo-tray is a Windows application.")
@@ -78,6 +78,10 @@ install(FILES "$<TARGET_FILE:slint_cpp-shared>" DESTINATION . RENAME slint_cpp.d
 if(MSVC)
     target_compile_options(rapoo-tray PRIVATE /utf-8 /bigobj)
     target_link_options(rapoo-tray PRIVATE /MANIFEST:NO)
+else()
+    # MinGW/Clang-Zig do not translate CMake's WIN32 executable flag into a
+    # Windows GUI subsystem. Keep wWinMain and suppress the console window.
+    target_link_options(rapoo-tray PRIVATE -municode -Wl,--subsystem,windows)
 endif()
 
 
