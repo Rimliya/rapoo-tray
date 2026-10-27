@@ -4,7 +4,7 @@
   <p><b>雷柏VT系列游戏鼠标轻量化托盘程序</b></p>
 
   <p>
-    <a href="https://github.com/Rimliya/rapoo-tray/releases"><img src="https://img.shields.io/badge/Release-v1.11.0-blue?style=flat-square" alt="Release" /></a>
+    <a href="https://github.com/Rimliya/rapoo-tray/releases"><img src="https://img.shields.io/badge/Release-v1.12.0-blue?style=flat-square" alt="Release" /></a>
     <img src="https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?style=flat-square&logo=windows" alt="Platform" />
     <img src="https://img.shields.io/badge/Language-C%2B%2B20%20%2F%20C%23%20WPF%20%2B%20Win32-00599C?style=flat-square&logo=c%2B%2B" alt="Language" />
     <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License" />
@@ -27,7 +27,7 @@
 - **原地更新与强制停机**：安装器会从卸载信息、开机启动项或正在运行的托盘程序定位已有安装目录；安装前强制执行“检测并停止旧程序、确认进程退出、再覆盖文件”的顺序，无法停止时直接中止安装。
 - **设备识别增强**：补充 VT3 V2 的 `1462/4662` PID 变体，并增加 HID 产品字符串回退识别。
 - **明暗双主题**：设置中心右上角可一键切换浅色/深色主题并持久化；首次启动仍跟随 Windows 系统主题。
-- **清晰中文渲染**：内容卡片使用高不透明承载层，优先 Microsoft YaHei UI，并启用 ClearType/Display 字形渲染。
+- **内置 HarmonyOS Sans SC**：设置中心随包嵌入 Regular / Medium / Bold 三个字重，中文、字段标签与输入内容不再依赖系统中文字体；输入框、下拉框和数字框统一垂直居中，并启用 Display 字形布局与像素对齐。
 - **射频策略读取修复**：进入自动化页时主动读取鼠标当前射频策略；读取失败显示可重试状态，不再误报“设备不支持”。
 - **工业风 WPF 设置中心**：配置档案、自动化、DPI 档位与关于页使用统一冷灰网格、冰蓝当前位置信号、自绘切角、方形开关和方形滑杆；性能档位改为墨色分段选择，明暗主题与系统主题跟随保持一致。
 - **配置档案与快速切换**：可新建、重命名和删除独立配置，每个配置同时保存回报率、性能模式、DPI X/Y 与休眠时间；设置页将“保存”和“应用”拆开，保存只更新本机配置，应用才写入鼠标。托盘菜单和“配置中心”均可快速切换，硬件应用在后台执行。
@@ -223,6 +223,7 @@ build_plugin.bat
 
 - [WPF UI 4.3.0](https://github.com/lepoco/wpfui)：底层 WPF 控件、主题资源和 Windows 集成，MIT License。详见 [WPF UI License](licenses/wpf-ui-LICENSE.md) 与 [Third-party notices](licenses/wpf-ui-THIRDPARTY.txt)。
 - [Saira](https://github.com/Omnibus-Type/Saira)：设置中心宽体界面拉丁字体，SIL Open Font License 1.1。详见 [Saira License](licenses/saira-OFL.txt)。
+- [HarmonyOS Sans SC](https://developer.harmonyos.com/cn/docs/design/des-guides/font-0000001157868583)：设置中心内置中文正文字体，Copyright 2021 Huawei Device Co., Ltd.，按 HarmonyOS Sans Fonts License Agreement 随软件分发。详见 [HarmonyOS Sans License](licenses/harmonyos-sans-LICENSE.txt)。
 - .NET Framework 4.8：Windows 10 / 11 内置运行时，设置中心无需额外安装运行时。
 
 ---

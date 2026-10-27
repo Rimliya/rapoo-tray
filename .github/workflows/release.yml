@@ -90,7 +90,8 @@ jobs:
             'bin/System.Runtime.CompilerServices.Unsafe.dll',
             'licenses/wpf-ui-LICENSE.md',
             'licenses/wpf-ui-THIRDPARTY.txt',
-            'licenses/saira-OFL.txt'
+            'licenses/saira-OFL.txt',
+            'licenses/harmonyos-sans-LICENSE.txt'
           )
           Compress-Archive -Path $files -DestinationPath 'dist/rapoo-tray-portable.zip' -Force
 
@@ -127,3 +128,4 @@ jobs:
             licenses/wpf-ui-LICENSE.md
             licenses/wpf-ui-THIRDPARTY.txt
             licenses/saira-OFL.txt
+            licenses/harmonyos-sans-LICENSE.txt

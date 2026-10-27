@@ -24,6 +24,12 @@ dotnet run --project settings-ui/RapooTray.Settings.csproj -- --demo
 - 正式发版只由推送 `v*` tag 触发的 GitHub Actions `release.yml` 完成。
 - Actions 的 Release 步骤使用 `GITHUB_TOKEN`；不要把个人 token 写入源码、脚本或提交记录。
 
+## 字体
+
+设置中心内置华为 HarmonyOS Sans SC 的 Regular、Medium 与 Bold 字重，不要求用户系统安装该字体。字体文件位于 `Assets/Fonts/`，许可文本同时嵌入程序资源并在“关于”页提供查看入口。
+
+输入控件统一使用 40px 高度和 `VerticalContentAlignment=Center`，避免 WPF UI 默认顶部对齐导致文字偏上。
+
 ## 主题
 
 首次启动跟随系统主题。右上角可切换浅色/深色，选择保存在 `HKCU\Software\rapoo-tray\Settings\UiTheme`（1=浅色，2=深色）。
