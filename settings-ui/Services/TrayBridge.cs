@@ -36,6 +36,7 @@ namespace RapooTray.Settings
         public Task<AppState> SetOsdAsync(bool value) => SendStateCommandAsync("SET_OSD|" + (value ? "1" : "0"));
         public Task<AppState> SetAutoRunAsync(bool value) => SendStateCommandAsync("SET_AUTORUN|" + (value ? "1" : "0"));
         public Task<AppState> SetRfFullAsync(bool value) => SendStateCommandAsync("SET_RF_FULL|" + (value ? "1" : "0"));
+        public Task<AppState> RefreshRfAsync() => SendStateCommandAsync("REFRESH_RF");
         public Task<AppState> SetModelAsync(int index) => SendStateCommandAsync("SET_MODEL|" + index);
 
         public async Task<DpiState> GetDpiStateAsync()
@@ -169,7 +170,7 @@ namespace RapooTray.Settings
 
         private static AppState DemoState()
         {
-            var state = new AppState { Version = "1.9.0", DeviceName = "雷柏 VT3 V2", DeviceMode = "2.4G 无线", Connected = true,
+            var state = new AppState { Version = "1.9.1", DeviceName = "雷柏 VT3 V2", DeviceMode = "2.4G 无线", Connected = true,
                 Battery = 87, DeviceDpiX = 1600, DeviceDpiY = 1600, AutoSwitch = true, OsdEnabled = true, AutoRun = true,
                 RfAvailable = true, RfFull = true, ActiveProfileId = 1, StatusText = "已读取设备状态，修改后点击“应用”写入鼠标", StatusGood = true };
             state.Models.Add(new ModelOption { Index = 0, Key = "vt3v2", Label = "雷柏 VT3 V2" });

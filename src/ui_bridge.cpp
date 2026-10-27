@@ -458,6 +458,12 @@ std::string HandleHeavyCommand(const std::string& command) {
         return RequestMainState();
     }
 
+    if (verb == "REFRESH_RF") {
+        const bool ok = Device::RefreshRfState();
+        SetStatus(ok ? L"已读取射频策略" : L"暂时无法读取射频策略，请唤醒鼠标后重试", ok);
+        return RequestMainState();
+    }
+
     if (verb == "DPI_APPLY") {
         const int selected = ToInt(At(fields, 1));
         const int count = ToInt(At(fields, 2));
@@ -494,7 +500,7 @@ std::string HandleHeavyCommand(const std::string& command) {
 
 std::string ExecuteCommand(const std::string& command) {
     const std::string verb = At(Split(command), 0);
-    if (verb == "APPLY_PROFILE" || verb == "DPI_APPLY" || verb == "GET_DPI") {
+    if (verb == "APPLY_PROFILE" || verb == "DPI_APPLY" || verb == "GET_DPI" || verb == "REFRESH_RF") {
         return HandleHeavyCommand(command);
     }
     if (!g_mainWindow) return "ERROR\n";

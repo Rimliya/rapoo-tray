@@ -4,7 +4,7 @@
   <p><b>雷柏VT系列游戏鼠标轻量化托盘程序</b></p>
 
   <p>
-    <a href="https://github.com/Rimliya/rapoo-tray/releases"><img src="https://img.shields.io/badge/Release-v1.9.0-blue?style=flat-square" alt="Release" /></a>
+    <a href="https://github.com/Rimliya/rapoo-tray/releases"><img src="https://img.shields.io/badge/Release-v1.9.1-blue?style=flat-square" alt="Release" /></a>
     <img src="https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?style=flat-square&logo=windows" alt="Platform" />
     <img src="https://img.shields.io/badge/Language-C%2B%2B20%20%2F%20C%23%20WPF%20%2B%20Win32-00599C?style=flat-square&logo=c%2B%2B" alt="Language" />
     <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License" />
@@ -26,6 +26,7 @@
 - **无线射频策略与续航粗估**：设置页可切换“满格射频 / 智能调节”，并按鼠标型号、回报率、射频策略和当前电量估算续航；型号支持自动识别或手动指定。
 - **原地更新与强制停机**：安装器会从卸载信息、开机启动项或正在运行的托盘程序定位已有安装目录；安装前强制执行“检测并停止旧程序、确认进程退出、再覆盖文件”的顺序，无法停止时直接中止安装。
 - **设备识别增强**：补充 VT3 V2 的 `1462/4662` PID 变体，并增加 HID 产品字符串回退识别。
+- **射频策略读取修复**：进入自动化页时主动读取鼠标当前射频策略；读取失败显示可重试状态，不再误报“设备不支持”。
 - **WPF UI 原生设置中心**：配置档案、自动化、DPI 档位与关于页集中在同一个 Fluent 2 窗口中，支持真实 Windows 11 Mica、圆角、低对比描边、卡片层级和系统主题跟随；原 Win32 托盘图标与亚克力右键菜单保持不变。
 - **配置档案与快速切换**：可新建、重命名和删除独立配置，每个配置同时保存回报率、性能模式、DPI X/Y 与休眠时间；设置页将“保存”和“应用”拆开，保存只更新本机配置，应用才写入鼠标。托盘菜单和“配置中心”均可快速切换，硬件应用在后台执行。
 - **前台程序自动切换**：为配置指定程序后，程序进入前台（包括无边框 / 独占全屏游戏）时自动应用该配置；离开程序后恢复用户指定的默认配置。

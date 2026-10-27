@@ -3,6 +3,8 @@ using System.Threading;
 using System.Net;
 using System.Windows;
 using System.Windows.Interop;
+using System.Windows.Media;
+using Wpf.Ui.Appearance;
 using System.Runtime.InteropServices;
 
 namespace RapooTray.Settings
@@ -17,6 +19,8 @@ namespace RapooTray.Settings
         {
             ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
             base.OnStartup(e);
+            ApplicationThemeManager.Changed += OnApplicationThemeChanged;
+            ApplyReadabilityPalette(ApplicationThemeManager.GetAppTheme());
 
             int page = 0;
             bool demo = false;
@@ -49,8 +53,24 @@ namespace RapooTray.Settings
             window.Show();
         }
 
+        private void OnApplicationThemeChanged(ApplicationTheme theme, Color accent)
+        {
+            ApplyReadabilityPalette(theme);
+        }
+
+        private static void ApplyReadabilityPalette(ApplicationTheme theme)
+        {
+            bool dark = theme == ApplicationTheme.Dark;
+            var resources = Current.Resources;
+            resources["AppSecondaryTextBrush"] = new SolidColorBrush(dark ? Color.FromRgb(215, 218, 223) : Color.FromRgb(77, 82, 90));
+            resources["AppTertiaryTextBrush"] = new SolidColorBrush(dark ? Color.FromRgb(178, 184, 193) : Color.FromRgb(103, 108, 117));
+            resources["AppCardStrokeBrush"] = new SolidColorBrush(dark ? Color.FromArgb(58, 255, 255, 255) : Color.FromArgb(38, 0, 0, 0));
+            resources["AppSubtleSurfaceBrush"] = new SolidColorBrush(dark ? Color.FromArgb(28, 255, 255, 255) : Color.FromArgb(16, 0, 0, 0));
+        }
+
         protected override void OnExit(ExitEventArgs e)
         {
+            ApplicationThemeManager.Changed -= OnApplicationThemeChanged;
             if (_instanceMutex != null)
             {
                 try { _instanceMutex.ReleaseMutex(); } catch { }

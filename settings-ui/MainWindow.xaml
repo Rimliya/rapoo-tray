@@ -12,15 +12,21 @@
     MinHeight="650"
     Background="Transparent"
     ExtendsContentIntoTitleBar="True"
+    FontFamily="Segoe UI Variable Text, Microsoft YaHei UI, Segoe UI"
+    FontSize="13"
     Foreground="{DynamicResource TextFillColorPrimaryBrush}"
     WindowBackdropType="Mica"
     WindowCornerPreference="Round"
     WindowStartupLocation="CenterScreen"
+    SnapsToDevicePixels="True"
+    TextOptions.TextFormattingMode="Display"
+    TextOptions.TextRenderingMode="ClearType"
+    UseLayoutRounding="True"
     mc:Ignorable="d">
   <ui:FluentWindow.Resources>
     <Style x:Key="CardStyle" TargetType="{x:Type Border}">
       <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AppCardStrokeBrush}" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="14" />
       <Setter Property="SnapsToDevicePixels" Value="True" />
@@ -32,24 +38,25 @@
       <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
     </Style>
     <Style x:Key="SectionTitleStyle" TargetType="{x:Type TextBlock}">
-      <Setter Property="FontSize" Value="14" />
+      <Setter Property="FontSize" Value="15" />
       <Setter Property="FontWeight" Value="SemiBold" />
       <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
     </Style>
     <Style x:Key="FieldLabelStyle" TargetType="{x:Type TextBlock}">
       <Setter Property="Margin" Value="0,0,0,6" />
-      <Setter Property="FontSize" Value="11" />
-      <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="FontWeight" Value="Medium" />
+      <Setter Property="Foreground" Value="{DynamicResource AppSecondaryTextBrush}" />
     </Style>
     <Style x:Key="MutedTextStyle" TargetType="{x:Type TextBlock}">
-      <Setter Property="FontSize" Value="11" />
-      <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Foreground" Value="{DynamicResource AppSecondaryTextBrush}" />
       <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
     <Style x:Key="NavRadioStyle" TargetType="{x:Type RadioButton}">
       <Setter Property="Height" Value="62" />
       <Setter Property="Margin" Value="8,2" />
-      <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource AppSecondaryTextBrush}" />
       <Setter Property="Cursor" Value="Hand" />
       <Setter Property="Focusable" Value="False" />
       <Setter Property="FocusVisualStyle" Value="{x:Null}" />
@@ -60,7 +67,7 @@
               <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
             </Border>
             <ControlTemplate.Triggers>
-              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="NavSurface" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" /></Trigger>
+              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="NavSurface" Property="Background" Value="{DynamicResource AppSubtleSurfaceBrush}" /></Trigger>
               <Trigger Property="IsChecked" Value="True">
                 <Setter TargetName="NavSurface" Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
                 <Setter TargetName="NavSurface" Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
@@ -73,7 +80,7 @@
       </Setter>
     </Style>
     <Style x:Key="PerfCardStyle" TargetType="{x:Type RadioButton}">
-      <Setter Property="Height" Value="60" />
+      <Setter Property="Height" Value="64" />
       <Setter Property="Margin" Value="4" />
       <Setter Property="Padding" Value="12,8" />
       <Setter Property="Cursor" Value="Hand" />
@@ -83,12 +90,12 @@
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="{x:Type RadioButton}">
-            <Border x:Name="CardSurface" Background="{DynamicResource ControlFillColorSecondaryBrush}" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="10">
+            <Border x:Name="CardSurface" Background="{DynamicResource ControlFillColorSecondaryBrush}" BorderBrush="{DynamicResource AppCardStrokeBrush}" BorderThickness="1" CornerRadius="10">
               <Grid Margin="{TemplateBinding Padding}">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                 <ContentPresenter VerticalAlignment="Center" />
                 <Border x:Name="SelectedMark" Grid.Column="1" Width="18" Height="18" CornerRadius="9" Background="{DynamicResource AccentFillColorDefaultBrush}" Visibility="Collapsed" VerticalAlignment="Center">
-                  <ui:SymbolIcon Symbol="Checkmark24" FontSize="10" Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
+                  <ui:SymbolIcon Symbol="Checkmark24" FontSize="11.5" Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
                 </Border>
               </Grid>
             </Border>
@@ -100,7 +107,7 @@
                 <Setter TargetName="SelectedMark" Property="Visibility" Value="Visible" />
               </Trigger>
               <Trigger Property="IsEnabled" Value="False">
-                <Setter TargetName="CardSurface" Property="Opacity" Value="0.42" />
+                <Setter TargetName="CardSurface" Property="Opacity" Value="0.74" />
                 <Setter Property="Cursor" Value="Arrow" />
               </Trigger>
             </ControlTemplate.Triggers>
@@ -122,7 +129,7 @@
               <ContentPresenter />
             </Border>
             <ControlTemplate.Triggers>
-              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="ItemSurface" Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" /></Trigger>
+              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="ItemSurface" Property="Background" Value="{DynamicResource AppSubtleSurfaceBrush}" /></Trigger>
               <Trigger Property="IsSelected" Value="True">
                 <Setter TargetName="ItemSurface" Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
                 <Setter TargetName="ItemSurface" Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
@@ -142,27 +149,27 @@
 
     <Grid Grid.Row="1">
       <Grid.ColumnDefinitions><ColumnDefinition Width="88" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-      <Border Grid.Column="0" Background="{DynamicResource ControlFillColorTertiaryBrush}" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,1,0">
+      <Border Grid.Column="0" Background="{DynamicResource ControlFillColorTertiaryBrush}" BorderBrush="{DynamicResource AppCardStrokeBrush}" BorderThickness="0,0,1,0">
         <DockPanel LastChildFill="True">
           <StackPanel DockPanel.Dock="Top" Margin="0,10,0,12">
-            <Border Width="46" Height="46" CornerRadius="14" Background="{DynamicResource ControlFillColorDefaultBrush}" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1" HorizontalAlignment="Center">
+            <Border Width="46" Height="46" CornerRadius="14" Background="{DynamicResource ControlFillColorDefaultBrush}" BorderBrush="{DynamicResource AppCardStrokeBrush}" BorderThickness="1" HorizontalAlignment="Center">
               <Image Source="pack://application:,,,/Assets/logo.png" Width="34" Height="34" Stretch="Uniform" />
             </Border>
-            <TextBlock Text="RAPOO" FontSize="8" FontWeight="Bold" Foreground="{DynamicResource TextFillColorSecondaryBrush}" HorizontalAlignment="Center" Margin="0,6,0,10" />
+            <TextBlock Text="RAPOO" FontSize="9.5" FontWeight="Bold" Foreground="{DynamicResource AppSecondaryTextBrush}" HorizontalAlignment="Center" Margin="0,6,0,10" />
             <RadioButton x:Name="NavProfile" Style="{StaticResource NavRadioStyle}" GroupName="Nav" IsChecked="True" Checked="Nav_Checked" Tag="0">
-              <StackPanel><ui:SymbolIcon Symbol="Options24" FontSize="21" HorizontalAlignment="Center" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /><TextBlock Text="配置" FontSize="9.5" HorizontalAlignment="Center" Margin="0,3,0,0" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /></StackPanel>
+              <StackPanel><ui:SymbolIcon Symbol="Options24" FontSize="21" HorizontalAlignment="Center" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /><TextBlock Text="配置" FontSize="11" HorizontalAlignment="Center" Margin="0,3,0,0" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /></StackPanel>
             </RadioButton>
             <RadioButton x:Name="NavAutomation" Style="{StaticResource NavRadioStyle}" GroupName="Nav" Checked="Nav_Checked" Tag="1">
-              <StackPanel><ui:SymbolIcon Symbol="Flash24" FontSize="21" HorizontalAlignment="Center" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /><TextBlock Text="自动化" FontSize="9.5" HorizontalAlignment="Center" Margin="0,3,0,0" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /></StackPanel>
+              <StackPanel><ui:SymbolIcon Symbol="Flash24" FontSize="21" HorizontalAlignment="Center" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /><TextBlock Text="自动化" FontSize="11" HorizontalAlignment="Center" Margin="0,3,0,0" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /></StackPanel>
             </RadioButton>
             <RadioButton x:Name="NavDpi" Style="{StaticResource NavRadioStyle}" GroupName="Nav" Checked="Nav_Checked" Tag="2">
-              <StackPanel><ui:SymbolIcon Symbol="Gauge24" FontSize="21" HorizontalAlignment="Center" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /><TextBlock Text="DPI" FontSize="9.5" HorizontalAlignment="Center" Margin="0,3,0,0" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /></StackPanel>
+              <StackPanel><ui:SymbolIcon Symbol="Gauge24" FontSize="21" HorizontalAlignment="Center" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /><TextBlock Text="DPI" FontSize="11" HorizontalAlignment="Center" Margin="0,3,0,0" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /></StackPanel>
             </RadioButton>
             <RadioButton x:Name="NavAbout" Style="{StaticResource NavRadioStyle}" GroupName="Nav" Checked="Nav_Checked" Tag="3">
-              <StackPanel><ui:SymbolIcon Symbol="Info24" FontSize="21" HorizontalAlignment="Center" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /><TextBlock Text="关于" FontSize="9.5" HorizontalAlignment="Center" Margin="0,3,0,0" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /></StackPanel>
+              <StackPanel><ui:SymbolIcon Symbol="Info24" FontSize="21" HorizontalAlignment="Center" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /><TextBlock Text="关于" FontSize="11" HorizontalAlignment="Center" Margin="0,3,0,0" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /></StackPanel>
             </RadioButton>
           </StackPanel>
-          <Border DockPanel.Dock="Bottom" Width="44" Height="44" Margin="0,0,0,12" CornerRadius="13" Background="{DynamicResource ControlFillColorDefaultBrush}" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1" HorizontalAlignment="Center">
+          <Border DockPanel.Dock="Bottom" Width="44" Height="44" Margin="0,0,0,12" CornerRadius="13" Background="{DynamicResource ControlFillColorDefaultBrush}" BorderBrush="{DynamicResource AppCardStrokeBrush}" BorderThickness="1" HorizontalAlignment="Center">
             <Grid><ui:SymbolIcon Symbol="KeyboardMouse16" FontSize="20" Foreground="{DynamicResource AccentFillColorDefaultBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" /><Ellipse x:Name="RailDeviceDot" Width="7" Height="7" Fill="#18A66A" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,7,7,0" /></Grid>
           </Border>
         </DockPanel>
@@ -177,12 +184,12 @@
             <TextBlock x:Name="PageSubtitle" Style="{StaticResource MutedTextStyle}" Margin="0,4,0,0" Text="为不同应用保存回报率、性能模式、DPI 与启动规则" />
           </StackPanel>
           <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-            <Border Background="{DynamicResource ControlFillColorSecondaryBrush}" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="16" Height="32" Padding="12,0" Margin="0,0,8,0">
-              <StackPanel Orientation="Horizontal" VerticalAlignment="Center"><Ellipse x:Name="HeaderStatusDot" Width="7" Height="7" Fill="#18A66A" Margin="0,0,7,0" /><TextBlock x:Name="HeaderConnectionText" Text="已连接 · 87%" FontSize="10.5" VerticalAlignment="Center" /></StackPanel>
+            <Border Background="{DynamicResource ControlFillColorSecondaryBrush}" BorderBrush="{DynamicResource AppCardStrokeBrush}" BorderThickness="1" CornerRadius="17" Height="34" Padding="13,0" Margin="0,0,8,0">
+              <StackPanel Orientation="Horizontal" VerticalAlignment="Center"><Ellipse x:Name="HeaderStatusDot" Width="7" Height="7" Fill="#18A66A" Margin="0,0,7,0" /><TextBlock x:Name="HeaderConnectionText" Text="已连接 · 87%" FontSize="12" VerticalAlignment="Center" /></StackPanel>
             </Border>
-            <Border Background="{DynamicResource ControlFillColorSecondaryBrush}" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="16" Height="32" Padding="12,0" Margin="0,0,8,0"><TextBlock x:Name="HeaderModeText" Text="2.4G 无线" FontSize="10.5" VerticalAlignment="Center" /></Border>
-            <Border Background="{DynamicResource ControlFillColorSecondaryBrush}" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="16" Height="32" Padding="12,0">
-              <StackPanel Orientation="Horizontal" VerticalAlignment="Center"><ui:SymbolIcon Symbol="Gauge24" FontSize="13" Margin="0,0,6,0" Foreground="{DynamicResource TextFillColorSecondaryBrush}" /><TextBlock x:Name="HeaderDpiText" Text="1600 DPI" FontSize="10.5" VerticalAlignment="Center" /></StackPanel>
+            <Border Background="{DynamicResource ControlFillColorSecondaryBrush}" BorderBrush="{DynamicResource AppCardStrokeBrush}" BorderThickness="1" CornerRadius="17" Height="34" Padding="13,0" Margin="0,0,8,0"><TextBlock x:Name="HeaderModeText" Text="2.4G 无线" FontSize="12" VerticalAlignment="Center" /></Border>
+            <Border Background="{DynamicResource ControlFillColorSecondaryBrush}" BorderBrush="{DynamicResource AppCardStrokeBrush}" BorderThickness="1" CornerRadius="17" Height="34" Padding="13,0">
+              <StackPanel Orientation="Horizontal" VerticalAlignment="Center"><ui:SymbolIcon Symbol="Gauge24" FontSize="13" Margin="0,0,6,0" Foreground="{DynamicResource AppSecondaryTextBrush}" /><TextBlock x:Name="HeaderDpiText" Text="1600 DPI" FontSize="12" VerticalAlignment="Center" /></StackPanel>
             </Border>
           </StackPanel>
         </Grid>
@@ -193,7 +200,7 @@
             <Border Grid.Column="0" Style="{StaticResource CardStyle}">
               <Grid Margin="14,18,14,14">
                 <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                <Grid Margin="4,0,4,12"><TextBlock Text="所有配置" Style="{StaticResource SectionTitleStyle}" /><TextBlock x:Name="ProfileCountText" Text="2" HorizontalAlignment="Right" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" /></Grid>
+                <Grid Margin="4,0,4,12"><TextBlock Text="所有配置" Style="{StaticResource SectionTitleStyle}" /><TextBlock x:Name="ProfileCountText" Text="2" HorizontalAlignment="Right" FontSize="12" Foreground="{DynamicResource AppSecondaryTextBrush}" /></Grid>
                 <ListBox x:Name="ProfilesList" Grid.Row="1" Background="Transparent" BorderThickness="0" ItemContainerStyle="{StaticResource ListCardItemStyle}" SelectionChanged="ProfilesList_SelectionChanged" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto">
                   <ListBox.ItemTemplate>
                     <DataTemplate>
@@ -201,8 +208,8 @@
                         <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                         <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                         <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                        <Border Grid.Column="1" Visibility="{Binding BadgeVisibility}" Background="{DynamicResource SubtleFillColorSecondaryBrush}" CornerRadius="9" Padding="8,2" Margin="8,0,0,0"><TextBlock Text="{Binding Badge}" FontSize="9.5" Foreground="{DynamicResource AccentFillColorDefaultBrush}" /></Border>
-                        <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Text="{Binding Summary}" FontSize="10" Foreground="{DynamicResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" Margin="0,5,0,0" />
+                        <Border Grid.Column="1" Visibility="{Binding BadgeVisibility}" Background="{DynamicResource AppSubtleSurfaceBrush}" CornerRadius="9" Padding="8,2" Margin="8,0,0,0"><TextBlock Text="{Binding Badge}" FontSize="11" Foreground="{DynamicResource AccentFillColorDefaultBrush}" /></Border>
+                        <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Text="{Binding Summary}" FontSize="11.5" Foreground="{DynamicResource AppSecondaryTextBrush}" TextTrimming="CharacterEllipsis" Margin="0,5,0,0" />
                       </Grid>
                     </DataTemplate>
                   </ListBox.ItemTemplate>
@@ -218,7 +225,7 @@
             <Border Grid.Column="2" Style="{StaticResource CardStyle}">
               <Grid Margin="20,18,20,16">
                 <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                <Grid Margin="0,0,0,12"><TextBlock Text="配置详情" FontSize="17" FontWeight="SemiBold" /><Border HorizontalAlignment="Right" Background="{DynamicResource SubtleFillColorSecondaryBrush}" CornerRadius="10" Padding="9,3"><TextBlock x:Name="ProfileDirtyText" Text="已保存" FontSize="10" Foreground="{DynamicResource TextFillColorSecondaryBrush}" /></Border></Grid>
+                <Grid Margin="0,0,0,12"><TextBlock Text="配置详情" FontSize="17" FontWeight="SemiBold" /><Border HorizontalAlignment="Right" Background="{DynamicResource AppSubtleSurfaceBrush}" CornerRadius="10" Padding="9,3"><TextBlock x:Name="ProfileDirtyText" Text="已保存" FontSize="11.5" Foreground="{DynamicResource AppSecondaryTextBrush}" /></Border></Grid>
                 <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                   <StackPanel Margin="0,0,12,0">
                     <TextBlock Text="基本信息" Style="{StaticResource SectionTitleStyle}" Margin="0,0,0,12" />
@@ -229,17 +236,17 @@
                       <StackPanel><TextBlock Text="回报率" Style="{StaticResource FieldLabelStyle}" /><ComboBox x:Name="PollingCombo" SelectionChanged="PollingCombo_SelectionChanged"><ComboBoxItem Content="125 Hz" Tag="125" /><ComboBoxItem Content="250 Hz" Tag="250" /><ComboBoxItem Content="500 Hz" Tag="500" /><ComboBoxItem Content="1000 Hz" Tag="1000" /><ComboBoxItem Content="2000 Hz" Tag="2000" /><ComboBoxItem Content="4000 Hz" Tag="4000" /><ComboBoxItem Content="8000 Hz" Tag="8000" /></ComboBox></StackPanel>
                       <StackPanel Grid.Column="2"><TextBlock Text="休眠时间（分钟）" Style="{StaticResource FieldLabelStyle}" /><ui:NumberBox x:Name="SleepBox" Minimum="5" Maximum="60" SmallChange="5" MaxDecimalPlaces="0" ValueChanged="SleepBox_ValueChanged" /></StackPanel>
                     </Grid>
-                    <Border Height="1" Background="{DynamicResource CardStrokeColorDefaultBrush}" Margin="0,18,0,16" />
-                    <Grid Margin="0,0,0,10"><TextBlock Text="性能模式" Style="{StaticResource SectionTitleStyle}" /><TextBlock x:Name="PerfAvailableText" Text="当前回报率可用 5 档" HorizontalAlignment="Right" FontSize="10" Foreground="{DynamicResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" /></Grid>
+                    <Border Height="1" Background="{DynamicResource AppCardStrokeBrush}" Margin="0,18,0,16" />
+                    <Grid Margin="0,0,0,10"><TextBlock Text="性能模式" Style="{StaticResource SectionTitleStyle}" /><TextBlock x:Name="PerfAvailableText" Text="当前回报率可用 5 档" HorizontalAlignment="Right" FontSize="11.5" Foreground="{DynamicResource AppSecondaryTextBrush}" VerticalAlignment="Center" /></Grid>
                     <UniformGrid Columns="3" Margin="-4,0,-4,0">
-                      <RadioButton x:Name="PerfFury" Style="{StaticResource PerfCardStyle}" GroupName="PerfMode" Tag="5" Checked="PerfMode_Checked"><StackPanel><TextBlock Text="狂暴竞技" FontSize="11.5" FontWeight="SemiBold" /><TextBlock Text="Corded Gaming" FontSize="9" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,0" /></StackPanel></RadioButton>
-                      <RadioButton x:Name="PerfGamingHyper" Style="{StaticResource PerfCardStyle}" GroupName="PerfMode" Tag="4" Checked="PerfMode_Checked"><StackPanel><TextBlock Text="竞技超核" FontSize="11.5" FontWeight="SemiBold" /><TextBlock Text="Corded Gaming" FontSize="9" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,0" /></StackPanel></RadioButton>
-                      <RadioButton x:Name="PerfHyper" Style="{StaticResource PerfCardStyle}" GroupName="PerfMode" Tag="3" Checked="PerfMode_Checked"><StackPanel><TextBlock Text="超核" FontSize="11.5" FontWeight="SemiBold" /><TextBlock Text="Corded Gaming" FontSize="9" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,0" /></StackPanel></RadioButton>
-                      <RadioButton x:Name="PerfFire" Style="{StaticResource PerfCardStyle}" GroupName="PerfMode" Tag="2" Checked="PerfMode_Checked"><StackPanel><TextBlock Text="火力" FontSize="11.5" FontWeight="SemiBold" /><TextBlock Text="High Performance" FontSize="9" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,0" /></StackPanel></RadioButton>
-                      <RadioButton x:Name="PerfBalanced" Style="{StaticResource PerfCardStyle}" GroupName="PerfMode" Tag="1" Checked="PerfMode_Checked"><StackPanel><TextBlock Text="均衡" FontSize="11.5" FontWeight="SemiBold" /><TextBlock Text="Low Power" FontSize="9" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,0" /></StackPanel></RadioButton>
-                      <RadioButton x:Name="PerfOffice" Style="{StaticResource PerfCardStyle}" GroupName="PerfMode" Tag="0" Checked="PerfMode_Checked"><StackPanel><TextBlock Text="办公" FontSize="11.5" FontWeight="SemiBold" /><TextBlock Text="Office" FontSize="9" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,2,0,0" /></StackPanel></RadioButton>
+                      <RadioButton x:Name="PerfFury" Style="{StaticResource PerfCardStyle}" GroupName="PerfMode" Tag="5" Checked="PerfMode_Checked"><StackPanel><TextBlock Text="狂暴竞技" FontSize="12.5" FontWeight="SemiBold" /><TextBlock Text="Corded Gaming" FontSize="10.5" Foreground="{DynamicResource AppSecondaryTextBrush}" Margin="0,2,0,0" /></StackPanel></RadioButton>
+                      <RadioButton x:Name="PerfGamingHyper" Style="{StaticResource PerfCardStyle}" GroupName="PerfMode" Tag="4" Checked="PerfMode_Checked"><StackPanel><TextBlock Text="竞技超核" FontSize="12.5" FontWeight="SemiBold" /><TextBlock Text="Corded Gaming" FontSize="10.5" Foreground="{DynamicResource AppSecondaryTextBrush}" Margin="0,2,0,0" /></StackPanel></RadioButton>
+                      <RadioButton x:Name="PerfHyper" Style="{StaticResource PerfCardStyle}" GroupName="PerfMode" Tag="3" Checked="PerfMode_Checked"><StackPanel><TextBlock Text="超核" FontSize="12.5" FontWeight="SemiBold" /><TextBlock Text="Corded Gaming" FontSize="10.5" Foreground="{DynamicResource AppSecondaryTextBrush}" Margin="0,2,0,0" /></StackPanel></RadioButton>
+                      <RadioButton x:Name="PerfFire" Style="{StaticResource PerfCardStyle}" GroupName="PerfMode" Tag="2" Checked="PerfMode_Checked"><StackPanel><TextBlock Text="火力" FontSize="12.5" FontWeight="SemiBold" /><TextBlock Text="High Performance" FontSize="10.5" Foreground="{DynamicResource AppSecondaryTextBrush}" Margin="0,2,0,0" /></StackPanel></RadioButton>
+                      <RadioButton x:Name="PerfBalanced" Style="{StaticResource PerfCardStyle}" GroupName="PerfMode" Tag="1" Checked="PerfMode_Checked"><StackPanel><TextBlock Text="均衡" FontSize="12.5" FontWeight="SemiBold" /><TextBlock Text="Low Power" FontSize="10.5" Foreground="{DynamicResource AppSecondaryTextBrush}" Margin="0,2,0,0" /></StackPanel></RadioButton>
+                      <RadioButton x:Name="PerfOffice" Style="{StaticResource PerfCardStyle}" GroupName="PerfMode" Tag="0" Checked="PerfMode_Checked"><StackPanel><TextBlock Text="办公" FontSize="12.5" FontWeight="SemiBold" /><TextBlock Text="Office" FontSize="10.5" Foreground="{DynamicResource AppSecondaryTextBrush}" Margin="0,2,0,0" /></StackPanel></RadioButton>
                     </UniformGrid>
-                    <Border Height="1" Background="{DynamicResource CardStrokeColorDefaultBrush}" Margin="0,18,0,16" />
+                    <Border Height="1" Background="{DynamicResource AppCardStrokeBrush}" Margin="0,18,0,16" />
                     <TextBlock Text="关联程序（进入前台时自动切换）" Style="{StaticResource FieldLabelStyle}" />
                     <Grid>
                       <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="8" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="8" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
@@ -247,8 +254,8 @@
                       <ui:Button Grid.Column="2" Content="浏览" Icon="{ui:SymbolIcon FolderOpen24}" Click="BrowseApp_Click" />
                       <ui:Button Grid.Column="4" Content="清除" Icon="{ui:SymbolIcon Delete24}" Click="ClearApp_Click" />
                     </Grid>
-                    <Border Height="1" Background="{DynamicResource CardStrokeColorDefaultBrush}" Margin="0,18,0,16" />
-                    <Grid><TextBlock Text="配置 DPI" Style="{StaticResource SectionTitleStyle}" /><TextBlock Text="随配置一起切换" HorizontalAlignment="Right" FontSize="10" Foreground="{DynamicResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" /></Grid>
+                    <Border Height="1" Background="{DynamicResource AppCardStrokeBrush}" Margin="0,18,0,16" />
+                    <Grid><TextBlock Text="配置 DPI" Style="{StaticResource SectionTitleStyle}" /><TextBlock Text="随配置一起切换" HorizontalAlignment="Right" FontSize="11.5" Foreground="{DynamicResource AppSecondaryTextBrush}" VerticalAlignment="Center" /></Grid>
                     <Grid Margin="0,12,0,0">
                       <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="12" /><ColumnDefinition Width="*" /><ColumnDefinition Width="12" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                       <StackPanel><TextBlock Text="X 轴" Style="{StaticResource FieldLabelStyle}" /><ui:NumberBox x:Name="ProfileDpiXBox" Minimum="10" Maximum="60000" SmallChange="10" MaxDecimalPlaces="0" ValueChanged="ProfileDpi_ValueChanged" /></StackPanel>
@@ -272,22 +279,22 @@
                 <StackPanel>
                   <Grid Height="72">
                     <Grid.ColumnDefinitions><ColumnDefinition Width="44" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                    <Border Width="36" Height="36" CornerRadius="10" Background="{DynamicResource SubtleFillColorSecondaryBrush}" VerticalAlignment="Center"><ui:SymbolIcon Symbol="Flash24" Foreground="{DynamicResource AccentFillColorDefaultBrush}" /></Border>
-                    <StackPanel Grid.Column="1" VerticalAlignment="Center"><TextBlock Text="前台程序自动切换" FontSize="12.5" FontWeight="SemiBold" /><TextBlock Text="进入关联程序时自动应用对应配置，离开后恢复默认配置。" Style="{StaticResource MutedTextStyle}" Margin="0,3,0,0" /></StackPanel>
+                    <Border Width="36" Height="36" CornerRadius="10" Background="{DynamicResource AppSubtleSurfaceBrush}" VerticalAlignment="Center"><ui:SymbolIcon Symbol="Flash24" Foreground="{DynamicResource AccentFillColorDefaultBrush}" /></Border>
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center"><TextBlock Text="前台程序自动切换" FontSize="13" FontWeight="SemiBold" /><TextBlock Text="进入关联程序时自动应用对应配置，离开后恢复默认配置。" Style="{StaticResource MutedTextStyle}" Margin="0,3,0,0" /></StackPanel>
                     <ui:ToggleSwitch x:Name="AutoSwitchToggle" Grid.Column="2" VerticalAlignment="Center" Checked="AutoSwitch_Changed" Unchecked="AutoSwitch_Changed" />
                   </Grid>
-                  <Border Height="1" Background="{DynamicResource CardStrokeColorDefaultBrush}" Margin="44,0,0,0" />
+                  <Border Height="1" Background="{DynamicResource AppCardStrokeBrush}" Margin="44,0,0,0" />
                   <Grid Height="72">
                     <Grid.ColumnDefinitions><ColumnDefinition Width="44" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                    <Border Width="36" Height="36" CornerRadius="10" Background="{DynamicResource SubtleFillColorSecondaryBrush}" VerticalAlignment="Center"><ui:SymbolIcon Symbol="Desktop24" Foreground="{DynamicResource AccentFillColorDefaultBrush}" /></Border>
-                    <StackPanel Grid.Column="1" VerticalAlignment="Center"><TextBlock Text="悬浮窗提示" FontSize="12.5" FontWeight="SemiBold" /><TextBlock Text="在 DPI、连接状态和配置切换时显示轻量 OSD。" Style="{StaticResource MutedTextStyle}" Margin="0,3,0,0" /></StackPanel>
+                    <Border Width="36" Height="36" CornerRadius="10" Background="{DynamicResource AppSubtleSurfaceBrush}" VerticalAlignment="Center"><ui:SymbolIcon Symbol="Desktop24" Foreground="{DynamicResource AccentFillColorDefaultBrush}" /></Border>
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center"><TextBlock Text="悬浮窗提示" FontSize="13" FontWeight="SemiBold" /><TextBlock Text="在 DPI、连接状态和配置切换时显示轻量 OSD。" Style="{StaticResource MutedTextStyle}" Margin="0,3,0,0" /></StackPanel>
                     <ui:ToggleSwitch x:Name="OsdToggle" Grid.Column="2" VerticalAlignment="Center" Checked="Osd_Changed" Unchecked="Osd_Changed" />
                   </Grid>
-                  <Border Height="1" Background="{DynamicResource CardStrokeColorDefaultBrush}" Margin="44,0,0,0" />
+                  <Border Height="1" Background="{DynamicResource AppCardStrokeBrush}" Margin="44,0,0,0" />
                   <Grid Height="72">
                     <Grid.ColumnDefinitions><ColumnDefinition Width="44" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                    <Border Width="36" Height="36" CornerRadius="10" Background="{DynamicResource SubtleFillColorSecondaryBrush}" VerticalAlignment="Center"><ui:SymbolIcon Symbol="Settings24" Foreground="{DynamicResource AccentFillColorDefaultBrush}" /></Border>
-                    <StackPanel Grid.Column="1" VerticalAlignment="Center"><TextBlock Text="开机自启动" FontSize="12.5" FontWeight="SemiBold" /><TextBlock Text="登录 Windows 后自动启动托盘程序。" Style="{StaticResource MutedTextStyle}" Margin="0,3,0,0" /></StackPanel>
+                    <Border Width="36" Height="36" CornerRadius="10" Background="{DynamicResource AppSubtleSurfaceBrush}" VerticalAlignment="Center"><ui:SymbolIcon Symbol="Settings24" Foreground="{DynamicResource AccentFillColorDefaultBrush}" /></Border>
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center"><TextBlock Text="开机自启动" FontSize="13" FontWeight="SemiBold" /><TextBlock Text="登录 Windows 后自动启动托盘程序。" Style="{StaticResource MutedTextStyle}" Margin="0,3,0,0" /></StackPanel>
                     <ui:ToggleSwitch x:Name="AutoRunToggle" Grid.Column="2" VerticalAlignment="Center" Checked="AutoRun_Changed" Unchecked="AutoRun_Changed" />
                   </Grid>
                 </StackPanel>
@@ -300,7 +307,7 @@
                   <Grid>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="24" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                     <StackPanel><TextBlock Text="鼠标型号" Style="{StaticResource FieldLabelStyle}" /><ComboBox x:Name="ModelCombo" DisplayMemberPath="Label" SelectionChanged="ModelCombo_SelectionChanged" /></StackPanel>
-                    <StackPanel Grid.Column="2"><TextBlock Text="射频策略" Style="{StaticResource FieldLabelStyle}" /><StackPanel Orientation="Horizontal"><ui:ToggleSwitch x:Name="RfFullToggle" Margin="0,0,10,0" Checked="RfFull_Changed" Unchecked="RfFull_Changed" /><TextBlock x:Name="RfStateText" Text="智能调节（推荐）" FontSize="11" VerticalAlignment="Center" /></StackPanel></StackPanel>
+                    <StackPanel Grid.Column="2"><TextBlock Text="射频策略" Style="{StaticResource FieldLabelStyle}" /><StackPanel Orientation="Horizontal"><ui:ToggleSwitch x:Name="RfFullToggle" Margin="0,0,10,0" Checked="RfFull_Changed" Unchecked="RfFull_Changed" /><TextBlock x:Name="RfStateText" Text="等待读取" FontSize="12" VerticalAlignment="Center" /><ui:Button x:Name="RefreshRfButton" Content="读取策略" Icon="{ui:SymbolIcon ArrowSync24}" Margin="10,0,0,0" Click="RefreshRf_Click" Visibility="Collapsed" /></StackPanel></StackPanel>
                   </Grid>
                 </StackPanel>
               </Border>
@@ -325,11 +332,11 @@
             <Border Style="{StaticResource CardStyle}">
               <Grid Margin="14,18,14,14">
                 <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                <Grid Margin="4,0,4,10"><TextBlock Text="DPI 档位" Style="{StaticResource SectionTitleStyle}" /><TextBlock x:Name="DpiCountText" Text="7 / 7" HorizontalAlignment="Right" FontSize="11" Foreground="{DynamicResource TextFillColorSecondaryBrush}" /></Grid>
-                <TextBlock x:Name="DpiRangeText" Grid.Row="1" VerticalAlignment="Top" Text="10–30000 DPI · 步进 10 · 最多 7 档" FontSize="10" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="4,0,4,8" />
+                <Grid Margin="4,0,4,10"><TextBlock Text="DPI 档位" Style="{StaticResource SectionTitleStyle}" /><TextBlock x:Name="DpiCountText" Text="7 / 7" HorizontalAlignment="Right" FontSize="12" Foreground="{DynamicResource AppSecondaryTextBrush}" /></Grid>
+                <TextBlock x:Name="DpiRangeText" Grid.Row="1" VerticalAlignment="Top" Text="10–30000 DPI · 步进 10 · 最多 7 档" FontSize="11.5" Foreground="{DynamicResource AppSecondaryTextBrush}" Margin="4,0,4,8" />
                 <ListBox x:Name="DpiSlotsList" Grid.Row="1" Margin="0,28,0,0" Background="Transparent" BorderThickness="0" ItemContainerStyle="{StaticResource ListCardItemStyle}" SelectionChanged="DpiSlotsList_SelectionChanged" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto">
                   <ListBox.ItemTemplate>
-                    <DataTemplate><Grid Margin="12,10"><Grid.ColumnDefinitions><ColumnDefinition Width="26" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><TextBlock Text="{Binding Index}" Foreground="{DynamicResource AccentFillColorDefaultBrush}" FontWeight="SemiBold" /><TextBlock Grid.Column="1" Text="{Binding Display}" FontSize="12.5" FontWeight="SemiBold" /><Border Grid.Column="2" Visibility="{Binding ActiveVisibility}" Background="{DynamicResource SubtleFillColorSecondaryBrush}" CornerRadius="8" Padding="8,2"><TextBlock Text="当前" FontSize="9.5" Foreground="{DynamicResource AccentFillColorDefaultBrush}" /></Border></Grid></DataTemplate>
+                    <DataTemplate><Grid Margin="12,10"><Grid.ColumnDefinitions><ColumnDefinition Width="26" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><TextBlock Text="{Binding Index}" Foreground="{DynamicResource AccentFillColorDefaultBrush}" FontWeight="SemiBold" /><TextBlock Grid.Column="1" Text="{Binding Display}" FontSize="13" FontWeight="SemiBold" /><Border Grid.Column="2" Visibility="{Binding ActiveVisibility}" Background="{DynamicResource AppSubtleSurfaceBrush}" CornerRadius="8" Padding="8,2"><TextBlock Text="当前" FontSize="11" Foreground="{DynamicResource AccentFillColorDefaultBrush}" /></Border></Grid></DataTemplate>
                   </ListBox.ItemTemplate>
                 </ListBox>
                 <Grid Grid.Row="2" Margin="0,10,0,0">
@@ -352,7 +359,7 @@
                     </Grid>
                     <CheckBox x:Name="DpiIndependentCheck" Content="横向 X 与纵向 Y 独立设置" Margin="0,16,0,10" Checked="DpiIndependent_Changed" Unchecked="DpiIndependent_Changed" />
                     <Slider x:Name="DpiSlider" Minimum="10" Maximum="30000" TickFrequency="10" ValueChanged="DpiSlider_ValueChanged" />
-                    <Border Style="{StaticResource CardStyle}" Background="{DynamicResource SubtleFillColorSecondaryBrush}" Padding="14,12" Margin="0,18,0,0"><StackPanel><TextBlock Text="安全写入" FontSize="12" FontWeight="SemiBold" /><TextBlock Text="编辑只会修改当前视图；点击“应用并切换”后才会写入鼠标并保存本机缓存。" Style="{StaticResource MutedTextStyle}" Margin="0,5,0,0" /></StackPanel></Border>
+                    <Border Style="{StaticResource CardStyle}" Background="{DynamicResource AppSubtleSurfaceBrush}" Padding="14,12" Margin="0,18,0,0"><StackPanel><TextBlock Text="安全写入" FontSize="12" FontWeight="SemiBold" /><TextBlock Text="编辑只会修改当前视图；点击“应用并切换”后才会写入鼠标并保存本机缓存。" Style="{StaticResource MutedTextStyle}" Margin="0,5,0,0" /></StackPanel></Border>
                   </StackPanel>
                 </ScrollViewer>
                 <Grid Grid.Row="2" Margin="0,12,0,0"><TextBlock x:Name="DpiStatusText" Text="当前档位与设备同步" Style="{StaticResource MutedTextStyle}" VerticalAlignment="Center" /><ui:Button x:Name="ApplyDpiButton" Content="应用并切换" Icon="{ui:SymbolIcon Save24}" Appearance="Primary" HorizontalAlignment="Right" Click="ApplyDpi_Click" /></Grid>
@@ -364,10 +371,10 @@
               <Border Style="{StaticResource CardStyle}" Padding="22,20">
                 <Grid>
                   <Grid.ColumnDefinitions><ColumnDefinition Width="108" /><ColumnDefinition Width="24" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                  <Border Width="92" Height="92" CornerRadius="22" Background="{DynamicResource ControlFillColorDefaultBrush}" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"><Image Source="pack://application:,,,/Assets/logo.png" Width="76" Height="76" Stretch="Uniform" /></Border>
+                  <Border Width="92" Height="92" CornerRadius="22" Background="{DynamicResource ControlFillColorDefaultBrush}" BorderBrush="{DynamicResource AppCardStrokeBrush}" BorderThickness="1"><Image Source="pack://application:,,,/Assets/logo.png" Width="76" Height="76" Stretch="Uniform" /></Border>
                   <StackPanel Grid.Column="2" VerticalAlignment="Center">
                     <TextBlock Text="rapoo-tray" FontSize="26" FontWeight="SemiBold" />
-                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0"><Border Background="{DynamicResource SubtleFillColorSecondaryBrush}" CornerRadius="12" Padding="10,3" Margin="0,0,8,0"><TextBlock x:Name="AboutVersionText" Text="版本 1.9.0" FontSize="10" /></Border><TextBlock Text="Fluent 2 · 原生 · 开源" Style="{StaticResource MutedTextStyle}" VerticalAlignment="Center" /></StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0"><Border Background="{DynamicResource AppSubtleSurfaceBrush}" CornerRadius="12" Padding="10,3" Margin="0,0,8,0"><TextBlock x:Name="AboutVersionText" Text="版本 1.9.1" FontSize="11.5" /></Border><TextBlock Text="Fluent 2 · 原生 · 开源" Style="{StaticResource MutedTextStyle}" VerticalAlignment="Center" /></StackPanel>
                     <TextBlock Text="雷柏 VT 系列游戏鼠标托盘工具" Style="{StaticResource MutedTextStyle}" Margin="0,8,0,0" />
                   </StackPanel>
                 </Grid>
@@ -393,9 +400,9 @@
       </Grid>
     </Grid>
 
-    <Border Grid.Row="2" Background="{DynamicResource ControlFillColorTertiaryBrush}" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0">
+    <Border Grid.Row="2" Background="{DynamicResource ControlFillColorTertiaryBrush}" BorderBrush="{DynamicResource AppCardStrokeBrush}" BorderThickness="0,1,0,0">
       <Grid Margin="28,0,18,0">
-        <StackPanel Orientation="Horizontal" VerticalAlignment="Center"><Ellipse x:Name="StatusDot" Width="7" Height="7" Fill="#18A66A" Margin="0,0,8,0" /><TextBlock x:Name="StatusText" Text="选择配置进行编辑，或新增一个配置" FontSize="10.5" Foreground="{DynamicResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" /></StackPanel>
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center"><Ellipse x:Name="StatusDot" Width="7" Height="7" Fill="#18A66A" Margin="0,0,8,0" /><TextBlock x:Name="StatusText" Text="选择配置进行编辑，或新增一个配置" FontSize="12" Foreground="{DynamicResource AppSecondaryTextBrush}" VerticalAlignment="Center" /></StackPanel>
         <ui:Button HorizontalAlignment="Right" VerticalAlignment="Center" Content="关闭" Click="Close_Click" />
       </Grid>
     </Border>
