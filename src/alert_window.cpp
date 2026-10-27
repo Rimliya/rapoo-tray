@@ -1,4 +1,6 @@
 #include "alert_window.h"
+#include "battery_alert_policy.h"
+#include "battery_history.h"
 #include <windows.h>
 #include <windowsx.h>
 #include <dwmapi.h>
@@ -8,9 +10,15 @@
 
 namespace Alert {
 
+enum class AlertKind {
+    Warning,
+    Critical,
+    ChargingReminder,
+};
+
 static HWND g_hAlertWnd = NULL;
 static bool s_isShown = false;
-static bool s_isCritical = false;
+static AlertKind s_kind = AlertKind::Warning;
 static int  s_battery = 0;
 static bool s_isWired = false;
 static WCHAR s_modelName[64] = {0};
@@ -19,8 +27,7 @@ static bool s_btnHover = false;
 static bool s_closeHover = false;
 static bool s_trackingMouse = false;
 
-static bool s_alerted20 = false;
-static bool s_alerted10 = false;
+static BatteryAlert::Policy s_policy;
 
 static inline int ScaleDpi(int val, int dpi) {
     return MulDiv(val, dpi, 96);
@@ -227,8 +234,9 @@ static LRESULT CALLBACK AlertWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
             bool isDark = IsSystemDark();
 
             COLORREF bgCol = isDark ? RGB(24, 27, 36) : RGB(255, 255, 255);
-            COLORREF borderCol = s_isCritical ? RGB(239, 68, 68) : RGB(245, 158, 11);
-            COLORREF titleCol  = s_isCritical ? RGB(239, 68, 68) : RGB(245, 158, 11);
+            COLORREF borderCol = s_kind == AlertKind::Critical ? RGB(239, 68, 68)
+                : (s_kind == AlertKind::ChargingReminder ? RGB(87, 201, 255) : RGB(245, 158, 11));
+            COLORREF titleCol = borderCol;
             COLORREF textMain  = isDark ? RGB(241, 245, 249) : RGB(15, 23, 42);
             COLORREF textSub   = isDark ? RGB(148, 163, 184) : RGB(100, 116, 139);
 
@@ -264,10 +272,12 @@ static LRESULT CALLBACK AlertWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
             SetTextColor(memDC, titleCol);
 
             WCHAR szTitle[64];
-            if (s_isCritical) {
-                StringCchPrintfW(szTitle, ARRAYSIZE(szTitle), L"⚠️  严重低电量警告 (%d%%)", s_battery);
+            if (s_kind == AlertKind::Critical) {
+                StringCchPrintfW(szTitle, ARRAYSIZE(szTitle), L"严重低电量警告  ·  %d%%", s_battery);
+            } else if (s_kind == AlertKind::ChargingReminder) {
+                StringCchPrintfW(szTitle, ARRAYSIZE(szTitle), L"该给鼠标充电了  ·  %d%%", s_battery);
             } else {
-                StringCchPrintfW(szTitle, ARRAYSIZE(szTitle), L"🪫  电量不足 (%d%%)", s_battery);
+                StringCchPrintfW(szTitle, ARRAYSIZE(szTitle), L"电量不足  ·  %d%%", s_battery);
             }
             RECT rTitle = { S(18), S(12), rc.right - S(40), S(34) };
             DrawTextW(memDC, szTitle, -1, &rTitle, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
@@ -302,11 +312,13 @@ static LRESULT CALLBACK AlertWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
             DrawTextW(memDC, szDev, -1, &rDev, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 
             SelectObject(memDC, hFontSmall);
-            SetTextColor(memDC, s_isCritical ? (isDark ? RGB(252, 165, 165) : RGB(220, 38, 38)) : textSub);
+            SetTextColor(memDC, s_kind == AlertKind::Critical ? (isDark ? RGB(252, 165, 165) : RGB(220, 38, 38)) : textSub);
 
-            const WCHAR* szAdvice = s_isCritical
+            const WCHAR* szAdvice = s_kind == AlertKind::Critical
                 ? L"鼠标即将耗尽电量自动关机，请立即连接充电器！"
-                : L"剩余电量较低，建议适时连接 USB 线缆充电";
+                : (s_kind == AlertKind::ChargingReminder
+                    ? L"已到充电提醒时间，连接 USB 线缆可避免游戏中突然断电"
+                    : L"剩余电量较低，建议适时连接 USB 线缆充电");
             RECT rAdvice = { S(18), S(58), rc.right - S(18), S(78) };
             DrawTextW(memDC, szAdvice, -1, &rAdvice, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 
@@ -398,7 +410,7 @@ void Cleanup() {
 }
 
 void Show(const WCHAR* modelName, int battery, bool isCritical, bool isWired) {
-    s_isCritical = isCritical;
+    s_kind = isCritical ? AlertKind::Critical : AlertKind::Warning;
     s_battery    = battery;
     s_isWired    = isWired;
     s_btnHover   = false;
@@ -412,7 +424,8 @@ void Show(const WCHAR* modelName, int battery, bool isCritical, bool isWired) {
     if (!g_hAlertWnd) return;
 
     // Dynamically update DWM border color (Warning: Amber / Critical: Red)
-    COLORREF borderCol = s_isCritical ? RGB(239, 68, 68) : RGB(245, 158, 11);
+    COLORREF borderCol = s_kind == AlertKind::Critical ? RGB(239, 68, 68)
+        : (s_kind == AlertKind::ChargingReminder ? RGB(87, 201, 255) : RGB(245, 158, 11));
     DwmSetWindowAttribute(g_hAlertWnd, 34, &borderCol, sizeof(borderCol));
 
     BOOL isDark = IsSystemDark();
@@ -441,6 +454,21 @@ void Show(const WCHAR* modelName, int battery, bool isCritical, bool isWired) {
     s_isShown = true;
 }
 
+void ShowChargingReminder(const WCHAR* modelName, int battery, bool isWired) {
+    Show(modelName, battery, false, isWired);
+    s_kind = AlertKind::ChargingReminder;
+    if (g_hAlertWnd) {
+        COLORREF borderCol = RGB(87, 201, 255);
+        DwmSetWindowAttribute(g_hAlertWnd, 34, &borderCol, sizeof(borderCol));
+        InvalidateRect(g_hAlertWnd, NULL, TRUE);
+        UpdateWindow(g_hAlertWnd);
+    }
+}
+
+void ResetPolicy() {
+    s_policy.Reset();
+}
+
 void Hide() {
     if (g_hAlertWnd) {
         ShowWindow(g_hAlertWnd, SW_HIDE);
@@ -452,37 +480,22 @@ void CheckBattery(const Device::State& state) {
     if (!state.isConnected) {
         return;
     }
-
-    // Auto-dismiss if user starts charging
-    if (state.isCharging) {
-        if (s_isShown) {
-            Hide();
-        }
-        // Reset alert triggers if charged back up
-        if (state.battery >= 25) {
-            s_alerted20 = false;
-            s_alerted10 = false;
-        }
-        return;
-    }
-
-    // Reset when battery is restored above 25%
-    if (state.battery >= 25) {
-        s_alerted20 = false;
-        s_alerted10 = false;
-        return;
-    }
-
-    // Level 2: Critical alert (<= 10%)
-    if (state.battery <= 10 && !s_alerted10) {
-        s_alerted10 = true;
-        s_alerted20 = true;
-        Show(state.modelName, state.battery, true, state.isWired);
-    }
-    // Level 1: Warning alert (<= 20%)
-    else if (state.battery <= 20 && !s_alerted20) {
-        s_alerted20 = true;
-        Show(state.modelName, state.battery, false, state.isWired);
+    const BatteryAlert::Settings settings = BatteryHistory::GetAlertSettings();
+    const int64_t now = (int64_t)(GetTickCount64() / 1000);
+    const BatteryAlert::Event event = s_policy.Update(state.battery, state.isCharging, now, settings);
+    if (state.isCharging && s_isShown) Hide();
+    switch (event) {
+        case BatteryAlert::Event::Critical:
+            Show(state.modelName, state.battery, true, state.isWired);
+            break;
+        case BatteryAlert::Event::Warning:
+            Show(state.modelName, state.battery, false, state.isWired);
+            break;
+        case BatteryAlert::Event::ChargeReminder:
+            ShowChargingReminder(state.modelName, state.battery, state.isWired);
+            break;
+        case BatteryAlert::Event::None:
+            break;
     }
 }
 

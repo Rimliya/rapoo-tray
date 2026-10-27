@@ -8,6 +8,8 @@ void Init(HINSTANCE hInstance);
 void Cleanup();
 void CheckBattery(const Device::State& state);
 void Show(const WCHAR* modelName, int battery, bool isCritical, bool isWired);
+void ShowChargingReminder(const WCHAR* modelName, int battery, bool isWired);
+void ResetPolicy();
 void Hide();
 
 } // namespace Alert

@@ -19,7 +19,7 @@ if not exist "%~dp0NuGet.config" (
     exit /b 1
 )
 
-echo [1/3] Restoring and building WPF Fluent settings...
+echo [1/4] Restoring and building WPF Fluent settings...
 dotnet restore "settings-ui\RapooTray.Settings.csproj" --configfile "NuGet.config"
 if errorlevel 1 goto failed
 dotnet build "settings-ui\RapooTray.Settings.csproj" -c Release --no-restore
@@ -37,7 +37,11 @@ if defined UI_COPY_FAILED (
     goto failed
 )
 
-echo [2/3] Building native tray application...
+echo [2/4] Running native logic tests...
+powershell -NoProfile -ExecutionPolicy Bypass -File "tools\test-native.ps1"
+if errorlevel 1 goto failed
+
+echo [3/4] Building native tray application...
 where cl >nul 2>nul
 if errorlevel 1 (
     set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
@@ -80,7 +84,7 @@ if not exist bin\rapoo-tray.exe goto failed
 if not exist bin\rapoo-tray-settings.exe goto failed
 if not exist bin\Wpf.Ui.dll goto failed
 
-echo [3/3] Verifying local test bundle...
+echo [4/4] Verifying local test bundle...
 echo.
 echo [SUCCESS] bin\rapoo-tray.exe
 echo [SUCCESS] bin\rapoo-tray-settings.exe

@@ -1,5 +1,6 @@
 using Microsoft.Win32;
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Globalization;
@@ -11,6 +12,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
+using System.Windows.Input;
 using System.Windows.Resources;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -36,10 +38,18 @@ namespace RapooTray.Settings
         private bool _dpiDirty;
         private bool _dpiLoaded;
         private bool _rfRefreshInFlight;
+        private bool _capturingHotkey;
+        private bool _batteryLoading;
+        private bool _osdDirty;
+        private bool _batteryDirty;
         private bool _systemThemeWatching;
         private int _selectedProfileId;
         private int _profilePerfMode = 1;
         private int _selectedDpiIndex;
+        private int _batteryHistoryDays = 1;
+        private int _hotkeyModifiers = 3;
+        private int _hotkeyVirtualKey = 77;
+        private DateTime _batteryLoadedAt = DateTime.MinValue;
         private bool _updateAvailable;
         private bool? _dirtyVisualState;
         private string _modelSignature = "";
@@ -62,12 +72,13 @@ namespace RapooTray.Settings
             }
             ApplicationThemeManager.Changed += OnApplicationThemeChanged;
             UpdateThemeToggle();
-            _initialPage = Math.Max(0, Math.Min(3, page));
+            _initialPage = Math.Max(0, Math.Min(5, page));
             _bridge = new TrayBridge(demo);
             _liveTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
             _liveTimer.Tick += LiveTimer_Tick;
             Loaded += MainWindow_Loaded;
             SourceInitialized += MainWindow_SourceInitialized;
+            PreviewKeyDown += MainWindow_PreviewKeyDown;
             Closed += (_, __) =>
             {
                 _liveTimer.Stop();
@@ -80,6 +91,7 @@ namespace RapooTray.Settings
         private void OnApplicationThemeChanged(ApplicationTheme theme, Color accent)
         {
             UpdateThemeToggle();
+            BatteryHistoryChart?.InvalidateVisual();
         }
 
         private void UpdateThemeToggle()
@@ -142,7 +154,7 @@ namespace RapooTray.Settings
         private static HttpClient CreateHttpClient()
         {
             var client = new HttpClient { Timeout = TimeSpan.FromSeconds(12) };
-            client.DefaultRequestHeaders.UserAgent.ParseAdd("rapoo-tray-settings/1.11");
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("rapoo-tray-settings/1.14");
             return client;
         }
 
@@ -210,6 +222,11 @@ namespace RapooTray.Settings
             {
                 var state = await _bridge.GetStateAsync();
                 ApplyLiveState(state);
+                if (BatteryPage.Visibility == Visibility.Visible &&
+                    (DateTime.UtcNow - _batteryLoadedAt).TotalSeconds >= 10)
+                {
+                    await LoadBatteryHistoryAsync(false);
+                }
             }
             catch
             {
@@ -264,9 +281,37 @@ namespace RapooTray.Settings
             bool oldLoading = _loading;
             _loading = true;
             AutoSwitchToggle.IsChecked = state.AutoSwitch;
-            OsdToggle.IsChecked = state.OsdEnabled;
             AutoRunToggle.IsChecked = state.AutoRun;
             RfFullToggle.IsChecked = state.RfFull;
+            if (!_osdDirty)
+            {
+                OsdToggle.IsChecked = state.OsdEnabled;
+                QuickPanelToggle.IsChecked = state.QuickPanelEnabled;
+                if (!_capturingHotkey)
+                {
+                    _hotkeyModifiers = state.HotkeyModifiers;
+                    _hotkeyVirtualKey = state.HotkeyVirtualKey;
+                    HotkeyValueText.Text = FormatHotkey(_hotkeyModifiers, _hotkeyVirtualKey);
+                    HotkeyStatusText.Text = state.HotkeyRegistered
+                        ? "快捷键已注册，可在任意应用上方呼出快速面板"
+                        : "快捷键当前不可用，请更换组合键";
+                }
+                SetDisplayFieldChecks(state.OsdDisplayFields);
+                SetQuickPanelItemChecks(state.QuickPanelItems);
+            }
+            if (!_batteryDirty)
+            {
+                BatteryAlertToggle.IsChecked = state.BatteryAlertsEnabled;
+                ChargeReminderToggle.IsChecked = state.ChargingReminderEnabled;
+                WarningThresholdBox.Value = state.BatteryWarningThreshold;
+                CriticalThresholdBox.Value = state.BatteryCriticalThreshold;
+                ReminderMinutesBox.Value = state.ChargingReminderMinutes;
+            }
+            BatteryPagePercentText.Text = state.Battery + "%";
+            BatteryPageModeText.Text = !state.Connected ? "设备未连接"
+                : state.BatteryAlertsEnabled && state.Battery <= state.BatteryWarningThreshold
+                    ? "低电量 · 建议充电"
+                    : state.DeviceMode;
             RfFullToggle.IsEnabled = state.RfAvailable && !_busy;
             RfStateText.Text = state.RfAvailable
                 ? (state.RfFull ? "满格射频" : "智能调节（推荐）")
@@ -311,6 +356,11 @@ namespace RapooTray.Settings
             AddDpiButton.IsEnabled = !busy && (_dpi == null || _dpi.Slots.Count < Math.Min(7, _dpi.MaxSlots));
             DeleteDpiButton.IsEnabled = !busy && _dpi != null && _dpi.Slots.Count > 1;
             ApplyDpiButton.IsEnabled = !busy && _dpi != null && _dpiDirty;
+            OsdSaveButton.IsEnabled = !busy;
+            BatterySaveButton.IsEnabled = !busy;
+            QuickPanelPreviewButton.IsEnabled = !busy;
+            HotkeyCaptureButton.IsEnabled = !busy;
+            HotkeyResetButton.IsEnabled = !busy;
             if (!string.IsNullOrEmpty(text)) SetStatus(text, true);
             Cursor = busy ? System.Windows.Input.Cursors.Wait : System.Windows.Input.Cursors.Arrow;
             EfMotion.SetBusyScan(BusyScan, BusyTrack.ActualWidth, busy);
@@ -319,18 +369,22 @@ namespace RapooTray.Settings
         private void ActivatePage(int page, bool force)
         {
             if (!force && !_initialized) return;
-            page = Math.Max(0, Math.Min(3, page));
+            page = Math.Max(0, Math.Min(5, page));
             _switchingPage = true;
             NavProfile.IsChecked = page == 0;
             NavAutomation.IsChecked = page == 1;
-            NavDpi.IsChecked = page == 2;
-            NavAbout.IsChecked = page == 3;
+            NavOsd.IsChecked = page == 2;
+            NavBattery.IsChecked = page == 3;
+            NavDpi.IsChecked = page == 4;
+            NavAbout.IsChecked = page == 5;
             _switchingPage = false;
 
             ProfilePage.Visibility = page == 0 ? Visibility.Visible : Visibility.Collapsed;
             AutomationPage.Visibility = page == 1 ? Visibility.Visible : Visibility.Collapsed;
-            DpiPage.Visibility = page == 2 ? Visibility.Visible : Visibility.Collapsed;
-            AboutPage.Visibility = page == 3 ? Visibility.Visible : Visibility.Collapsed;
+            OsdPage.Visibility = page == 2 ? Visibility.Visible : Visibility.Collapsed;
+            BatteryPage.Visibility = page == 3 ? Visibility.Visible : Visibility.Collapsed;
+            DpiPage.Visibility = page == 4 ? Visibility.Visible : Visibility.Collapsed;
+            AboutPage.Visibility = page == 5 ? Visibility.Visible : Visibility.Collapsed;
 
             if (page == 0)
             {
@@ -342,10 +396,23 @@ namespace RapooTray.Settings
             {
                 PageEyebrow.Text = "// AUTOMATION";
                 PageTitle.Text = "自动化";
-                PageSubtitle.Text = "管理前台联动、悬浮提示与设备策略";
+                PageSubtitle.Text = "管理前台联动、射频策略与设备续航估算";
                 if (_state != null && _state.Connected) { var ignored = RefreshRfStateAsync(); }
             }
             else if (page == 2)
+            {
+                PageEyebrow.Text = "// OSD";
+                PageTitle.Text = "OSD 快速面板";
+                PageSubtitle.Text = "配置全局快捷键、状态提示字段与快速切换项目";
+            }
+            else if (page == 3)
+            {
+                PageEyebrow.Text = "// BATTERY";
+                PageTitle.Text = "电量历史与提醒";
+                PageSubtitle.Text = "查看电量曲线，配置低电量通知与循环充电提醒";
+                var ignored = LoadBatteryHistoryAsync(true);
+            }
+            else if (page == 4)
             {
                 PageEyebrow.Text = "// DPI";
                 PageTitle.Text = "DPI 档位";
@@ -359,7 +426,12 @@ namespace RapooTray.Settings
                 PageSubtitle.Text = "版本信息、项目源码与更新检查";
             }
 
-            FrameworkElement pageElement = page == 0 ? ProfilePage : page == 1 ? (FrameworkElement)AutomationPage : page == 2 ? DpiPage : AboutPage;
+            FrameworkElement pageElement = page == 0 ? ProfilePage
+                : page == 1 ? (FrameworkElement)AutomationPage
+                : page == 2 ? OsdPage
+                : page == 3 ? BatteryPage
+                : page == 4 ? DpiPage
+                : AboutPage;
             EfMotion.RevealPage(pageElement, PageEyebrow, PageTitle, PageSubtitle);
             EfMotion.Nudge(HeaderCommandCluster, 2);
         }
@@ -793,16 +865,276 @@ namespace RapooTray.Settings
             finally { SetBusy(false); }
         }
 
+        private static int ReadCheckMask(params CheckBox[] boxes)
+        {
+            int mask = 0;
+            foreach (CheckBox box in boxes)
+            {
+                if (box.IsChecked == true)
+                {
+                    int bit;
+                    if (int.TryParse(Convert.ToString(box.Tag, CultureInfo.InvariantCulture), out bit)) mask |= bit;
+                }
+            }
+            return mask;
+        }
+
+        private void SetDisplayFieldChecks(int mask)
+        {
+            DisplayModelCheck.IsChecked = (mask & 1) != 0;
+            DisplayModeCheck.IsChecked = (mask & 2) != 0;
+            DisplayDpiLevelCheck.IsChecked = (mask & 4) != 0;
+            DisplayDpiValueCheck.IsChecked = (mask & 8) != 0;
+            DisplayBatteryCheck.IsChecked = (mask & 16) != 0;
+            DisplayPollingCheck.IsChecked = (mask & 32) != 0;
+            DisplayPerformanceCheck.IsChecked = (mask & 64) != 0;
+        }
+
+        private void SetQuickPanelItemChecks(int mask)
+        {
+            PanelProfilesCheck.IsChecked = (mask & 1) != 0;
+            PanelDpiCheck.IsChecked = (mask & 2) != 0;
+            PanelPerformanceCheck.IsChecked = (mask & 4) != 0;
+            PanelBatteryCheck.IsChecked = (mask & 8) != 0;
+            PanelPollingCheck.IsChecked = (mask & 16) != 0;
+            PanelDetailsCheck.IsChecked = (mask & 32) != 0;
+        }
+
+        private static bool IsFunctionKey(Key key)
+        {
+            return key >= Key.F1 && key <= Key.F24;
+        }
+
+        private static string FormatHotkey(int modifiers, int virtualKey)
+        {
+            var parts = new List<string>();
+            if ((modifiers & 2) != 0) parts.Add("Ctrl");
+            if ((modifiers & 1) != 0) parts.Add("Alt");
+            if ((modifiers & 4) != 0) parts.Add("Shift");
+            if ((modifiers & 8) != 0) parts.Add("Win");
+            Key key = KeyInterop.KeyFromVirtualKey(virtualKey);
+            if (key >= Key.A && key <= Key.Z) parts.Add(key.ToString());
+            else if (key >= Key.D0 && key <= Key.D9) parts.Add(((char)('0' + (key - Key.D0))).ToString());
+            else if (key >= Key.NumPad0 && key <= Key.NumPad9) parts.Add("Num " + (key - Key.NumPad0));
+            else if (key >= Key.F1 && key <= Key.F24) parts.Add("F" + (key - Key.F1 + 1));
+            else
+            {
+                switch (key)
+                {
+                    case Key.Space: parts.Add("Space"); break;
+                    case Key.Tab: parts.Add("Tab"); break;
+                    case Key.Enter: parts.Add("Enter"); break;
+                    case Key.Back: parts.Add("Backspace"); break;
+                    case Key.Insert: parts.Add("Insert"); break;
+                    case Key.Delete: parts.Add("Delete"); break;
+                    case Key.Home: parts.Add("Home"); break;
+                    case Key.End: parts.Add("End"); break;
+                    case Key.PageUp: parts.Add("Page Up"); break;
+                    case Key.PageDown: parts.Add("Page Down"); break;
+                    case Key.Left: parts.Add("Left"); break;
+                    case Key.Right: parts.Add("Right"); break;
+                    case Key.Up: parts.Add("Up"); break;
+                    case Key.Down: parts.Add("Down"); break;
+                    default: parts.Add("VK " + virtualKey.ToString(CultureInfo.InvariantCulture)); break;
+                }
+            }
+            return string.Join(" + ", parts);
+        }
+
+        private void CaptureHotkey_Click(object sender, RoutedEventArgs e)
+        {
+            if (_busy) return;
+            _capturingHotkey = true;
+            HotkeyValueText.Text = "请按下组合键…";
+            HotkeyStatusText.Text = "按 Esc 取消；字母/数字/方向键需搭配修饰键";
+            HotkeyCaptureButton.Focus();
+        }
+
+        private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (!_capturingHotkey) return;
+            e.Handled = true;
+            Key key = e.Key == Key.System ? e.SystemKey : e.Key;
+            if (key == Key.Escape)
+            {
+                _capturingHotkey = false;
+                HotkeyValueText.Text = FormatHotkey(_hotkeyModifiers, _hotkeyVirtualKey);
+                HotkeyStatusText.Text = "已取消快捷键录制";
+                return;
+            }
+            if (key == Key.LeftCtrl || key == Key.RightCtrl || key == Key.LeftAlt || key == Key.RightAlt ||
+                key == Key.LeftShift || key == Key.RightShift || key == Key.LWin || key == Key.RWin) return;
+
+            int modifiers = (int)Keyboard.Modifiers;
+            int virtualKey = KeyInterop.VirtualKeyFromKey(key);
+            if ((modifiers & 15) == 0 && !IsFunctionKey(key))
+            {
+                HotkeyStatusText.Text = "该组合键无修饰键；请使用 Ctrl / Alt / Shift / Win，或单独使用 F1–F24";
+                return;
+            }
+            if (virtualKey <= 0 || key == Key.None)
+            {
+                HotkeyStatusText.Text = "该按键不可用作全局快捷键";
+                return;
+            }
+            _capturingHotkey = false;
+            _hotkeyModifiers = modifiers & 15;
+            _hotkeyVirtualKey = virtualKey;
+            _osdDirty = true;
+            HotkeyValueText.Text = FormatHotkey(_hotkeyModifiers, _hotkeyVirtualKey);
+            HotkeyStatusText.Text = "快捷键已录制；保存 OSD 设置后生效";
+            OsdConfigStatusText.Text = "有未保存的 OSD 设置";
+        }
+
+        private void ResetHotkey_Click(object sender, RoutedEventArgs e)
+        {
+            _capturingHotkey = false;
+            _hotkeyModifiers = 3;
+            _hotkeyVirtualKey = 'M';
+            _osdDirty = true;
+            HotkeyValueText.Text = "Ctrl + Alt + M";
+            HotkeyStatusText.Text = "已恢复默认组合键；保存后重新注册";
+            OsdConfigStatusText.Text = "有未保存的 OSD 设置";
+        }
+
+        private void OsdOption_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_loading || !_initialized) return;
+            _osdDirty = true;
+            OsdConfigStatusText.Text = "有未保存的 OSD 设置";
+        }
+
+        private async void SaveOsdSettings_Click(object sender, RoutedEventArgs e)
+        {
+            if (_busy) return;
+            int displayFields = ReadCheckMask(DisplayModelCheck, DisplayModeCheck, DisplayDpiLevelCheck,
+                DisplayDpiValueCheck, DisplayBatteryCheck, DisplayPollingCheck, DisplayPerformanceCheck);
+            int panelItems = ReadCheckMask(PanelProfilesCheck, PanelDpiCheck, PanelPerformanceCheck,
+                PanelBatteryCheck, PanelPollingCheck, PanelDetailsCheck);
+            SetBusy(true, "正在保存 OSD 设置并重新注册快捷键…");
+            try
+            {
+                AppState state = await _bridge.SetOsdConfigAsync(OsdToggle.IsChecked == true,
+                    QuickPanelToggle.IsChecked == true, _hotkeyModifiers, _hotkeyVirtualKey, displayFields, panelItems);
+                _osdDirty = false;
+                ApplyState(state, false);
+                OsdConfigStatusText.Text = state.HotkeyRegistered || !state.QuickPanelEnabled
+                    ? "OSD 设置已保存"
+                    : "快捷键注册失败：可能已被其他程序占用";
+                SetStatus(state.StatusText, state.StatusGood);
+            }
+            catch (Exception ex)
+            {
+                SetStatus(ex.Message, false);
+            }
+            finally { SetBusy(false); }
+        }
+
+        private async void PreviewQuickPanel_Click(object sender, RoutedEventArgs e)
+        {
+            if (_busy) return;
+            try
+            {
+                AppState state = await _bridge.ShowQuickPanelAsync();
+                SetStatus("已打开快速面板；点击项目即可切换，Esc 关闭", state.StatusGood);
+            }
+            catch (Exception ex) { SetStatus(ex.Message, false); }
+        }
+
+        private async void BatteryRange_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_loading || !_initialized) return;
+            var button = sender as RadioButton;
+            int days;
+            if (button == null || !int.TryParse(Convert.ToString(button.Tag, CultureInfo.InvariantCulture), out days)) return;
+            _batteryHistoryDays = Math.Max(1, Math.Min(30, days));
+            await LoadBatteryHistoryAsync(true);
+        }
+
+        private void BatteryOption_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_loading || !_initialized) return;
+            _batteryDirty = true;
+            BatteryConfigStatusText.Text = "有未保存的提醒设置";
+        }
+
+        private void BatteryNumber_Changed(object sender, NumberBoxValueChangedEventArgs e)
+        {
+            if (_loading || !_initialized) return;
+            _batteryDirty = true;
+            BatteryConfigStatusText.Text = "有未保存的提醒设置";
+        }
+
+        private async Task LoadBatteryHistoryAsync(bool force)
+        {
+            if (_batteryLoading || _bridge == null) return;
+            if (!force && (DateTime.UtcNow - _batteryLoadedAt).TotalSeconds < 10) return;
+            _batteryLoading = true;
+            try
+            {
+                BatteryHistoryState history = await _bridge.GetBatteryHistoryAsync(_batteryHistoryDays);
+                BatteryHistoryChart.SetSamples(history.Samples, history.Days);
+                _batteryLoadedAt = DateTime.UtcNow;
+                if (history.Samples.Count == 0)
+                {
+                    BatteryMinText.Text = "--";
+                    BatteryMaxText.Text = "--";
+                    BatteryAverageText.Text = "--";
+                    BatterySamplesText.Text = "0";
+                }
+                else
+                {
+                    BatteryMinText.Text = history.Samples.Min(x => x.Battery) + "%";
+                    BatteryMaxText.Text = history.Samples.Max(x => x.Battery) + "%";
+                    BatteryAverageText.Text = Math.Round(history.Samples.Average(x => x.Battery)) + "%";
+                    BatterySamplesText.Text = history.Samples.Count.ToString(CultureInfo.InvariantCulture);
+                }
+            }
+            catch (Exception ex)
+            {
+                BatteryConfigStatusText.Text = "电量历史读取失败：" + ex.Message;
+            }
+            finally { _batteryLoading = false; }
+        }
+
+        private async void SaveBatterySettings_Click(object sender, RoutedEventArgs e)
+        {
+            if (_busy) return;
+            int warning = (int)Math.Round(WarningThresholdBox.Value ?? 20);
+            int critical = (int)Math.Round(CriticalThresholdBox.Value ?? 10);
+            int minutes = (int)Math.Round(ReminderMinutesBox.Value ?? 30);
+            warning = Math.Max(5, Math.Min(50, warning));
+            critical = Math.Max(1, Math.Min(warning - 1, critical));
+            minutes = Math.Max(5, Math.Min(180, minutes));
+            bool oldLoading = _loading;
+            _loading = true;
+            WarningThresholdBox.Value = warning;
+            CriticalThresholdBox.Value = critical;
+            ReminderMinutesBox.Value = minutes;
+            _loading = oldLoading;
+
+            SetBusy(true, "正在保存电量提醒设置…");
+            try
+            {
+                AppState state = await _bridge.SetBatteryConfigAsync(BatteryAlertToggle.IsChecked == true,
+                    warning, critical, ChargeReminderToggle.IsChecked == true, minutes);
+                _batteryDirty = false;
+                ApplyState(state, false);
+                BatteryConfigStatusText.Text = "提醒设置已保存";
+                SetStatus(state.StatusText, state.StatusGood);
+            }
+            catch (Exception ex)
+            {
+                BatteryConfigStatusText.Text = "保存失败：" + ex.Message;
+                SetStatus(ex.Message, false);
+            }
+            finally { SetBusy(false); }
+        }
+
         private async void AutoSwitch_Changed(object sender, RoutedEventArgs e)
         {
             if (_loading) return;
             await RunToggleAsync(_bridge.SetAutoSwitchAsync, AutoSwitchToggle.IsChecked == true, "正在更新前台联动…");
-        }
-
-        private async void Osd_Changed(object sender, RoutedEventArgs e)
-        {
-            if (_loading) return;
-            await RunToggleAsync(_bridge.SetOsdAsync, OsdToggle.IsChecked == true, "正在更新悬浮窗…");
         }
 
         private async void AutoRun_Changed(object sender, RoutedEventArgs e)
