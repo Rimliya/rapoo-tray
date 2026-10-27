@@ -1,11 +1,14 @@
 #include "ui_bridge.h"
 
 #include "battery_estimator.h"
+#include "battery_history.h"
+#include "alert_window.h"
 #include "device_manager.h"
 #include "dpi_window.h"
 #include "osd_window.h"
 #include "profile_manager.h"
 #include "rapoo_protocol.h"
+#include "quick_panel.h"
 #include "tray_menu.h"
 
 #include <windows.h>
@@ -224,6 +227,21 @@ std::string BuildStateResponse() {
         << "|" << (state.rfFull ? 1 : 0)
         << "|" << Profiles::ActiveId() << "\n";
 
+    const OsdConfig::Config osd = Osd::GetConfig();
+    out << "OSD|" << (osd.enabled ? 1 : 0)
+        << "|" << (osd.quickPanelEnabled ? 1 : 0)
+        << "|" << osd.hotkeyModifiers
+        << "|" << osd.hotkeyVirtualKey
+        << "|" << (QuickPanel::HotkeyRegistered() ? 1 : 0)
+        << "|" << osd.displayFields
+        << "|" << osd.panelItems << "\n";
+    const BatteryAlert::Settings batterySettings = BatteryHistory::GetAlertSettings();
+    out << "BATTERY_SETTINGS|" << (batterySettings.enabled ? 1 : 0)
+        << "|" << batterySettings.warningThreshold
+        << "|" << batterySettings.criticalThreshold
+        << "|" << (batterySettings.chargingReminderEnabled ? 1 : 0)
+        << "|" << batterySettings.reminderMinutes << "\n";
+
     const int activeId = Profiles::ActiveId();
     const int defaultId = Profiles::DefaultId();
     for (const auto& profile : Profiles::GetAll()) {
@@ -313,12 +331,27 @@ std::string BuildDpiResponse() {
     return out.str();
 }
 
+std::string BuildBatteryHistoryResponse(int days) {
+    days = std::clamp(days, 1, 30);
+    const auto samples = BatteryHistory::Query(days, 1200);
+    std::ostringstream out;
+    out << "OK\n";
+    out << "HISTORY|" << days << "|" << samples.size() << "\n";
+    for (const auto& sample : samples) {
+        out << "SAMPLE|" << sample.timestamp << "|" << sample.battery << "|"
+            << (sample.charging ? 1 : 0) << "|" << (sample.wired ? 1 : 0) << "\n";
+    }
+    out << "END\n";
+    return out.str();
+}
+
 std::string HandleMainCommand(const std::string& command) {
     g_createdProfileId = 0;
     const auto fields = Split(command);
     const std::string verb = At(fields, 0);
 
     if (verb == "GET_STATE") return BuildStateResponse();
+    if (verb == "GET_BATTERY_HISTORY") return BuildBatteryHistoryResponse(ToInt(At(fields, 1), 7));
 
     if (verb == "ADD_PROFILE") {
         int dpiX = 800;
@@ -434,8 +467,58 @@ std::string HandleMainCommand(const std::string& command) {
 
     if (verb == "SET_OSD") {
         const bool enabled = At(fields, 1) == "1";
-        Osd::SetEnabled(enabled);
+        OsdConfig::Config config = Osd::GetConfig();
+        config.enabled = enabled;
+        Osd::SetConfig(config);
+        QuickPanel::ReloadConfig();
         SetStatus(enabled ? L"悬浮窗提示已开启" : L"悬浮窗提示已关闭");
+        return BuildStateResponse();
+    }
+
+    if (verb == "SET_OSD_CONFIG") {
+        OsdConfig::Config config = Osd::GetConfig();
+        config.enabled = At(fields, 1) == "1";
+        config.quickPanelEnabled = At(fields, 2) == "1";
+        config.hotkeyModifiers = (UINT)ToInt(At(fields, 3), (int)config.hotkeyModifiers);
+        config.hotkeyVirtualKey = (UINT)ToInt(At(fields, 4), (int)config.hotkeyVirtualKey);
+        config.displayFields = (DWORD)ToInt(At(fields, 5), (int)config.displayFields);
+        config.panelItems = (DWORD)ToInt(At(fields, 6), (int)config.panelItems);
+        if (!Osd::SetConfig(config)) {
+            SetStatus(L"OSD 设置保存失败", false);
+            return BuildStateResponse();
+        }
+        QuickPanel::ReloadConfig();
+        if (config.quickPanelEnabled && !QuickPanel::HotkeyRegistered()) {
+            SetStatus(L"设置已保存，但快捷键被其他程序占用；请更换组合键或关闭快速面板", false);
+        } else {
+            SetStatus(L"OSD 与快速面板设置已保存");
+        }
+        return BuildStateResponse();
+    }
+
+    if (verb == "SET_BATTERY_CONFIG") {
+        BatteryAlert::Settings settings;
+        settings.enabled = At(fields, 1) == "1";
+        settings.warningThreshold = ToInt(At(fields, 2), settings.warningThreshold);
+        settings.criticalThreshold = ToInt(At(fields, 3), settings.criticalThreshold);
+        settings.chargingReminderEnabled = At(fields, 4) == "1";
+        settings.reminderMinutes = ToInt(At(fields, 5), settings.reminderMinutes);
+        if (!BatteryHistory::SetAlertSettings(settings)) {
+            SetStatus(L"电量提醒设置保存失败", false);
+        } else {
+            Alert::ResetPolicy();
+            const BatteryAlert::Settings normalized = BatteryHistory::GetAlertSettings();
+            if (!normalized.enabled) Alert::Hide();
+            SetStatus(L"电量提醒已保存：低电量 " + std::to_wstring(normalized.warningThreshold) +
+                      L"% / 严重 " + std::to_wstring(normalized.criticalThreshold) +
+                      L"% / 提醒间隔 " + std::to_wstring(normalized.reminderMinutes) + L" 分钟");
+        }
+        return BuildStateResponse();
+    }
+
+    if (verb == "SHOW_QUICK_PANEL") {
+        QuickPanel::Show(true);
+        SetStatus(L"已打开 OSD 快速面板");
         return BuildStateResponse();
     }
 

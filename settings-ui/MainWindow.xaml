@@ -512,10 +512,16 @@
             <local:CutRadioButton x:Name="NavAutomation" Style="{StaticResource NavRadioStyle}" GroupName="Nav" Checked="Nav_Checked" Tag="1">
               <StackPanel Margin="18,0,12,0"><TextBlock Text="// AUTOMATION" FontFamily="{StaticResource AppSairaFont}" FontSize="10" FontWeight="SemiBold" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=local:CutRadioButton}}" Opacity="0.68" /><TextBlock Text="自动化" FontSize="14" FontWeight="Bold" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=local:CutRadioButton}}" Margin="0,3,0,0" /></StackPanel>
             </local:CutRadioButton>
-            <local:CutRadioButton x:Name="NavDpi" Style="{StaticResource NavRadioStyle}" GroupName="Nav" Checked="Nav_Checked" Tag="2">
+            <local:CutRadioButton x:Name="NavOsd" Style="{StaticResource NavRadioStyle}" GroupName="Nav" Checked="Nav_Checked" Tag="2">
+              <StackPanel Margin="18,0,12,0"><TextBlock Text="// OSD" FontFamily="{StaticResource AppSairaFont}" FontSize="10" FontWeight="SemiBold" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=local:CutRadioButton}}" Opacity="0.68" /><TextBlock Text="快速面板" FontSize="14" FontWeight="Bold" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=local:CutRadioButton}}" Margin="0,3,0,0" /></StackPanel>
+            </local:CutRadioButton>
+            <local:CutRadioButton x:Name="NavBattery" Style="{StaticResource NavRadioStyle}" GroupName="Nav" Checked="Nav_Checked" Tag="3">
+              <StackPanel Margin="18,0,12,0"><TextBlock Text="// BATTERY" FontFamily="{StaticResource AppSairaFont}" FontSize="10" FontWeight="SemiBold" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=local:CutRadioButton}}" Opacity="0.68" /><TextBlock Text="电量" FontSize="14" FontWeight="Bold" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=local:CutRadioButton}}" Margin="0,3,0,0" /></StackPanel>
+            </local:CutRadioButton>
+            <local:CutRadioButton x:Name="NavDpi" Style="{StaticResource NavRadioStyle}" GroupName="Nav" Checked="Nav_Checked" Tag="4">
               <StackPanel Margin="18,0,12,0"><TextBlock Text="// DPI" FontFamily="{StaticResource AppSairaFont}" FontSize="10" FontWeight="SemiBold" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=local:CutRadioButton}}" Opacity="0.68" /><TextBlock Text="DPI 档位" FontSize="14" FontWeight="Bold" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=local:CutRadioButton}}" Margin="0,3,0,0" /></StackPanel>
             </local:CutRadioButton>
-            <local:CutRadioButton x:Name="NavAbout" Style="{StaticResource NavRadioStyle}" GroupName="Nav" Checked="Nav_Checked" Tag="3">
+            <local:CutRadioButton x:Name="NavAbout" Style="{StaticResource NavRadioStyle}" GroupName="Nav" Checked="Nav_Checked" Tag="5">
               <StackPanel Margin="18,0,12,0"><TextBlock Text="// ABOUT" FontFamily="{StaticResource AppSairaFont}" FontSize="10" FontWeight="SemiBold" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=local:CutRadioButton}}" Opacity="0.68" /><TextBlock Text="关于" FontSize="14" FontWeight="Bold" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=local:CutRadioButton}}" Margin="0,3,0,0" /></StackPanel>
             </local:CutRadioButton>
           </StackPanel>
@@ -680,12 +686,6 @@
                 <Border Height="1" Background="{DynamicResource AppRuleBrush}" Margin="22,0" />
                 <Grid MinHeight="72" Margin="22,0">
                   <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                  <StackPanel VerticalAlignment="Center"><TextBlock Text="悬浮窗提示" FontSize="14" FontWeight="Bold" /><TextBlock Text="在 DPI、连接状态和配置切换时显示轻量 OSD。" Style="{StaticResource MutedTextStyle}" Margin="0,4,0,0" /></StackPanel>
-                  <CheckBox x:Name="OsdToggle" AutomationProperties.Name="悬浮窗提示" Grid.Column="1" Style="{StaticResource SquareSwitchStyle}" VerticalAlignment="Center" Checked="Osd_Changed" Unchecked="Osd_Changed" />
-                </Grid>
-                <Border Height="1" Background="{DynamicResource AppRuleBrush}" Margin="22,0" />
-                <Grid MinHeight="72" Margin="22,0">
-                  <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                   <StackPanel VerticalAlignment="Center"><TextBlock Text="开机自启动" FontSize="14" FontWeight="Bold" /><TextBlock Text="登录 Windows 后自动启动托盘程序。" Style="{StaticResource MutedTextStyle}" Margin="0,4,0,0" /></StackPanel>
                   <CheckBox x:Name="AutoRunToggle" AutomationProperties.Name="开机自启动" Grid.Column="1" Style="{StaticResource SquareSwitchStyle}" VerticalAlignment="Center" Checked="AutoRun_Changed" Unchecked="AutoRun_Changed" />
                 </Grid>
@@ -719,6 +719,163 @@
                 </Grid>
               </StackPanel>
             </Border>
+          </ScrollViewer>
+          <ScrollViewer x:Name="OsdPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+              <Border Style="{StaticResource CardStyle}">
+                <StackPanel>
+                  <Grid Margin="22,18,22,14">
+                    <StackPanel><TextBlock Text="// OSD &amp; QUICK PANEL" Style="{StaticResource EyebrowStyle}" /><TextBlock Text="悬浮提示与快速面板" Style="{StaticResource SectionTitleStyle}" Margin="0,4,0,0" /></StackPanel>
+                    <TextBlock Text="快捷键可全局呼出" HorizontalAlignment="Right" VerticalAlignment="Bottom" FontSize="11" Foreground="{DynamicResource AppSecondaryTextBrush}" />
+                  </Grid>
+                  <Border Height="1" Background="{DynamicResource AppRuleBrush}" />
+                  <Grid MinHeight="72" Margin="22,0">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center"><TextBlock Text="状态悬浮提示" FontSize="14" FontWeight="Bold" /><TextBlock Text="在连接、切换 DPI、配置或性能模式时显示轻量通知。" Style="{StaticResource MutedTextStyle}" Margin="0,4,0,0" /></StackPanel>
+                    <CheckBox x:Name="OsdToggle" AutomationProperties.Name="状态悬浮提示" Grid.Column="1" Style="{StaticResource SquareSwitchStyle}" VerticalAlignment="Center" Checked="OsdOption_Changed" Unchecked="OsdOption_Changed" />
+                  </Grid>
+                  <Border Height="1" Background="{DynamicResource AppRuleBrush}" Margin="22,0" />
+                  <Grid MinHeight="72" Margin="22,0">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center"><TextBlock Text="OSD 快速面板" FontSize="14" FontWeight="Bold" /><TextBlock Text="用快捷键呼出，直接切换配置、DPI 档位和性能模式。" Style="{StaticResource MutedTextStyle}" Margin="0,4,0,0" /></StackPanel>
+                    <CheckBox x:Name="QuickPanelToggle" AutomationProperties.Name="OSD 快速面板" Grid.Column="1" Style="{StaticResource SquareSwitchStyle}" VerticalAlignment="Center" Checked="OsdOption_Changed" Unchecked="OsdOption_Changed" />
+                  </Grid>
+                  <Border Height="1" Background="{DynamicResource AppRuleBrush}" Margin="22,0" />
+                  <Grid Margin="22,16,22,18">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center">
+                      <TextBlock Text="全局快捷键" Style="{StaticResource FieldLabelStyle}" />
+                      <TextBlock x:Name="HotkeyValueText" Text="Ctrl + Alt + M" FontFamily="{StaticResource AppSairaFont}" FontSize="20" FontWeight="Bold" Margin="0,5,0,0" />
+                      <TextBlock x:Name="HotkeyStatusText" Text="点击“录制”后按下包含 Ctrl / Alt / Shift / Win 的组合键" Style="{StaticResource MutedTextStyle}" Margin="0,4,0,0" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                      <local:CutButton x:Name="QuickPanelPreviewButton" Content="测试呼出" Style="{StaticResource SmallButtonStyle}" Margin="0,0,8,0" Click="PreviewQuickPanel_Click" />
+                      <local:CutButton x:Name="HotkeyResetButton" Content="恢复默认" Style="{StaticResource SmallButtonStyle}" Margin="0,0,8,0" Click="ResetHotkey_Click" />
+                      <local:CutButton x:Name="HotkeyCaptureButton" Content="录制快捷键" Style="{StaticResource SecondaryButtonStyle}" Click="CaptureHotkey_Click" />
+                    </StackPanel>
+                  </Grid>
+                  <Border Height="18" Background="{DynamicResource AppHatchBrush}" Margin="22,0" Opacity="0.5" />
+                </StackPanel>
+              </Border>
+
+              <Border Style="{StaticResource CardStyle}" Margin="0,14,0,0">
+                <StackPanel>
+                  <Grid Margin="22,18,22,12">
+                    <StackPanel><TextBlock Text="// STATUS OSD FIELDS" Style="{StaticResource EyebrowStyle}" /><TextBlock Text="状态提示显示项目" Style="{StaticResource SectionTitleStyle}" Margin="0,4,0,0" /></StackPanel>
+                    <TextBlock Text="关闭不需要的行，保持提示简洁" HorizontalAlignment="Right" VerticalAlignment="Bottom" FontSize="11" Foreground="{DynamicResource AppSecondaryTextBrush}" />
+                  </Grid>
+                  <Border Height="1" Background="{DynamicResource AppRuleBrush}" />
+                  <Grid Margin="22,14,22,16">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <StackPanel>
+                      <CheckBox x:Name="DisplayModelCheck" Tag="1" Style="{StaticResource SquareCheckBoxStyle}" Content="鼠标型号" Margin="0,4,0,9" Checked="OsdOption_Changed" Unchecked="OsdOption_Changed" />
+                      <CheckBox x:Name="DisplayDpiLevelCheck" Tag="4" Style="{StaticResource SquareCheckBoxStyle}" Content="当前 DPI 档位" Margin="0,4,0,9" Checked="OsdOption_Changed" Unchecked="OsdOption_Changed" />
+                      <CheckBox x:Name="DisplayBatteryCheck" Tag="16" Style="{StaticResource SquareCheckBoxStyle}" Content="电量与充电状态" Margin="0,4,0,9" Checked="OsdOption_Changed" Unchecked="OsdOption_Changed" />
+                      <CheckBox x:Name="DisplayPerformanceCheck" Tag="64" Style="{StaticResource SquareCheckBoxStyle}" Content="性能模式" Margin="0,4,0,0" Checked="OsdOption_Changed" Unchecked="OsdOption_Changed" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1">
+                      <CheckBox x:Name="DisplayModeCheck" Tag="2" Style="{StaticResource SquareCheckBoxStyle}" Content="连接方式（USB / 2.4G）" Margin="0,4,0,9" Checked="OsdOption_Changed" Unchecked="OsdOption_Changed" />
+                      <CheckBox x:Name="DisplayDpiValueCheck" Tag="8" Style="{StaticResource SquareCheckBoxStyle}" Content="DPI 数值与 X/Y 双轴" Margin="0,4,0,9" Checked="OsdOption_Changed" Unchecked="OsdOption_Changed" />
+                      <CheckBox x:Name="DisplayPollingCheck" Tag="32" Style="{StaticResource SquareCheckBoxStyle}" Content="回报率" Margin="0,4,0,9" Checked="OsdOption_Changed" Unchecked="OsdOption_Changed" />
+                    </StackPanel>
+                  </Grid>
+                </StackPanel>
+              </Border>
+
+              <Border Style="{StaticResource CardStyle}" Margin="0,14,0,0">
+                <StackPanel>
+                  <Grid Margin="22,18,22,12">
+                    <StackPanel><TextBlock Text="// QUICK PANEL ITEMS" Style="{StaticResource EyebrowStyle}" /><TextBlock Text="快速面板项目" Style="{StaticResource SectionTitleStyle}" Margin="0,4,0,0" /></StackPanel>
+                    <TextBlock Text="三组切换区可独立显示或隐藏" HorizontalAlignment="Right" VerticalAlignment="Bottom" FontSize="11" Foreground="{DynamicResource AppSecondaryTextBrush}" />
+                  </Grid>
+                  <Border Height="1" Background="{DynamicResource AppRuleBrush}" />
+                  <Grid Margin="22,14,22,12">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <StackPanel>
+                      <CheckBox x:Name="PanelProfilesCheck" Tag="1" Style="{StaticResource SquareCheckBoxStyle}" Content="配置档案切换" Margin="0,4,0,9" Checked="OsdOption_Changed" Unchecked="OsdOption_Changed" />
+                      <CheckBox x:Name="PanelDpiCheck" Tag="2" Style="{StaticResource SquareCheckBoxStyle}" Content="DPI 档位切换" Margin="0,4,0,9" Checked="OsdOption_Changed" Unchecked="OsdOption_Changed" />
+                      <CheckBox x:Name="PanelPerformanceCheck" Tag="4" Style="{StaticResource SquareCheckBoxStyle}" Content="性能模式切换" Margin="0,4,0,0" Checked="OsdOption_Changed" Unchecked="OsdOption_Changed" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1">
+                      <CheckBox x:Name="PanelBatteryCheck" Tag="8" Style="{StaticResource SquareCheckBoxStyle}" Content="顶部电量标签" Margin="0,4,0,9" Checked="OsdOption_Changed" Unchecked="OsdOption_Changed" />
+                      <CheckBox x:Name="PanelPollingCheck" Tag="16" Style="{StaticResource SquareCheckBoxStyle}" Content="顶部回报率标签" Margin="0,4,0,9" Checked="OsdOption_Changed" Unchecked="OsdOption_Changed" />
+                      <CheckBox x:Name="PanelDetailsCheck" Tag="32" Style="{StaticResource SquareCheckBoxStyle}" Content="型号与连接方式" Margin="0,4,0,0" Checked="OsdOption_Changed" Unchecked="OsdOption_Changed" />
+                    </StackPanel>
+                  </Grid>
+                  <Border BorderBrush="{DynamicResource AppRuleBrush}" BorderThickness="0,1,0,0" Padding="0,12,0,14" Margin="22,0">
+                    <Grid>
+                      <TextBlock x:Name="OsdConfigStatusText" Text="显示项目修改后点击保存；快捷键会立即重新注册" Style="{StaticResource MutedTextStyle}" VerticalAlignment="Center" Margin="0,0,120,0" />
+                      <local:CutButton x:Name="OsdSaveButton" Content="保存 OSD 设置" Style="{StaticResource PrimaryButtonStyle}" HorizontalAlignment="Right" Click="SaveOsdSettings_Click" />
+                    </Grid>
+                  </Border>
+                </StackPanel>
+              </Border>
+            </StackPanel>
+          </ScrollViewer>
+
+          <ScrollViewer x:Name="BatteryPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+              <Border Style="{StaticResource CardStyle}">
+                <StackPanel>
+                  <Grid Margin="22,18,22,14">
+                    <StackPanel><TextBlock Text="// BATTERY HISTORY" Style="{StaticResource EyebrowStyle}" /><TextBlock Text="电量曲线" Style="{StaticResource SectionTitleStyle}" Margin="0,4,0,0" /></StackPanel>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                      <Border BorderBrush="{DynamicResource AppRuleBrush}" BorderThickness="1" Margin="0,0,16,0">
+                        <StackPanel Orientation="Horizontal">
+                          <RadioButton Content="24H" Tag="1" GroupName="BatteryRange" Style="{StaticResource PerfSegmentStyle}" Height="30" Padding="13,3" IsChecked="True" Checked="BatteryRange_Changed" />
+                          <RadioButton Content="7D" Tag="7" GroupName="BatteryRange" Style="{StaticResource PerfSegmentStyle}" Height="30" Padding="13,3" Checked="BatteryRange_Changed" />
+                          <RadioButton Content="30D" Tag="30" GroupName="BatteryRange" Style="{StaticResource PerfSegmentStyle}" Height="30" Padding="13,3" BorderThickness="0,0,0,1" Checked="BatteryRange_Changed" />
+                        </StackPanel>
+                      </Border>
+                      <StackPanel Orientation="Horizontal"><TextBlock x:Name="BatteryPagePercentText" Text="--%" FontFamily="{StaticResource AppSairaFont}" FontSize="30" FontWeight="ExtraBold" VerticalAlignment="Center" Margin="0,0,10,0" /><TextBlock x:Name="BatteryPageModeText" Text="等待设备" Style="{StaticResource MutedTextStyle}" VerticalAlignment="Center" /></StackPanel>
+                    </StackPanel>
+                  </Grid>
+                  <Border Height="1" Background="{DynamicResource AppRuleBrush}" />
+                  <local:BatteryChart x:Name="BatteryHistoryChart" Height="258" Margin="18,10,18,0" />
+                  <Grid Margin="54,4,30,15">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <StackPanel><TextBlock Text="最低" Style="{StaticResource FieldLabelStyle}" /><TextBlock x:Name="BatteryMinText" Text="--" Style="{StaticResource FieldValueStyle}" /></StackPanel>
+                    <StackPanel Grid.Column="1"><TextBlock Text="最高" Style="{StaticResource FieldLabelStyle}" /><TextBlock x:Name="BatteryMaxText" Text="--" Style="{StaticResource FieldValueStyle}" /></StackPanel>
+                    <StackPanel Grid.Column="2"><TextBlock Text="平均" Style="{StaticResource FieldLabelStyle}" /><TextBlock x:Name="BatteryAverageText" Text="--" Style="{StaticResource FieldValueStyle}" /></StackPanel>
+                    <StackPanel Grid.Column="3"><TextBlock Text="采样点" Style="{StaticResource FieldLabelStyle}" /><TextBlock x:Name="BatterySamplesText" Text="0" Style="{StaticResource FieldValueStyle}" /></StackPanel>
+                  </Grid>
+                </StackPanel>
+              </Border>
+
+              <Border Style="{StaticResource CardStyle}" Margin="0,14,0,0">
+                <StackPanel>
+                  <Grid Margin="22,18,22,12">
+                    <StackPanel><TextBlock Text="// BATTERY ALERTS" Style="{StaticResource EyebrowStyle}" /><TextBlock Text="低电量与充电提醒" Style="{StaticResource SectionTitleStyle}" Margin="0,4,0,0" /></StackPanel>
+                    <TextBlock Text="提醒只在设备连接且未充电时触发" HorizontalAlignment="Right" VerticalAlignment="Bottom" FontSize="11" Foreground="{DynamicResource AppSecondaryTextBrush}" />
+                  </Grid>
+                  <Border Height="1" Background="{DynamicResource AppRuleBrush}" />
+                  <Grid MinHeight="68" Margin="22,0">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center"><TextBlock Text="低电量通知" FontSize="14" FontWeight="Bold" /><TextBlock Text="到达警告线与严重线时弹出高优先级卡片。" Style="{StaticResource MutedTextStyle}" Margin="0,4,0,0" /></StackPanel>
+                    <CheckBox x:Name="BatteryAlertToggle" Grid.Column="1" Style="{StaticResource SquareSwitchStyle}" VerticalAlignment="Center" Checked="BatteryOption_Changed" Unchecked="BatteryOption_Changed" />
+                  </Grid>
+                  <Border Height="1" Background="{DynamicResource AppRuleBrush}" Margin="22,0" />
+                  <Grid MinHeight="68" Margin="22,0">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center"><TextBlock Text="循环充电提醒" FontSize="14" FontWeight="Bold" /><TextBlock Text="持续低于警告线时，按设定间隔再次提醒连接 USB 线缆。" Style="{StaticResource MutedTextStyle}" Margin="0,4,0,0" /></StackPanel>
+                    <CheckBox x:Name="ChargeReminderToggle" Grid.Column="1" Style="{StaticResource SquareSwitchStyle}" VerticalAlignment="Center" Checked="BatteryOption_Changed" Unchecked="BatteryOption_Changed" />
+                  </Grid>
+                  <Border Height="1" Background="{DynamicResource AppRuleBrush}" Margin="22,0" />
+                  <Grid Margin="22,16,22,16">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="18" /><ColumnDefinition Width="*" /><ColumnDefinition Width="18" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <StackPanel><TextBlock Text="警告阈值" Style="{StaticResource FieldLabelStyle}" /><local:FieldFrame Style="{StaticResource FieldFrameStyle}"><ui:NumberBox x:Name="WarningThresholdBox" Style="{StaticResource EfNumberBoxStyle}" Minimum="5" Maximum="50" SmallChange="1" MaxDecimalPlaces="0" ValueChanged="BatteryNumber_Changed" /></local:FieldFrame><TextBlock Text="建议 20%" Style="{StaticResource MutedTextStyle}" Margin="0,4,0,0" /></StackPanel>
+                    <StackPanel Grid.Column="2"><TextBlock Text="严重阈值" Style="{StaticResource FieldLabelStyle}" /><local:FieldFrame Style="{StaticResource FieldFrameStyle}"><ui:NumberBox x:Name="CriticalThresholdBox" Style="{StaticResource EfNumberBoxStyle}" Minimum="1" Maximum="30" SmallChange="1" MaxDecimalPlaces="0" ValueChanged="BatteryNumber_Changed" /></local:FieldFrame><TextBlock Text="必须低于警告阈值" Style="{StaticResource MutedTextStyle}" Margin="0,4,0,0" /></StackPanel>
+                    <StackPanel Grid.Column="4"><TextBlock Text="提醒间隔" Style="{StaticResource FieldLabelStyle}" /><local:FieldFrame Style="{StaticResource FieldFrameStyle}"><ui:NumberBox x:Name="ReminderMinutesBox" Style="{StaticResource EfNumberBoxStyle}" Minimum="5" Maximum="180" SmallChange="5" MaxDecimalPlaces="0" ValueChanged="BatteryNumber_Changed" /></local:FieldFrame><TextBlock Text="单位：分钟" Style="{StaticResource MutedTextStyle}" Margin="0,4,0,0" /></StackPanel>
+                  </Grid>
+                  <Border BorderBrush="{DynamicResource AppRuleBrush}" BorderThickness="0,1,0,0" Padding="0,12,0,14" Margin="22,0">
+                    <Grid>
+                      <TextBlock x:Name="BatteryConfigStatusText" Text="状态变化立即采样，最长 5 分钟补点；历史保留 30 天" Style="{StaticResource MutedTextStyle}" VerticalAlignment="Center" Margin="0,0,140,0" />
+                      <local:CutButton x:Name="BatterySaveButton" Content="保存提醒设置" Style="{StaticResource PrimaryButtonStyle}" HorizontalAlignment="Right" Click="SaveBatterySettings_Click" />
+                    </Grid>
+                  </Border>
+                </StackPanel>
+              </Border>
+            </StackPanel>
           </ScrollViewer>
           <Grid x:Name="DpiPage" Visibility="Collapsed">
             <Border Style="{StaticResource CardStyle}">

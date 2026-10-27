@@ -7,7 +7,7 @@ namespace Settings {
 namespace {
 
 void LaunchSettings(HWND owner, int page) {
-    page = page < 0 ? 0 : (page > 3 ? 3 : page);
+    page = page < 0 ? 0 : (page > 5 ? 5 : page);
 
     WCHAR modulePath[MAX_PATH] = {0};
     if (!GetModuleFileNameW(NULL, modulePath, MAX_PATH)) {

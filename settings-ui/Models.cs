@@ -72,9 +72,24 @@ namespace RapooTray.Settings
         }
     }
 
+    public sealed class BatterySample
+    {
+        public long Timestamp { get; set; }
+        public int Battery { get; set; }
+        public bool Charging { get; set; }
+        public bool Wired { get; set; }
+        public DateTime LocalTime => DateTimeOffset.FromUnixTimeSeconds(Timestamp).LocalDateTime;
+    }
+
+    public sealed class BatteryHistoryState
+    {
+        public int Days { get; set; }
+        public readonly ObservableCollection<BatterySample> Samples = new ObservableCollection<BatterySample>();
+    }
+
     public sealed class AppState
     {
-        public string Version = "1.13.0";
+        public string Version = "1.14.0";
         public string DeviceName = "雷柏游戏鼠标";
         public string DeviceMode = "未连接";
         public bool Connected;
@@ -87,6 +102,17 @@ namespace RapooTray.Settings
         public bool AutoRun;
         public bool RfAvailable;
         public bool RfFull;
+        public bool QuickPanelEnabled = true;
+        public int HotkeyModifiers = 3;
+        public int HotkeyVirtualKey = 77;
+        public bool HotkeyRegistered = true;
+        public int OsdDisplayFields = 127;
+        public int QuickPanelItems = 63;
+        public bool BatteryAlertsEnabled = true;
+        public int BatteryWarningThreshold = 20;
+        public int BatteryCriticalThreshold = 10;
+        public bool ChargingReminderEnabled = true;
+        public int ChargingReminderMinutes = 30;
         public int ActiveProfileId;
         public bool StatusGood = true;
         public string StatusText = "选择配置进行编辑，或新增一个配置";

@@ -44,6 +44,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
           cmake --build build --config Release
+          ctest --test-dir build -C Release --output-on-failure
           if (!(Test-Path 'bin/rapoo-tray.exe')) { throw 'rapoo-tray.exe was not produced' }
           if (!(Test-Path 'bin/rapoo-tray-settings.exe')) { throw 'rapoo-tray-settings.exe was not staged' }
           if (!(Test-Path 'bin/Wpf.Ui.dll')) { throw 'Wpf.Ui.dll was not staged' }

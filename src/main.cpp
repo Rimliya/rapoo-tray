@@ -15,11 +15,14 @@ extern "C" {
 #include "settings_window.h"
 #include "about_window.h"
 #include "ui_bridge.h"
+#include "quick_panel.h"
+#include "battery_history.h"
 
 static const UINT WM_APP_TRAYMSG = WM_APP + 1;
 static const UINT WM_APP_STATE_UPDATE = WM_APP + 2;
 static const UINT WM_APP_DEVICE_CONNECTED = WM_APP + 3;
 static const UINT_PTR TIMER_PROFILE_POLL = 0x5101;
+static const UINT_PTR TIMER_BATTERY_MONITOR = 0x5102;
 static UINT g_openSettingsMessage = 0;
 
 static HWND g_hMainWnd = NULL;
@@ -61,6 +64,8 @@ static void RefreshTrayUI(const Device::State& state) {
 static void OnDeviceStateChanged(const Device::State& state, DWORD changeMask) {
     if (!g_hMainWnd) return;
 
+    BatteryHistory::Observe(state);
+
     static bool s_prevConnected = false;
     static bool s_prevWired = false;
 
@@ -75,16 +80,7 @@ static void OnDeviceStateChanged(const Device::State& state, DWORD changeMask) {
         }
 
         if (justConnected || modeChanged || dpiChanged) {
-            Osd::ShowDpiUpdate(
-                state.dpiLevel,
-                state.dpiX,
-                state.dpiY,
-                state.battery,
-                state.pollingHz,
-                state.isCharging,
-                state.isWired,
-                state.modelName
-            );
+            Osd::ShowDeviceUpdate(state);
         }
 
         s_prevConnected = true;
@@ -120,16 +116,7 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
                 Device::ForceRefresh();
                 Device::State st = Device::GetCurrentState();
                 if (st.isConnected) {
-                    Osd::ShowDpiUpdate(
-                        st.dpiLevel,
-                        st.dpiX,
-                        st.dpiY,
-                        st.battery,
-                        st.pollingHz,
-                        st.isCharging,
-                        st.isWired,
-                        st.modelName
-                    );
+                    Osd::ShowDeviceUpdate(st);
                 } else {
                     const WCHAR* mName = st.modelName[0] ? st.modelName : L"通用";
                     Osd::Show(mName, L"设备休眠 / 未连接", L"请移动鼠标唤醒或插上 USB 线");
@@ -160,6 +147,20 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
         case WM_TIMER: {
             if (wParam == TIMER_PROFILE_POLL) {
                 Profiles::PollForeground();
+                return 0;
+            }
+            if (wParam == TIMER_BATTERY_MONITOR) {
+                const Device::State state = Device::GetCurrentState();
+                BatteryHistory::Observe(state);
+                Alert::CheckBattery(state);
+                return 0;
+            }
+            break;
+        }
+
+        case WM_HOTKEY: {
+            if ((UINT)wParam == QuickPanel::HOTKEY_ID) {
+                QuickPanel::Toggle();
                 return 0;
             }
             break;
@@ -198,7 +199,10 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow) {
     g_openSettingsMessage = RegisterWindowMessageW(L"RapooTrayOpenSettingsPage");
     int requestedPage = -1;
-    if (pCmdLine && wcsstr(pCmdLine, L"--about")) requestedPage = 3;
+    if (pCmdLine && wcsstr(pCmdLine, L"--about")) requestedPage = 5;
+    else if (pCmdLine && wcsstr(pCmdLine, L"--osd")) requestedPage = 2;
+    else if (pCmdLine && wcsstr(pCmdLine, L"--battery")) requestedPage = 3;
+    else if (pCmdLine && wcsstr(pCmdLine, L"--dpi")) requestedPage = 4;
     else if (pCmdLine && wcsstr(pCmdLine, L"--settings")) requestedPage = 0;
 
     // Single instance protection. A second launch can request the existing
@@ -269,9 +273,12 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
 
     // Load persistent profile rules and start polling the foreground app.
     Profiles::Initialize();
+    BatteryHistory::Initialize();
     Device::Start(g_hMainWnd, OnDeviceStateChanged);
+    QuickPanel::Init(hInstance, g_hMainWnd);
     UiBridge::Start(g_hMainWnd);
     SetTimer(g_hMainWnd, TIMER_PROFILE_POLL, 600, NULL);
+    SetTimer(g_hMainWnd, TIMER_BATTERY_MONITOR, 60000, NULL);
     if (requestedPage >= 0) {
         PostMessageW(g_hMainWnd, g_openSettingsMessage, (WPARAM)requestedPage, 0);
     }
@@ -292,10 +299,13 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
         hDevNotify = NULL;
     }
     KillTimer(g_hMainWnd, TIMER_PROFILE_POLL);
+    KillTimer(g_hMainWnd, TIMER_BATTERY_MONITOR);
     DpiWindow::Cleanup();
     About::Cleanup();
     Settings::Cleanup();
+    QuickPanel::Cleanup();
     Device::Stop();
+    BatteryHistory::Shutdown();
     Osd::Cleanup();
     Alert::Cleanup();
 

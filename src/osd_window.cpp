@@ -1,15 +1,16 @@
 #include "osd_window.h"
 #include <strsafe.h>
 #include <algorithm>
+#include <string>
 
 namespace Osd {
 
 static HWND g_hOsdWnd = NULL;
-static WCHAR g_textLine1[64] = {0};
-static WCHAR g_textLine2[64] = {0};
-static WCHAR g_textLine3[64] = {0};
+static WCHAR g_textLine1[160] = {0};
+static WCHAR g_textLine2[160] = {0};
+static WCHAR g_textLine3[160] = {0};
 static BYTE g_osdAlpha = 0;
-static bool g_enabled = true;
+static OsdConfig::Config g_config;
 
 static const COLORREF OSD_KEY_COLOR = RGB(10, 12, 16);
 static const UINT_PTR TIMER_OSD_HIDE = 101;
@@ -82,7 +83,7 @@ static LRESULT CALLBACK OsdWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lP
             RECT rcTop = rcBox;
             rcTop.top = rcBox.top + S(8);
             rcTop.bottom = rcTop.top + S(26);
-            DrawTextW(memDC, g_textLine1, -1, &rcTop, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+            DrawTextW(memDC, g_textLine1, -1, &rcTop, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
 
             // Font 2: Line 2 (Sub text)
             HFONT hFontMid = CreateFontW(
@@ -96,7 +97,7 @@ static LRESULT CALLBACK OsdWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lP
             RECT rcMid = rcBox;
             rcMid.top = rcTop.bottom + S(2);
             rcMid.bottom = rcMid.top + S(22);
-            DrawTextW(memDC, g_textLine2, -1, &rcMid, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+            DrawTextW(memDC, g_textLine2, -1, &rcMid, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
 
             // Font 3: Line 3 (Status bar / Cyan highlight)
             HFONT hFontSub = NULL;
@@ -112,7 +113,7 @@ static LRESULT CALLBACK OsdWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lP
                 RECT rcBot = rcBox;
                 rcBot.top = rcMid.bottom + S(2);
                 rcBot.bottom = rcBot.top + S(22);
-                DrawTextW(memDC, g_textLine3, -1, &rcBot, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+                DrawTextW(memDC, g_textLine3, -1, &rcBot, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
             }
 
             BitBlt(hdc, 0, 0, rc.right, rc.bottom, memDC, 0, 0, SRCCOPY);
@@ -157,16 +158,7 @@ static LRESULT CALLBACK OsdWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lP
 }
 
 static void LoadEnabledSetting() {
-    HKEY hKey = NULL;
-    if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\rapoo-tray", 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
-        DWORD value = 1;
-        DWORD size = sizeof(value);
-        DWORD type = 0;
-        if (RegQueryValueExW(hKey, L"OsdEnabled", NULL, &type, (LPBYTE)&value, &size) == ERROR_SUCCESS && type == REG_DWORD) {
-            g_enabled = (value != 0);
-        }
-        RegCloseKey(hKey);
-    }
+    g_config = OsdConfig::Load();
 }
 
 bool Init(HINSTANCE hInstance) {
@@ -203,17 +195,12 @@ HWND GetWindowHandle() {
 }
 
 bool IsEnabled() {
-    return g_enabled;
+    return g_config.enabled;
 }
 
 void SetEnabled(bool enabled) {
-    g_enabled = enabled;
-    HKEY hKey = NULL;
-    if (RegCreateKeyExW(HKEY_CURRENT_USER, L"Software\\rapoo-tray", 0, NULL, 0, KEY_WRITE, NULL, &hKey, NULL) == ERROR_SUCCESS) {
-        DWORD value = enabled ? 1u : 0u;
-        RegSetValueExW(hKey, L"OsdEnabled", 0, REG_DWORD, (const BYTE*)&value, sizeof(value));
-        RegCloseKey(hKey);
-    }
+    g_config.enabled = enabled;
+    OsdConfig::Save(g_config);
     if (!enabled && g_hOsdWnd) {
         KillTimer(g_hOsdWnd, TIMER_OSD_HIDE);
         KillTimer(g_hOsdWnd, TIMER_OSD_FADE);
@@ -222,7 +209,7 @@ void SetEnabled(bool enabled) {
 }
 
 void Show(const WCHAR* line1, const WCHAR* line2, const WCHAR* line3) {
-    if (!g_enabled || !g_hOsdWnd) return;
+    if (!g_config.enabled || !g_hOsdWnd) return;
 
     StringCchCopyW(g_textLine1, ARRAYSIZE(g_textLine1), line1 ? line1 : L"");
     StringCchCopyW(g_textLine2, ARRAYSIZE(g_textLine2), line2 ? line2 : L"");
@@ -308,18 +295,67 @@ void Show(const WCHAR* line1, const WCHAR* line2, const WCHAR* line3) {
     SetTimer(g_hOsdWnd, TIMER_OSD_HIDE, 1600, NULL);
 }
 
-void ShowDpiUpdate(int level, int dpix, int dpiy, int battery, int pollingHz, bool isCharging, bool isWired, const WCHAR* modelName) {
-    WCHAR l1[64], l2[64], l3[64];
-    const WCHAR* mName = (modelName && modelName[0]) ? modelName : L"通用";
-    StringCchPrintfW(l1, ARRAYSIZE(l1), L"%s  DPI %d", mName, dpix);
-    StringCchPrintfW(l2, ARRAYSIZE(l2), L"X 轴: %d    Y 轴: %d", dpix, dpiy);
+void ShowDeviceUpdate(const Device::State& state) {
+    const WCHAR* model = state.modelName[0] ? state.modelName : L"通用";
+    WCHAR line1[160] = {0};
+    WCHAR line2[160] = {0};
+    WCHAR line3[160] = {0};
 
-    const WCHAR* modeStr = isWired ? L"USB" : L"2.4G";
-    const WCHAR* batIcon = isCharging ? L"⚡" : L"🔋";
-    StringCchPrintfW(l3, ARRAYSIZE(l3), L"%s  |  第 %d 档  |  %s %d%%  |  %d Hz",
-        modeStr, level, batIcon, battery, pollingHz);
+    if (g_config.displayFields & OsdConfig::FIELD_MODEL) StringCchCopyW(line1, ARRAYSIZE(line1), model);
+    else StringCchCopyW(line1, ARRAYSIZE(line1), L"RAPOO // DEVICE");
 
-    Show(l1, l2, l3);
+    if (g_config.displayFields & OsdConfig::FIELD_DPI_VALUE) {
+        if (state.dpiX == state.dpiY) StringCchPrintfW(line2, ARRAYSIZE(line2), L"%d DPI", state.dpiX);
+        else StringCchPrintfW(line2, ARRAYSIZE(line2), L"X %d  ·  Y %d DPI", state.dpiX, state.dpiY);
+    } else if (g_config.displayFields & OsdConfig::FIELD_PERFORMANCE) {
+        StringCchCopyW(line2, ARRAYSIZE(line2), Rapoo::PerfModeName(state.perfMode));
+    } else if (g_config.displayFields & OsdConfig::FIELD_BATTERY) {
+        StringCchPrintfW(line2, ARRAYSIZE(line2), L"电量 %d%%", state.battery);
+    } else if (g_config.displayFields & OsdConfig::FIELD_POLLING) {
+        StringCchPrintfW(line2, ARRAYSIZE(line2), L"回报率 %d Hz", state.pollingHz);
+    } else {
+        StringCchCopyW(line2, ARRAYSIZE(line2), L"设备状态已更新");
+    }
+
+    std::wstring detail;
+    auto append = [&](const std::wstring& part) {
+        if (part.empty()) return;
+        if (!detail.empty()) detail += L"  |  ";
+        detail += part;
+    };
+    if (g_config.displayFields & OsdConfig::FIELD_MODE) append(state.isWired ? L"USB 有线" : L"2.4G 无线");
+    if (g_config.displayFields & OsdConfig::FIELD_DPI_LEVEL) append(L"DPI 第 " + std::to_wstring(state.dpiLevel) + L" 档");
+    if ((g_config.displayFields & OsdConfig::FIELD_PERFORMANCE) && (g_config.displayFields & OsdConfig::FIELD_DPI_VALUE)) {
+        append(Rapoo::PerfModeName(state.perfMode));
+    }
+    if ((g_config.displayFields & OsdConfig::FIELD_BATTERY) && (g_config.displayFields & OsdConfig::FIELD_DPI_VALUE ||
+        g_config.displayFields & OsdConfig::FIELD_PERFORMANCE || g_config.displayFields & OsdConfig::FIELD_POLLING)) {
+        std::wstring battery = L"电量 " + std::to_wstring(state.battery) + L"%";
+        if (state.isCharging) battery += L" 充电中";
+        append(battery);
+    }
+    if ((g_config.displayFields & OsdConfig::FIELD_POLLING) && (g_config.displayFields & OsdConfig::FIELD_DPI_VALUE ||
+        g_config.displayFields & OsdConfig::FIELD_PERFORMANCE)) {
+        append(std::to_wstring(state.pollingHz) + L" Hz");
+    }
+    StringCchCopyW(line3, ARRAYSIZE(line3), detail.c_str());
+    Show(line1, line2, line3);
+}
+
+OsdConfig::Config GetConfig() {
+    return g_config;
+}
+
+bool SetConfig(const OsdConfig::Config& config) {
+    g_config = config;
+    const bool saved = OsdConfig::Save(g_config);
+    g_config = OsdConfig::Load();
+    if (!g_config.enabled && g_hOsdWnd) {
+        KillTimer(g_hOsdWnd, TIMER_OSD_HIDE);
+        KillTimer(g_hOsdWnd, TIMER_OSD_FADE);
+        ShowWindow(g_hOsdWnd, SW_HIDE);
+    }
+    return saved;
 }
 
 void ShowStyleOsd(int style) {

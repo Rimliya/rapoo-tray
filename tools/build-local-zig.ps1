@@ -21,7 +21,9 @@ try {
 
     $sources = @(
         'src\main.cpp', 'src\rapoo_protocol.cpp', 'src\device_manager.cpp',
-        'src\osd_window.cpp', 'src\tray_menu.cpp', 'src\alert_window.cpp',
+        'src\osd_window.cpp', 'src\osd_config.cpp', 'src\quick_panel.cpp',
+        'src\tray_menu.cpp', 'src\alert_window.cpp', 'src\battery_alert_policy.cpp',
+        'src\battery_history.cpp',
         'src\profile_manager.cpp', 'src\battery_estimator.cpp', 'src\dpi_window.cpp',
         'src\settings_launcher.cpp', 'src\about_launcher.cpp', 'src\ui_bridge.cpp'
     )

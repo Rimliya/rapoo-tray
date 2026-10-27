@@ -1,5 +1,6 @@
 #include "tray_menu.h"
 #include "osd_window.h"
+#include "quick_panel.h"
 #include "profile_manager.h"
 #include "settings_window.h"
 #include "about_window.h"
@@ -1010,6 +1011,8 @@ static LRESULT CALLBACK AcrylicMainWndProc(HWND hWnd, UINT msg, WPARAM wParam, L
                     Profiles::SetAutoSwitchEnabled(!Profiles::AutoSwitchEnabled());
                 } else if (cmd == 1006) { // About
                     About::Show(g_hParentAppWnd);
+                } else if (cmd == 1007) { // Quick panel
+                    QuickPanel::Show(true);
                 }
             }
             return 0;
@@ -1270,6 +1273,14 @@ void ShowMenu(HWND hWndOwner) {
     itemOsd.isInteractive = true;
     StringCchCopyW(itemOsd.value, ARRAYSIZE(itemOsd.value), Osd::IsEnabled() ? L"✓ 已开启" : L"未开启");
     g_mainItems.push_back(itemOsd);
+
+    MenuItemData itemQuickPanel = { 1007 };
+    itemQuickPanel.label = L"打开 OSD 快速面板…";
+    itemQuickPanel.isInteractive = true;
+    const OsdConfig::Config quickConfig = Osd::GetConfig();
+    std::wstring quickHotkey = OsdConfig::FormatHotkey(quickConfig.hotkeyModifiers, quickConfig.hotkeyVirtualKey);
+    StringCchCopyW(itemQuickPanel.value, ARRAYSIZE(itemQuickPanel.value), quickHotkey.c_str());
+    g_mainItems.push_back(itemQuickPanel);
 
     MenuItemData itemSettings = { 1003 };
     itemSettings.label = L"配置中心…";
