@@ -33,6 +33,7 @@ namespace RapooTray.Settings
         private bool _profileDirty;
         private bool _dpiDirty;
         private bool _dpiLoaded;
+        private bool _rfRefreshInFlight;
         private int _selectedProfileId;
         private int _profilePerfMode = 1;
         private int _selectedDpiIndex;
@@ -174,8 +175,12 @@ namespace RapooTray.Settings
             OsdToggle.IsChecked = state.OsdEnabled;
             AutoRunToggle.IsChecked = state.AutoRun;
             RfFullToggle.IsChecked = state.RfFull;
-            RfFullToggle.IsEnabled = state.RfAvailable;
-            RfStateText.Text = state.RfAvailable ? (state.RfFull ? "满格射频" : "智能调节（推荐）") : "当前设备不支持";
+            RfFullToggle.IsEnabled = state.RfAvailable && !_busy;
+            RfStateText.Text = state.RfAvailable
+                ? (state.RfFull ? "满格射频" : "智能调节（推荐）")
+                : (state.Connected ? "等待读取" : "设备未连接");
+            RefreshRfButton.Visibility = state.RfAvailable ? Visibility.Collapsed : Visibility.Visible;
+            RefreshRfButton.IsEnabled = state.Connected && !_rfRefreshInFlight;
             string modelSignature = string.Join("|", state.Models.Select(x => x.Key));
             if (modelSignature != _modelSignature)
             {
@@ -235,6 +240,7 @@ namespace RapooTray.Settings
             {
                 PageTitle.Text = "自动化";
                 PageSubtitle.Text = "管理前台联动、悬浮提示与设备策略";
+                if (_state != null && _state.Connected) { var ignored = RefreshRfStateAsync(); }
             }
             else if (page == 2)
             {
@@ -568,6 +574,39 @@ namespace RapooTray.Settings
         {
             if (_loading) return;
             await RunToggleAsync(_bridge.SetRfFullAsync, RfFullToggle.IsChecked == true, "正在写入射频策略…");
+        }
+
+        private async Task RefreshRfStateAsync()
+        {
+            if (_rfRefreshInFlight || _state == null || !_state.Connected) return;
+            _rfRefreshInFlight = true;
+            RefreshRfButton.IsEnabled = false;
+            RfStateText.Text = "正在读取…";
+            try
+            {
+                var state = await _bridge.RefreshRfAsync();
+                ApplyState(state, false);
+                SetStatus(state.StatusText, state.StatusGood);
+            }
+            catch (Exception ex)
+            {
+                RfStateText.Text = "读取失败，请重试";
+                SetStatus(ex.Message, false);
+            }
+            finally
+            {
+                _rfRefreshInFlight = false;
+                if (_state != null)
+                {
+                    RefreshRfButton.IsEnabled = _state.Connected;
+                    if (!_state.RfAvailable && _state.Connected) RfStateText.Text = "等待读取";
+                }
+            }
+        }
+
+        private async void RefreshRf_Click(object sender, RoutedEventArgs e)
+        {
+            await RefreshRfStateAsync();
         }
 
         private async void ModelCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
