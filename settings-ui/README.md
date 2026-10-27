@@ -24,6 +24,14 @@ dotnet run --project settings-ui/RapooTray.Settings.csproj -- --demo
 - 正式发版只由推送 `v*` tag 触发的 GitHub Actions `release.yml` 完成。
 - Actions 的 Release 步骤使用 `GITHUB_TOKEN`；不要把个人 token 写入源码、脚本或提交记录。
 
+## 配置包
+
+配置页支持导入和导出 `.rapoo` 文件。配置包包含配置档案、默认配置索引与自动切换开关；格式字段为 `format=rapoo-tray-profiles`、`schemaVersion=1`。
+
+- 导入前自动备份到 `%APPDATA%\rapoo-tray\backups`。
+- 文件大小上限为 2 MB，最多 16 个配置，名称、回报率和性能模式会在替换前校验。
+- 实际替换由托盘进程一次完成，避免逐条删除导致半写入。
+
 ## 字体
 
 设置中心内置华为 HarmonyOS Sans SC 的 Regular、Medium 与 Bold 字重，不要求用户系统安装该字体。字体文件位于 `Assets/Fonts/`，许可文本同时嵌入程序资源并在“关于”页提供查看入口。

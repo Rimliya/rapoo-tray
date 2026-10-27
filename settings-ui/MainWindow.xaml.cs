@@ -304,6 +304,8 @@ namespace RapooTray.Settings
             _busy = busy;
             AddProfileButton.IsEnabled = !busy;
             DeleteProfileButton.IsEnabled = !busy && ProfilesList.Items.Count > 1;
+            ImportProfilesButton.IsEnabled = !busy;
+            ExportProfilesButton.IsEnabled = !busy && _state != null && _state.Profiles.Count > 0;
             SaveProfileButton.IsEnabled = !busy && _profileDirty;
             ApplyProfileButton.IsEnabled = !busy && !_profileDirty && _selectedProfileId != 0;
             AddDpiButton.IsEnabled = !busy && (_dpi == null || _dpi.Slots.Count < Math.Min(7, _dpi.MaxSlots));
@@ -597,6 +599,132 @@ namespace RapooTray.Settings
             }
             catch (Exception ex) { SetStatus(ex.Message, false); }
             finally { SetBusy(false); }
+        }
+
+        private void ExportProfiles_Click(object sender, RoutedEventArgs e)
+        {
+            if (_busy || _state == null) return;
+            if (_profileDirty)
+            {
+                SetStatus("请先保存当前配置，再导出配置包", false);
+                MessageBox.Show(this, "当前配置有未保存修改，请先保存后再导出。", "导出配置", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var dialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Title = "导出 rapoo-tray 配置包",
+                Filter = "rapoo-tray 配置包 (*.rapoo)|*.rapoo|JSON 文件 (*.json)|*.json",
+                DefaultExt = ".rapoo",
+                AddExtension = true,
+                FileName = "rapoo-tray-profiles-" + DateTime.Now.ToString("yyyyMMdd-HHmm") + ".rapoo"
+            };
+            if (dialog.ShowDialog(this) != true) return;
+
+            try
+            {
+                ProfilePackage package = ProfilePackageFile.FromState(_state);
+                string error;
+                if (!package.NormalizeAndValidate(out error)) throw new InvalidOperationException(error);
+                ProfilePackageFile.SaveAtomic(dialog.FileName, package);
+                SetStatus("已导出 " + package.Profiles.Count + " 个配置到 " + Path.GetFileName(dialog.FileName), true);
+            }
+            catch (Exception ex)
+            {
+                SetStatus("配置导出失败：" + ex.Message, false);
+                MessageBox.Show(this, "配置导出失败：" + Environment.NewLine + ex.Message, "导出配置", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private async void ImportProfiles_Click(object sender, RoutedEventArgs e)
+        {
+            if (_busy) return;
+            if (_profileDirty && MessageBox.Show(this, "当前配置有未保存修改。导入会替换当前配置，是否继续？", "导入配置", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "导入 rapoo-tray 配置包",
+                Filter = "rapoo-tray 配置包 (*.rapoo;*.json)|*.rapoo;*.json|所有文件 (*.*)|*.*",
+                CheckFileExists = true,
+                Multiselect = false
+            };
+            if (dialog.ShowDialog(this) != true) return;
+
+            ProfilePackage package;
+            try
+            {
+                package = ProfilePackageFile.Load(dialog.FileName);
+            }
+            catch (Exception ex)
+            {
+                SetStatus("配置包无效：" + ex.Message, false);
+                MessageBox.Show(this, "无法读取配置包：" + Environment.NewLine + ex.Message, "导入配置", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
+            int currentCount = _state == null ? 0 : _state.Profiles.Count;
+            string confirm = "将使用“" + Path.GetFileName(dialog.FileName) + "”中的 " + package.Profiles.Count +
+                             " 个配置替换当前 " + currentCount + " 个配置。" + Environment.NewLine + Environment.NewLine +
+                             "导入前会自动备份当前配置，自动切换开关也会随包恢复。是否继续？";
+            if (MessageBox.Show(this, confirm, "导入配置", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+
+            string backupPath;
+            try
+            {
+                backupPath = CreateImportBackup();
+            }
+            catch (Exception ex)
+            {
+                SetStatus("无法创建导入前备份：" + ex.Message, false);
+                MessageBox.Show(this, "为避免丢失现有配置，导入已取消。" + Environment.NewLine + Environment.NewLine +
+                    "无法创建备份：" + ex.Message, "导入配置", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
+            SetBusy(true, "正在导入 " + package.Profiles.Count + " 个配置…");
+            try
+            {
+                AppState state = await _bridge.ImportProfilesAsync(package);
+                _profileDirty = false;
+                _selectedProfileId = 0;
+                ApplyState(state, true);
+                if (!state.StatusGood)
+                {
+                    SetStatus(state.StatusText, false);
+                    MessageBox.Show(this, state.StatusText, "导入配置", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+                else
+                {
+                    SetStatus("已导入 " + package.Profiles.Count + " 个配置；备份：" + Path.GetFileName(backupPath), true);
+                    MessageBox.Show(this, "已导入 " + package.Profiles.Count + " 个配置。" + Environment.NewLine + Environment.NewLine +
+                        "导入前备份：" + Environment.NewLine + backupPath + Environment.NewLine + Environment.NewLine +
+                        "配置尚未写入鼠标，请选择配置后点击“应用”。", "导入完成", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                SetStatus("配置导入失败：" + ex.Message, false);
+                MessageBox.Show(this, "配置导入失败：" + Environment.NewLine + ex.Message, "导入配置", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                SetBusy(false);
+            }
+        }
+
+        private string CreateImportBackup()
+        {
+            if (_state == null) throw new InvalidOperationException("当前没有可备份的配置状态");
+            ProfilePackage package = ProfilePackageFile.FromState(_state);
+            string error;
+            if (!package.NormalizeAndValidate(out error)) throw new InvalidOperationException(error);
+            string folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "rapoo-tray", "backups");
+            string path = Path.Combine(folder, "profiles-before-import-" + DateTime.Now.ToString("yyyyMMdd-HHmmss-fff") + ".rapoo");
+            ProfilePackageFile.SaveAtomic(path, package);
+            return path;
         }
 
         private async void ApplyProfile_Click(object sender, RoutedEventArgs e)

@@ -32,6 +32,64 @@ namespace RapooTray.Settings
             return SendStateCommandAsync(command);
         }
 
+        public async Task<AppState> ImportProfilesAsync(ProfilePackage package)
+        {
+            if (_demo)
+            {
+                await Task.Delay(180).ConfigureAwait(false);
+                var state = DemoState();
+                state.Profiles.Clear();
+                string[] performanceLabels = { "办公模式", "均衡模式", "火力模式", "超核模式", "竞技超核", "狂暴竞技" };
+                for (int i = 0; i < package.Profiles.Count; i++)
+                {
+                    ProfilePackageEntry item = package.Profiles[i];
+                    bool isDefault = i == package.DefaultProfileIndex;
+                    state.Profiles.Add(new ProfileRow
+                    {
+                        Id = i + 1,
+                        Name = item.Name,
+                        PollingHz = item.PollingHz,
+                        PerformanceMode = item.PerformanceMode,
+                        PerformanceLabel = performanceLabels[item.PerformanceMode],
+                        DpiText = item.DpiX == item.DpiY ? item.DpiX.ToString(CultureInfo.InvariantCulture) : item.DpiX + " × " + item.DpiY,
+                        AppName = string.IsNullOrEmpty(item.AppPath) ? "" : Path.GetFileName(item.AppPath),
+                        Badge = isDefault ? "当前" : "",
+                        IsDefault = isDefault,
+                        SleepMinutes = item.SleepMinutes,
+                        DpiX = item.DpiX,
+                        DpiY = item.DpiY,
+                        AppPath = item.AppPath ?? ""
+                    });
+                }
+                state.AutoSwitch = package.AutoSwitch;
+                state.ActiveProfileId = package.DefaultProfileIndex + 1;
+                state.CreatedProfileId = 0;
+                state.StatusGood = true;
+                state.StatusText = "已导入 " + package.Profiles.Count + " 个配置；点击“应用”后写入鼠标";
+                return state;
+            }
+
+            var parts = new List<string>
+            {
+                "IMPORT_PROFILES",
+                package.Profiles.Count.ToString(CultureInfo.InvariantCulture),
+                package.AutoSwitch ? "1" : "0",
+                package.DefaultProfileIndex.ToString(CultureInfo.InvariantCulture)
+            };
+            foreach (ProfilePackageEntry item in package.Profiles)
+            {
+                parts.Add(Encode(item.Name));
+                parts.Add(item.PollingHz.ToString(CultureInfo.InvariantCulture));
+                parts.Add(item.PerformanceMode.ToString(CultureInfo.InvariantCulture));
+                parts.Add(item.SleepMinutes.ToString(CultureInfo.InvariantCulture));
+                parts.Add(item.DpiX.ToString(CultureInfo.InvariantCulture));
+                parts.Add(item.DpiY.ToString(CultureInfo.InvariantCulture));
+                parts.Add(Encode(item.AppPath));
+            }
+            string response = await SendRawAsync(string.Join("|", parts)).ConfigureAwait(false);
+            return ParseState(response);
+        }
+
         public Task<AppState> SetAutoSwitchAsync(bool value) => SendStateCommandAsync("SET_AUTO_SWITCH|" + (value ? "1" : "0"));
         public Task<AppState> SetOsdAsync(bool value) => SendStateCommandAsync("SET_OSD|" + (value ? "1" : "0"));
         public Task<AppState> SetAutoRunAsync(bool value) => SendStateCommandAsync("SET_AUTORUN|" + (value ? "1" : "0"));
@@ -170,7 +228,7 @@ namespace RapooTray.Settings
 
         private static AppState DemoState()
         {
-            var state = new AppState { Version = "1.12.0", DeviceName = "雷柏 VT3 V2", DeviceMode = "2.4G 无线", Connected = true,
+            var state = new AppState { Version = "1.13.0", DeviceName = "雷柏 VT3 V2", DeviceMode = "2.4G 无线", Connected = true,
                 Battery = 87, DeviceDpiX = 1600, DeviceDpiY = 1600, AutoSwitch = true, OsdEnabled = true, AutoRun = true,
                 RfAvailable = true, RfFull = true, ActiveProfileId = 1, StatusText = "已读取设备状态，修改后点击“应用”写入鼠标", StatusGood = true };
             state.Models.Add(new ModelOption { Index = 0, Key = "vt3v2", Label = "雷柏 VT3 V2" });

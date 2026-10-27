@@ -35,6 +35,12 @@ bool HasAppRule(const Definition& profile);
 int Create(const std::wstring& name, int pollingHz = 1000, int sleepMinutes = 10,
            int dpiX = 0, int dpiY = 0, int performanceMode = -1);
 bool Update(const Definition& profile);
+
+// Validates and replaces the complete profile set in one transaction. Used by
+// the settings importer so a malformed package can never leave a partial set.
+bool ReplaceAll(const std::vector<Definition>& profiles, int defaultIndex,
+                bool autoSwitch, std::wstring& outError);
+
 bool Delete(int id);
 void SetDefault(int id);
 

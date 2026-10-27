@@ -21,7 +21,7 @@ if not errorlevel 1 (
     if errorlevel 1 exit /b 1
 
     echo [Compiling rapoo-tray-setup.exe...]
-    g++ -O3 -std=c++17 -mwindows -municode -Wl,--subsystem,windows -s -static installer.cpp installer.o -lole32 -lshell32 -luser32 -lgdi32 -ladvapi32 -luuid -o ..\dist\rapoo-tray-setup.exe
+    g++ -O3 -std=c++17 -w -mwindows -municode -Wl,--subsystem,windows -s -static installer.cpp installer.o -lole32 -lshell32 -luser32 -lgdi32 -ladvapi32 -lcomctl32 -luuid -o ..\dist\rapoo-tray-setup.exe
     if errorlevel 1 exit /b 1
     if exist installer.o del installer.o
 ) else (
@@ -30,11 +30,13 @@ if not errorlevel 1 (
         exit /b 1
     )
     echo [Building Installer Resource with Zig fallback...]
+    set "ZIG_GLOBAL_CACHE_DIR=%TEMP%\rapoo-tray-zig-global"
+    set "ZIG_LOCAL_CACHE_DIR=%TEMP%\rapoo-tray-zig-local"
+    if not exist "%TEMP%\rapoo-tray-zig-global" mkdir "%TEMP%\rapoo-tray-zig-global"
+    if not exist "%TEMP%\rapoo-tray-zig-local" mkdir "%TEMP%\rapoo-tray-zig-local"
     python "..\.tools\buildtools\bin\windres.py" installer.rc -o installer.o -O coff
     if errorlevel 1 exit /b 1
-    set "ZIG_GLOBAL_CACHE_DIR=%~dp0..\.tools\zig-cache-global"
-    set "ZIG_LOCAL_CACHE_DIR=%~dp0..\.tools\zig-cache-local"
-    "..\.tools\ziglang\ziglang\zig.exe" c++ -target x86_64-windows-gnu -std=c++17 -O2 -DUNICODE -D_UNICODE -mwindows -municode installer.cpp installer.o -o ..\dist\rapoo-tray-setup.exe -Wl,--subsystem,windows -lole32 -lshell32 -luser32 -lgdi32 -ladvapi32 -lcomctl32 -luuid
+    "..\.tools\ziglang\ziglang\zig.exe" c++ -target x86_64-windows-gnu -std=c++17 -O2 -w -DUNICODE -D_UNICODE -mwindows -municode installer.cpp installer.o -o ..\dist\rapoo-tray-setup.exe -Wl,--subsystem,windows -lole32 -lshell32 -luser32 -lgdi32 -ladvapi32 -lcomctl32 -luuid
     if errorlevel 1 exit /b 1
     if exist installer.o del installer.o
 )

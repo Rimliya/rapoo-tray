@@ -391,6 +391,40 @@ std::string HandleMainCommand(const std::string& command) {
         return BuildStateResponse();
     }
 
+    if (verb == "IMPORT_PROFILES") {
+        const int count = ToInt(At(fields, 1));
+        const bool autoSwitch = At(fields, 2) == "1";
+        const int defaultIndex = ToInt(At(fields, 3), -1);
+        const int fieldsPerProfile = 7;
+        if (count < 1 || count > 16 || (int)fields.size() < 4 + count * fieldsPerProfile) {
+            SetStatus(L"配置包格式无效或数量超出 1–16 个限制", false);
+            return BuildStateResponse();
+        }
+
+        std::vector<Profiles::Definition> imported;
+        imported.reserve((size_t)count);
+        for (int i = 0; i < count; ++i) {
+            const int offset = 4 + i * fieldsPerProfile;
+            Profiles::Definition profile;
+            profile.name = Trim(DecodeField(fields, offset));
+            profile.pollingHz = ToInt(At(fields, offset + 1), 1000);
+            profile.performanceMode = ToInt(At(fields, offset + 2), Rapoo::PERF_BALANCED);
+            profile.sleepMinutes = ToInt(At(fields, offset + 3), 10);
+            profile.dpiX = ToInt(At(fields, offset + 4), 0);
+            profile.dpiY = ToInt(At(fields, offset + 5), profile.dpiX);
+            profile.appPath = Trim(DecodeField(fields, offset + 6));
+            imported.push_back(profile);
+        }
+
+        std::wstring error;
+        if (Profiles::ReplaceAll(imported, defaultIndex, autoSwitch, error)) {
+            SetStatus(L"已导入 " + std::to_wstring(count) + L" 个配置；点击“应用”后写入鼠标", true);
+        } else {
+            SetStatus(error.empty() ? L"配置导入失败" : error, false);
+        }
+        return BuildStateResponse();
+    }
+
     if (verb == "SET_AUTO_SWITCH") {
         const bool enabled = At(fields, 1) == "1";
         Profiles::SetAutoSwitchEnabled(enabled);
