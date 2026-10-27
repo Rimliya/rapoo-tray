@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Windows;
 
@@ -23,7 +24,15 @@ namespace RapooTray.Settings
         public int DpiY { get; set; }
         public string AppPath { get; set; }
 
-        public string Summary => PollingHz + " Hz  ·  " + PerformanceLabel + "  ·  " + DpiText + (string.IsNullOrEmpty(AppName) ? "" : "  ·  " + AppName);
+        public string Summary => PollingHz + " Hz  /  " + PerformanceLabel + "  /  " + DpiText + (string.IsNullOrEmpty(AppName) ? "" : "  /  " + AppName);
+        public string Initial
+        {
+            get
+            {
+                string name = (Name ?? "").Trim();
+                return name.Length == 0 ? "?" : StringInfo.GetNextTextElement(name);
+            }
+        }
         public Visibility BadgeVisibility => string.IsNullOrEmpty(Badge) ? Visibility.Collapsed : Visibility.Visible;
         public Visibility ChevronVisibility => Visibility.Visible;
 
@@ -65,7 +74,7 @@ namespace RapooTray.Settings
 
     public sealed class AppState
     {
-        public string Version = "1.10.0";
+        public string Version = "1.11.0";
         public string DeviceName = "雷柏游戏鼠标";
         public string DeviceMode = "未连接";
         public bool Connected;
