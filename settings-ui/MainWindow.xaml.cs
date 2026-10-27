@@ -34,6 +34,7 @@ namespace RapooTray.Settings
         private bool _dpiDirty;
         private bool _dpiLoaded;
         private bool _rfRefreshInFlight;
+        private bool _systemThemeWatching;
         private int _selectedProfileId;
         private int _profilePerfMode = 1;
         private int _selectedDpiIndex;
@@ -46,21 +47,95 @@ namespace RapooTray.Settings
         public MainWindow(int page, bool demo)
         {
             InitializeComponent();
-            SystemThemeWatcher.Watch(this);
+            int savedTheme = ReadThemePreference();
+            if (savedTheme == 1 || savedTheme == 2)
+            {
+                ApplicationThemeManager.Apply(savedTheme == 2 ? ApplicationTheme.Dark : ApplicationTheme.Light);
+            }
+            else
+            {
+                SystemThemeWatcher.Watch(this);
+                _systemThemeWatching = true;
+            }
+            ApplicationThemeManager.Changed += OnApplicationThemeChanged;
+            UpdateThemeToggle();
             _initialPage = Math.Max(0, Math.Min(3, page));
             _bridge = new TrayBridge(demo);
             _liveTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
             _liveTimer.Tick += LiveTimer_Tick;
             Loaded += MainWindow_Loaded;
             SourceInitialized += MainWindow_SourceInitialized;
-            Closed += (_, __) => { _liveTimer.Stop(); if (_source != null) _source.RemoveHook(WndProc); };
+            Closed += (_, __) =>
+            {
+                _liveTimer.Stop();
+                ApplicationThemeManager.Changed -= OnApplicationThemeChanged;
+                if (_source != null) _source.RemoveHook(WndProc);
+            };
             UpdateDirtyVisuals();
+        }
+
+        private void OnApplicationThemeChanged(ApplicationTheme theme, Color accent)
+        {
+            UpdateThemeToggle();
+        }
+
+        private void UpdateThemeToggle()
+        {
+            bool dark = ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Dark;
+            ThemeToggleButton.Icon = new Wpf.Ui.Controls.SymbolIcon(
+                dark ? Wpf.Ui.Controls.SymbolRegular.WeatherSunny24 : Wpf.Ui.Controls.SymbolRegular.WeatherMoon24, 16);
+            ThemeToggleButton.ToolTip = dark ? "切换到浅色模式" : "切换到深色模式";
+        }
+
+        private void ThemeToggle_Click(object sender, RoutedEventArgs e)
+        {
+            if (_systemThemeWatching && IsLoaded)
+            {
+                SystemThemeWatcher.UnWatch(this);
+                _systemThemeWatching = false;
+            }
+
+            bool dark = ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Dark;
+            ApplicationTheme target = dark ? ApplicationTheme.Light : ApplicationTheme.Dark;
+            ApplicationThemeManager.Apply(target);
+            SaveThemePreference(target == ApplicationTheme.Dark ? 2 : 1);
+            UpdateThemeToggle();
+        }
+
+        private static int ReadThemePreference()
+        {
+            try
+            {
+                using (var key = Registry.CurrentUser.OpenSubKey(@"Software\rapoo-tray\Settings"))
+                {
+                    object value = key == null ? null : key.GetValue("UiTheme");
+                    return value == null ? 0 : Convert.ToInt32(value, CultureInfo.InvariantCulture);
+                }
+            }
+            catch
+            {
+                return 0;
+            }
+        }
+
+        private static void SaveThemePreference(int value)
+        {
+            try
+            {
+                using (var key = Registry.CurrentUser.CreateSubKey(@"Software\rapoo-tray\Settings"))
+                {
+                    if (key != null) key.SetValue("UiTheme", value, RegistryValueKind.DWord);
+                }
+            }
+            catch
+            {
+            }
         }
 
         private static HttpClient CreateHttpClient()
         {
             var client = new HttpClient { Timeout = TimeSpan.FromSeconds(12) };
-            client.DefaultRequestHeaders.UserAgent.ParseAdd("rapoo-tray-settings/1.9");
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("rapoo-tray-settings/1.10");
             return client;
         }
 

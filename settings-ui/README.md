@@ -23,3 +23,7 @@ dotnet run --project settings-ui/RapooTray.Settings.csproj -- --demo
 - `installer/build_installer.bat`：用当前 `bin` 产物生成安装包。
 - 正式发版只由推送 `v*` tag 触发的 GitHub Actions `release.yml` 完成。
 - Actions 的 Release 步骤使用 `GITHUB_TOKEN`；不要把个人 token 写入源码、脚本或提交记录。
+
+## 主题
+
+首次启动跟随系统主题。右上角可切换浅色/深色，选择保存在 `HKCU\Software\rapoo-tray\Settings\UiTheme`（1=浅色，2=深色）。

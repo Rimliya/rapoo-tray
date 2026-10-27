@@ -12,27 +12,28 @@
     MinHeight="650"
     Background="Transparent"
     ExtendsContentIntoTitleBar="True"
-    FontFamily="Segoe UI Variable Text, Microsoft YaHei UI, Segoe UI"
+    FontFamily="Microsoft YaHei UI, Segoe UI Variable Text, Segoe UI"
     FontSize="13"
     Foreground="{DynamicResource TextFillColorPrimaryBrush}"
     WindowBackdropType="Mica"
     WindowCornerPreference="Round"
     WindowStartupLocation="CenterScreen"
     SnapsToDevicePixels="True"
+    RenderOptions.ClearTypeHint="Enabled"
     TextOptions.TextFormattingMode="Display"
     TextOptions.TextRenderingMode="ClearType"
     UseLayoutRounding="True"
     mc:Ignorable="d">
   <ui:FluentWindow.Resources>
     <Style x:Key="CardStyle" TargetType="{x:Type Border}">
-      <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
+      <Setter Property="Background" Value="{DynamicResource AppCardSurfaceBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource AppCardStrokeBrush}" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="14" />
       <Setter Property="SnapsToDevicePixels" Value="True" />
     </Style>
     <Style x:Key="PageTitleStyle" TargetType="{x:Type TextBlock}">
-      <Setter Property="FontFamily" Value="Segoe UI Variable Display, Segoe UI" />
+      <Setter Property="FontFamily" Value="Microsoft YaHei UI, Segoe UI Variable Display, Segoe UI" />
       <Setter Property="FontSize" Value="28" />
       <Setter Property="FontWeight" Value="SemiBold" />
       <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
@@ -69,7 +70,7 @@
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="NavSurface" Property="Background" Value="{DynamicResource AppSubtleSurfaceBrush}" /></Trigger>
               <Trigger Property="IsChecked" Value="True">
-                <Setter TargetName="NavSurface" Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
+                <Setter TargetName="NavSurface" Property="Background" Value="{DynamicResource AppCardSurfaceBrush}" />
                 <Setter TargetName="NavSurface" Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
                 <Setter Property="Foreground" Value="{DynamicResource AccentFillColorDefaultBrush}" />
               </Trigger>
@@ -90,7 +91,7 @@
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="{x:Type RadioButton}">
-            <Border x:Name="CardSurface" Background="{DynamicResource ControlFillColorSecondaryBrush}" BorderBrush="{DynamicResource AppCardStrokeBrush}" BorderThickness="1" CornerRadius="10">
+            <Border x:Name="CardSurface" Background="{DynamicResource AppCardSurfaceBrush}" BorderBrush="{DynamicResource AppCardStrokeBrush}" BorderThickness="1" CornerRadius="10">
               <Grid Margin="{TemplateBinding Padding}">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                 <ContentPresenter VerticalAlignment="Center" />
@@ -100,9 +101,9 @@
               </Grid>
             </Border>
             <ControlTemplate.Triggers>
-              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="CardSurface" Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" /></Trigger>
+              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="CardSurface" Property="Background" Value="{DynamicResource AppSoftAccentSurfaceBrush}" /></Trigger>
               <Trigger Property="IsChecked" Value="True">
-                <Setter TargetName="CardSurface" Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
+                <Setter TargetName="CardSurface" Property="Background" Value="{DynamicResource AppSoftAccentSurfaceBrush}" />
                 <Setter TargetName="CardSurface" Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
                 <Setter TargetName="SelectedMark" Property="Visibility" Value="Visible" />
               </Trigger>
@@ -131,7 +132,7 @@
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="ItemSurface" Property="Background" Value="{DynamicResource AppSubtleSurfaceBrush}" /></Trigger>
               <Trigger Property="IsSelected" Value="True">
-                <Setter TargetName="ItemSurface" Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
+                <Setter TargetName="ItemSurface" Property="Background" Value="{DynamicResource AppSoftAccentSurfaceBrush}" />
                 <Setter TargetName="ItemSurface" Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
               </Trigger>
             </ControlTemplate.Triggers>
@@ -184,13 +185,14 @@
             <TextBlock x:Name="PageSubtitle" Style="{StaticResource MutedTextStyle}" Margin="0,4,0,0" Text="为不同应用保存回报率、性能模式、DPI 与启动规则" />
           </StackPanel>
           <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-            <Border Background="{DynamicResource ControlFillColorSecondaryBrush}" BorderBrush="{DynamicResource AppCardStrokeBrush}" BorderThickness="1" CornerRadius="17" Height="34" Padding="13,0" Margin="0,0,8,0">
+            <Border Background="{DynamicResource AppCardSurfaceBrush}" BorderBrush="{DynamicResource AppCardStrokeBrush}" BorderThickness="1" CornerRadius="17" Height="34" Padding="13,0" Margin="0,0,8,0">
               <StackPanel Orientation="Horizontal" VerticalAlignment="Center"><Ellipse x:Name="HeaderStatusDot" Width="7" Height="7" Fill="#18A66A" Margin="0,0,7,0" /><TextBlock x:Name="HeaderConnectionText" Text="已连接 · 87%" FontSize="12" VerticalAlignment="Center" /></StackPanel>
             </Border>
-            <Border Background="{DynamicResource ControlFillColorSecondaryBrush}" BorderBrush="{DynamicResource AppCardStrokeBrush}" BorderThickness="1" CornerRadius="17" Height="34" Padding="13,0" Margin="0,0,8,0"><TextBlock x:Name="HeaderModeText" Text="2.4G 无线" FontSize="12" VerticalAlignment="Center" /></Border>
-            <Border Background="{DynamicResource ControlFillColorSecondaryBrush}" BorderBrush="{DynamicResource AppCardStrokeBrush}" BorderThickness="1" CornerRadius="17" Height="34" Padding="13,0">
+            <Border Background="{DynamicResource AppCardSurfaceBrush}" BorderBrush="{DynamicResource AppCardStrokeBrush}" BorderThickness="1" CornerRadius="17" Height="34" Padding="13,0" Margin="0,0,8,0"><TextBlock x:Name="HeaderModeText" Text="2.4G 无线" FontSize="12" VerticalAlignment="Center" /></Border>
+            <Border Background="{DynamicResource AppCardSurfaceBrush}" BorderBrush="{DynamicResource AppCardStrokeBrush}" BorderThickness="1" CornerRadius="17" Height="34" Padding="13,0">
               <StackPanel Orientation="Horizontal" VerticalAlignment="Center"><ui:SymbolIcon Symbol="Gauge24" FontSize="13" Margin="0,0,6,0" Foreground="{DynamicResource AppSecondaryTextBrush}" /><TextBlock x:Name="HeaderDpiText" Text="1600 DPI" FontSize="12" VerticalAlignment="Center" /></StackPanel>
             </Border>
+            <ui:Button x:Name="ThemeToggleButton" Width="38" Height="34" Margin="8,0,0,0" Padding="0" ToolTip="切换到深色模式" AutomationProperties.Name="切换深浅色模式" Icon="{ui:SymbolIcon WeatherMoon24}" Click="ThemeToggle_Click" />
           </StackPanel>
         </Grid>
 
@@ -374,7 +376,7 @@
                   <Border Width="92" Height="92" CornerRadius="22" Background="{DynamicResource ControlFillColorDefaultBrush}" BorderBrush="{DynamicResource AppCardStrokeBrush}" BorderThickness="1"><Image Source="pack://application:,,,/Assets/logo.png" Width="76" Height="76" Stretch="Uniform" /></Border>
                   <StackPanel Grid.Column="2" VerticalAlignment="Center">
                     <TextBlock Text="rapoo-tray" FontSize="26" FontWeight="SemiBold" />
-                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0"><Border Background="{DynamicResource AppSubtleSurfaceBrush}" CornerRadius="12" Padding="10,3" Margin="0,0,8,0"><TextBlock x:Name="AboutVersionText" Text="版本 1.9.1" FontSize="11.5" /></Border><TextBlock Text="Fluent 2 · 原生 · 开源" Style="{StaticResource MutedTextStyle}" VerticalAlignment="Center" /></StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0"><Border Background="{DynamicResource AppSubtleSurfaceBrush}" CornerRadius="12" Padding="10,3" Margin="0,0,8,0"><TextBlock x:Name="AboutVersionText" Text="版本 1.10.0" FontSize="11.5" /></Border><TextBlock Text="Fluent 2 · 原生 · 开源" Style="{StaticResource MutedTextStyle}" VerticalAlignment="Center" /></StackPanel>
                     <TextBlock Text="雷柏 VT 系列游戏鼠标托盘工具" Style="{StaticResource MutedTextStyle}" Margin="0,8,0,0" />
                   </StackPanel>
                 </Grid>

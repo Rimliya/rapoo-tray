@@ -65,7 +65,7 @@ namespace RapooTray.Settings
 
     public sealed class AppState
     {
-        public string Version = "1.9.1";
+        public string Version = "1.10.0";
         public string DeviceName = "雷柏游戏鼠标";
         public string DeviceMode = "未连接";
         public bool Connected;
