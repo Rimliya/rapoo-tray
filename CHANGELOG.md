@@ -1,5 +1,21 @@
 # Changelog
 
+## [v1.10.0] - 2026-10-27
+
+### 新增
+
+- 设置中心右上角新增明暗模式切换按钮，可在浅色和深色之间即时切换。
+- 首次启动默认跟随系统主题；手动切换后保存到 `HKCU\Software\rapoo-tray\Settings\UiTheme` 并在下次启动恢复。
+
+### 优化
+
+- 设置卡片改为接近不透明的文字承载层，保留窗口外围 Mica，同时让 ClearType 在稳定背景下渲染。
+- 中文字体优先使用 Microsoft YaHei UI，并保留 Segoe UI Variable / Segoe UI 回退。
+- 启用 `ClearTypeHint`、Display 字形布局、布局取整和像素对齐，改善中文小字清晰度。
+- 浅色和深色主题分别使用独立的高对比度次级文字、卡片、描边和强调底色。
+
+**完整变更**：https://github.com/Rimliya/rapoo-tray/compare/v1.9.1...v1.10.0
+
 ## [v1.9.1] - 2026-10-27
 
 ### 优化

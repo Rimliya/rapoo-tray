@@ -64,6 +64,8 @@ namespace RapooTray.Settings
             var resources = Current.Resources;
             resources["AppSecondaryTextBrush"] = new SolidColorBrush(dark ? Color.FromRgb(215, 218, 223) : Color.FromRgb(77, 82, 90));
             resources["AppTertiaryTextBrush"] = new SolidColorBrush(dark ? Color.FromRgb(178, 184, 193) : Color.FromRgb(103, 108, 117));
+            resources["AppCardSurfaceBrush"] = new SolidColorBrush(dark ? Color.FromRgb(37, 39, 44) : Color.FromRgb(252, 252, 253));
+            resources["AppSoftAccentSurfaceBrush"] = new SolidColorBrush(dark ? Color.FromRgb(44, 52, 67) : Color.FromRgb(243, 247, 255));
             resources["AppCardStrokeBrush"] = new SolidColorBrush(dark ? Color.FromArgb(58, 255, 255, 255) : Color.FromArgb(38, 0, 0, 0));
             resources["AppSubtleSurfaceBrush"] = new SolidColorBrush(dark ? Color.FromArgb(28, 255, 255, 255) : Color.FromArgb(16, 0, 0, 0));
         }

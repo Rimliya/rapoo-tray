@@ -10,6 +10,8 @@
         <ui:ControlsDictionary />
       </ResourceDictionary.MergedDictionaries>
       <SolidColorBrush x:Key="AppSecondaryTextBrush" Color="#4D525A" />
+      <SolidColorBrush x:Key="AppCardSurfaceBrush" Color="#FCFCFD" />
+      <SolidColorBrush x:Key="AppSoftAccentSurfaceBrush" Color="#F3F7FF" />
       <SolidColorBrush x:Key="AppTertiaryTextBrush" Color="#676C75" />
       <SolidColorBrush x:Key="AppCardStrokeBrush" Color="#26000000" />
       <SolidColorBrush x:Key="AppSubtleSurfaceBrush" Color="#10000000" />
