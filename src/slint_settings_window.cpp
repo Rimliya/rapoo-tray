@@ -37,6 +37,7 @@ constexpr int POLLING_RATES[] = { 125, 250, 500, 1000, 2000, 4000, 8000 };
 
 HWND g_owner = NULL;
 std::atomic<bool> g_uiOpen{false};
+std::atomic<bool> g_profileApplyBusy{false};
 std::thread g_uiThread;
 bool g_updateAvailable = false;
 std::wstring g_releaseUrl = RELEASES_URL;
@@ -266,6 +267,7 @@ void RefreshProfileList(MainWindow& ui) {
         row.id = profile.id;
         row.name = S(profile.name);
         row.polling = S(std::to_wstring(profile.pollingHz) + L" Hz");
+        row.perf = S(Rapoo::PerfModeName(profile.performanceMode));
         row.dpi = S(FormatDpi(profile));
         row.app = S(profile.appName.empty() ? std::wstring(L"—") : profile.appName);
         row.badge = S(profile.id == activeId ? std::wstring(L"当前") : profile.id == defaultId ? std::wstring(L"默认") : std::wstring());
@@ -331,10 +333,18 @@ void LoadProfileEditor(MainWindow& ui, int profileId) {
     int dpiY = profile.dpiY;
     if (dpiX <= 0 || dpiY <= 0) GetCurrentDpiDefaults(dpiX, dpiY);
 
+    int perfMode = profile.performanceMode;
+    if (!Rapoo::IsPerfModeAllowed(perfMode, profile.pollingHz)) {
+        const Device::State state = Device::GetCurrentState();
+        const int desired = state.isConnected && state.perfModeKnown ? state.perfMode : Rapoo::PERF_OFFICE;
+        perfMode = Rapoo::NearestPerfMode(desired, profile.pollingHz);
+    }
+
     ui.set_profile_loading(true);
     ui.set_selected_profile_id(profile.id);
     ui.set_profile_name(S(profile.name));
     ui.set_profile_poll_index(PollingIndex(profile.pollingHz));
+    ui.set_profile_perf_mode(perfMode);
     ui.set_profile_sleep(profile.sleepMinutes);
     ui.set_profile_dpi_x(dpiX);
     ui.set_profile_dpi_y(dpiY);
@@ -345,6 +355,10 @@ void LoadProfileEditor(MainWindow& ui, int profileId) {
 }
 
 bool SaveCurrentProfile(MainWindow& ui) {
+    if (g_profileApplyBusy.load(std::memory_order_acquire)) {
+        SetStatus(ui, L"正在应用配置，请稍候", false);
+        return false;
+    }
     const int id = ui.get_selected_profile_id();
     Profiles::Definition profile;
     if (id == 0 || !Profiles::Find(id, profile)) {
@@ -364,6 +378,7 @@ bool SaveCurrentProfile(MainWindow& ui) {
 
     profile.name = name;
     profile.pollingHz = Profiles::NormalizePollingRate(PollingRate(ui.get_profile_poll_index()));
+    profile.performanceMode = Rapoo::NearestPerfMode(ui.get_profile_perf_mode(), profile.pollingHz);
     profile.sleepMinutes = Rapoo::ClampSleepMinutes(ui.get_profile_sleep());
     profile.dpiX = std::clamp(ui.get_profile_dpi_x(), spec.minDpi, spec.maxDpi);
     profile.dpiY = std::clamp(ui.get_profile_dpi_y(), spec.minDpi, spec.maxDpi);
@@ -389,7 +404,57 @@ bool SaveCurrentProfile(MainWindow& ui) {
     if (keptDefault) {
         SetStatus(ui, L"已保存；请在另一个配置中勾选“设为默认”来更改回退项");
     } else {
-        SetStatus(ui, L"配置已保存并应用");
+        SetStatus(ui, L"配置已保存；点击“应用”后写入鼠标");
+    }
+    return true;
+}
+
+bool ApplyCurrentProfile(MainWindow& ui) {
+    if (g_profileApplyBusy.load(std::memory_order_acquire)) return false;
+    if (ui.get_profile_dirty()) {
+        SetStatus(ui, L"请先保存修改，再应用配置", false);
+        return false;
+    }
+
+    const int id = ui.get_selected_profile_id();
+    Profiles::Definition profile;
+    if (id == 0 || !Profiles::Find(id, profile)) {
+        SetStatus(ui, L"请选择一个已保存的配置", false);
+        return false;
+    }
+
+    g_profileApplyBusy.store(true, std::memory_order_release);
+    ui.set_profile_apply_busy(true);
+    SetStatus(ui, L"正在应用配置…");
+
+    auto weak = g_uiWeak;
+    try {
+        std::thread([weak, id] {
+            const bool ok = Profiles::Select(id, false);
+            try {
+                slint::invoke_from_event_loop([weak, ok] {
+                    auto locked = weak.lock();
+                    g_profileApplyBusy.store(false, std::memory_order_release);
+                    if (!locked) return;
+                    MainWindow& view = *(*locked);
+                    view.set_profile_apply_busy(false);
+                    RefreshProfileList(view);
+                    RefreshDeviceUi(view);
+                    if (ok) {
+                        SetStatus(view, L"配置已应用到鼠标");
+                    } else {
+                        SetStatus(view, L"应用失败，请唤醒鼠标后重试", false);
+                    }
+                });
+            } catch (...) {
+                g_profileApplyBusy.store(false, std::memory_order_release);
+            }
+        }).detach();
+    } catch (...) {
+        g_profileApplyBusy.store(false, std::memory_order_release);
+        ui.set_profile_apply_busy(false);
+        SetStatus(ui, L"无法启动配置应用线程", false);
+        return false;
     }
     return true;
 }
@@ -399,7 +464,9 @@ void AddProfile(MainWindow& ui) {
     int dpiX = 800;
     int dpiY = 800;
     GetCurrentDpiDefaults(dpiX, dpiY);
-    int id = Profiles::Create(Profiles::MakeUniqueName(), 1000, 10, dpiX, dpiY);
+    const Device::State state = Device::GetCurrentState();
+    const int perfMode = state.isConnected && state.perfModeKnown ? state.perfMode : Rapoo::PERF_OFFICE;
+    int id = Profiles::Create(Profiles::MakeUniqueName(), 1000, 10, dpiX, dpiY, perfMode);
     if (id == 0) {
         SetStatus(ui, L"无法新增配置，最多可创建 16 个配置", false);
         return;
@@ -725,12 +792,22 @@ void RegisterCallbacks(MainWindow& ui) {
     });
 
     view->on_profile_selected([view](int id) {
+        if (g_profileApplyBusy.load(std::memory_order_acquire)) {
+            SetStatus(*view, L"正在应用配置，请稍候", false);
+            return;
+        }
         if (id == view->get_selected_profile_id()) return;
         if (view->get_profile_dirty() && !SaveCurrentProfile(*view)) return;
         LoadProfileEditor(*view, id);
-        SetStatus(*view, L"选择配置后可直接修改；点击“保存并应用”生效");
+        SetStatus(*view, L"已选择配置；保存只写入配置，点击“应用”才会下发到鼠标");
     });
     view->on_profile_save([view] { SaveCurrentProfile(*view); });
+    view->on_profile_apply([view] { ApplyCurrentProfile(*view); });
+    view->on_profile_poll_changed([view](int index) {
+        const int hz = PollingRate(index);
+        const int mode = Rapoo::NearestPerfMode(view->get_profile_perf_mode(), hz);
+        if (view->get_profile_perf_mode() != mode) view->set_profile_perf_mode(mode);
+    });
     view->on_profile_add([view] { AddProfile(*view); });
     view->on_profile_delete([view] { DeleteProfile(*view); });
     view->on_profile_browse([view] { BrowseProfileApp(*view); });
@@ -805,11 +882,13 @@ void RunUiThread(HWND owner, int page) {
     g_dpi = DpiState();
     g_updateAvailable = false;
     g_releaseUrl = RELEASES_URL;
+    g_profileApplyBusy.store(false, std::memory_order_release);
 
     try {
         Profiles::Initialize();
         auto handle = MainWindow::create();
         g_uiWeak = slint::ComponentWeakHandle(handle);
+        handle->set_profile_apply_busy(false);
         RefreshDeviceUi(*handle);
         RefreshProfileList(*handle);
         InitializeModelOptions(*handle);
@@ -842,6 +921,7 @@ void RunUiThread(HWND owner, int page) {
     g_owner = NULL;
     g_dpi = DpiState();
     g_updateAvailable = false;
+    g_profileApplyBusy.store(false, std::memory_order_release);
     g_uiOpen.store(false);
 }
 

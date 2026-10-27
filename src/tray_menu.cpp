@@ -10,11 +10,20 @@
 #include <cmath>
 #include <algorithm>
 #include <vector>
+#include <thread>
 
 namespace Tray {
 
 static const WCHAR* RUN_KEY = L"Software\\Microsoft\\Windows\\CurrentVersion\\Run";
 static const WCHAR* APP_NAME = L"rapoo-tray";
+static const int PERF_MODE_ORDER[] = {
+    Rapoo::PERF_FURY_GAMING,
+    Rapoo::PERF_GAMING_HYPER_CORE,
+    Rapoo::PERF_HYPER_CORE,
+    Rapoo::PERF_FIRE,
+    Rapoo::PERF_BALANCED,
+    Rapoo::PERF_OFFICE,
+};
 
 static HWND g_hParentAppWnd = NULL;
 static HWND g_hAcrylicMenu = NULL;
@@ -24,7 +33,7 @@ static bool g_bModalLoop = false;
 
 static int g_curDpi = 96;
 static bool g_curDark = false;
-static int g_activeSubId = 0; // 0: None, 1: Polling, 2: Sleep, 3: Profile, 4: DPI
+static int g_activeSubId = 0; // 0: None, 1: Polling, 2: Sleep, 3: Profile, 4: DPI, 5: Performance
 static int g_mainHover = -1;
 static int g_subHover = -1;
 static DpiWindow::QuickSlotList g_dpiQuickSlots;
@@ -375,16 +384,22 @@ static LRESULT CALLBACK AcrylicSubWndProc(HWND hWnd, UINT msg, WPARAM wParam, LP
                 return 0;
             }
 
-            if (g_activeSubId == 1 || g_activeSubId == 3 || g_activeSubId == 4) {
+            if (g_activeSubId == 1 || g_activeSubId == 3 || g_activeSubId == 4 || g_activeSubId == 5) {
                 int count = 0;
                 int itemH = S(28);
                 if (g_activeSubId == 1) count = 7;
-                else if (g_activeSubId == 3) { count = (int)Profiles::GetAll().size(); itemH = S(32); }
+                else if (g_activeSubId == 5) count = (int)(sizeof(PERF_MODE_ORDER) / sizeof(PERF_MODE_ORDER[0]));
+                else if (g_activeSubId == 3) { count = (int)Profiles::GetAll().size(); itemH = S(44); }
                 else count = (int)g_dpiQuickSlots.slots.size();
                 int y = S(8);
                 int newH = -1;
                 for (int i = 0; i < count; i++) {
-                    if (my >= y && my < y + itemH) {
+                    bool canSelect = true;
+                    if (g_activeSubId == 5) {
+                        canSelect = Rapoo::IsPerfModeAllowed(
+                            PERF_MODE_ORDER[i], Device::GetCurrentState().pollingHz);
+                    }
+                    if (canSelect && my >= y && my < y + itemH) {
                         newH = i;
                         break;
                     }
@@ -438,6 +453,29 @@ static LRESULT CALLBACK AcrylicSubWndProc(HWND hWnd, UINT msg, WPARAM wParam, LP
                 return 0;
             }
 
+            if (g_activeSubId == 5 && g_subHover >= 0 &&
+                g_subHover < (int)(sizeof(PERF_MODE_ORDER) / sizeof(PERF_MODE_ORDER[0]))) {
+                const int mode = PERF_MODE_ORDER[g_subHover];
+                DismissAllMenus();
+                bool ok = Profiles::SetCurrentPerformanceMode(mode);
+                Device::State st = Device::GetCurrentState();
+                WCHAR l1[64], l2[96], l3[128];
+                if (ok) {
+                    StringCchPrintfW(l1, ARRAYSIZE(l1), L"性能模式: %s", Rapoo::PerfModeName(mode));
+                    StringCchCopyW(l2, ARRAYSIZE(l2), L"设置已即时生效并保存到当前配置");
+                } else {
+                    StringCchCopyW(l1, ARRAYSIZE(l1), L"性能模式切换失败");
+                    StringCchCopyW(l2, ARRAYSIZE(l2), L"当前回报率不支持或设备未响应");
+                }
+                const WCHAR* link = st.isWired ? L"USB" : L"2.4G";
+                const WCHAR* batIcon = st.isCharging ? L"⚡" : L"🔋";
+                StringCchPrintfW(l3, ARRAYSIZE(l3), L"%s  |  第 %d 档  |  %s %d%%  |  %d Hz · %s",
+                    link, st.dpiLevel, batIcon, st.battery, st.pollingHz,
+                    Rapoo::PerfModeName(st.perfMode));
+                Osd::Show(l1, l2, l3);
+                return 0;
+            }
+
             if (g_activeSubId == 4 && g_subHover >= 0 &&
                 g_subHover < (int)g_dpiQuickSlots.slots.size()) {
                 int index = g_subHover;
@@ -471,8 +509,13 @@ static LRESULT CALLBACK AcrylicSubWndProc(HWND hWnd, UINT msg, WPARAM wParam, LP
                 auto profiles = Profiles::GetAll();
                 if (g_subHover < (int)profiles.size()) {
                     int profileId = profiles[g_subHover].id;
+                    std::wstring profileName = profiles[g_subHover].name;
                     DismissAllMenus();
-                    Profiles::Select(profileId);
+                    Osd::Show(L"正在应用配置", profileName.c_str(),
+                              L"回报率、性能模式与 DPI 正在后台切换");
+                    // Apply profile operations can take hundreds of milliseconds
+                    // on wireless receivers. Keep the Win32 menu loop responsive.
+                    std::thread([profileId] { Profiles::Select(profileId, true); }).detach();
                 }
                 return 0;
             }
@@ -554,6 +597,44 @@ static LRESULT CALLBACK AcrylicSubWndProc(HWND hWnd, UINT msg, WPARAM wParam, LP
                     }
                     y += itemH;
                 }
+            } else if (g_activeSubId == 5) { // Performance mode list
+                Device::State st = Device::GetCurrentState();
+                const int currentHz = st.pollingHz;
+                const BYTE currentMode = (BYTE)st.perfMode;
+                int itemH = S(28);
+                int y = S(8);
+                for (int i = 0; i < (int)(sizeof(PERF_MODE_ORDER) / sizeof(PERF_MODE_ORDER[0])); ++i) {
+                    const int mode = PERF_MODE_ORDER[i];
+                    const bool allowed = Rapoo::IsPerfModeAllowed(mode, currentHz);
+                    RECT rItem = { S(6), y, rc.right - S(6), y + itemH };
+                    if (i == g_subHover && allowed) {
+                        HBRUSH hH = CreateSolidBrush(hoverCol);
+                        HPEN hP = CreatePen(PS_SOLID, 1, hoverCol);
+                        HGDIOBJ oP = SelectObject(memDC, hP);
+                        HGDIOBJ oB = SelectObject(memDC, hH);
+                        RoundRect(memDC, rItem.left, rItem.top + 1, rItem.right, rItem.bottom - 1, S(6), S(6));
+                        SelectObject(memDC, oP);
+                        SelectObject(memDC, oB);
+                        DeleteObject(hP);
+                        DeleteObject(hH);
+                    }
+
+                    SetTextColor(memDC, allowed ? textCol : mutedCol);
+                    RECT rText = { S(14), y, rc.right - S(58), y + itemH };
+                    DrawTextW(memDC, Rapoo::PerfModeName(mode), -1, &rText,
+                        DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+
+                    if (!allowed) {
+                        SetTextColor(memDC, mutedCol);
+                        RECT rState = { rc.right - S(58), y, rc.right - S(12), y + itemH };
+                        DrawTextW(memDC, L"不可用", -1, &rState, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
+                    } else if (st.perfModeKnown && currentMode == mode) {
+                        SetTextColor(memDC, checkCol);
+                        RECT rCheck = { rc.right - S(28), y, rc.right - S(10), y + itemH };
+                        DrawTextW(memDC, L"✓", -1, &rCheck, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+                    }
+                    y += itemH;
+                }
             } else if (g_activeSubId == 4) { // DPI quick switch
                 int count = (int)g_dpiQuickSlots.slots.size();
                 int itemH = S(28);
@@ -600,10 +681,9 @@ static LRESULT CALLBACK AcrylicSubWndProc(HWND hWnd, UINT msg, WPARAM wParam, LP
                 auto profiles = Profiles::GetAll();
                 int currentId = Profiles::ActiveId();
                 int defaultId = Profiles::DefaultId();
-                int itemH = S(32);
+                int itemH = S(44);
                 int y = S(8);
 
-                SelectObject(memDC, hFontNormal);
                 for (size_t i = 0; i < profiles.size(); ++i) {
                     const auto& profile = profiles[i];
                     RECT rItem = { S(6), y, rc.right - S(6), y + itemH };
@@ -621,25 +701,32 @@ static LRESULT CALLBACK AcrylicSubWndProc(HWND hWnd, UINT msg, WPARAM wParam, LP
 
                     std::wstring label = profile.name;
                     if (profile.id == defaultId) label = L"★ " + label;
+                    SelectObject(memDC, hFontBold);
                     SetTextColor(memDC, textCol);
-                    RECT rName = { S(12), y, rc.right - S(142), y + itemH };
+                    RECT rName = { S(12), y + S(3), rc.right - S(30), y + S(23) };
                     DrawTextW(memDC, label.c_str(), -1, &rName, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
 
-                    WCHAR detailText[64] = {0};
+                    WCHAR detailText[96] = {0};
+                    const WCHAR* perfName = Rapoo::PerfModeName(profile.performanceMode);
                     if (profile.dpiX > 0 && profile.dpiY > 0 && profile.dpiX != profile.dpiY) {
-                        StringCchPrintfW(detailText, ARRAYSIZE(detailText), L"%d Hz · %d/%d", profile.pollingHz, profile.dpiX, profile.dpiY);
+                        StringCchPrintfW(detailText, ARRAYSIZE(detailText), L"%d Hz · %s · %d/%d DPI",
+                            profile.pollingHz, perfName, profile.dpiX, profile.dpiY);
                     } else if (profile.dpiX > 0 && profile.dpiY > 0) {
-                        StringCchPrintfW(detailText, ARRAYSIZE(detailText), L"%d Hz · %d", profile.pollingHz, profile.dpiX);
+                        StringCchPrintfW(detailText, ARRAYSIZE(detailText), L"%d Hz · %s · %d DPI",
+                            profile.pollingHz, perfName, profile.dpiX);
                     } else {
-                        StringCchPrintfW(detailText, ARRAYSIZE(detailText), L"%d Hz · DPI 当前", profile.pollingHz);
+                        StringCchPrintfW(detailText, ARRAYSIZE(detailText), L"%d Hz · %s",
+                            profile.pollingHz, perfName);
                     }
+                    SelectObject(memDC, hFontSmall);
                     SetTextColor(memDC, mutedCol);
-                    RECT rDetail = { rc.right - S(140), y, rc.right - S(28), y + itemH };
-                    DrawTextW(memDC, detailText, -1, &rDetail, DT_RIGHT | DT_VCENTER | DT_SINGLELINE);
+                    RECT rDetail = { S(12), y + S(21), rc.right - S(30), y + S(42) };
+                    DrawTextW(memDC, detailText, -1, &rDetail, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
 
                     if (profile.id == currentId) {
+                        SelectObject(memDC, hFontNormal);
                         SetTextColor(memDC, checkCol);
-                        RECT rCheck = { rc.right - S(26), y, rc.right - S(8), y + itemH };
+                        RECT rCheck = { rc.right - S(28), y + S(8), rc.right - S(8), y + itemH - S(8) };
                         DrawTextW(memDC, L"✓", -1, &rCheck, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
                     }
                     y += itemH;
@@ -765,9 +852,11 @@ static void ShowSubMenuWindow(int subType, RECT rItemScreen) {
     if (subType == 4 && g_dpiQuickSlots.slots.empty()) {
         if (!DpiWindow::GetQuickSlots(g_dpiQuickSlots)) g_dpiQuickSlots = DpiWindow::QuickSlotList();
     }
-    int subW = (subType == 1) ? S(140) : ((subType == 3) ? S(300) : ((subType == 4) ? S(180) : S(260)));
-    int subH = (subType == 1) ? S(212) : ((subType == 3) ? S(16 + (int)profileSnapshot.size() * 32) :
-        ((subType == 4) ? S(16 + std::max(1, (int)g_dpiQuickSlots.slots.size()) * 28) : S(138)));
+    int subW = (subType == 1) ? S(140) : ((subType == 3) ? S(330) :
+        ((subType == 4) ? S(180) : ((subType == 5) ? S(190) : S(260))));
+    int subH = (subType == 1) ? S(212) : ((subType == 3) ? S(16 + (int)profileSnapshot.size() * 44) :
+        ((subType == 4) ? S(16 + std::max(1, (int)g_dpiQuickSlots.slots.size()) * 28) :
+        ((subType == 5) ? S(16 + 6 * 28) : S(138))));
 
     HMONITOR hMon = MonitorFromPoint({ rItemScreen.left, rItemScreen.top }, MONITOR_DEFAULTTONEAREST);
     MONITORINFO mi = { sizeof(mi) };
@@ -1139,6 +1228,20 @@ void ShowMenu(HWND hWndOwner) {
         StringCchCopyW(itemPoll.value, 32, L"--");
     }
     g_mainItems.push_back(itemPoll);
+
+    MenuItemData itemPerf = { 0 };
+    itemPerf.label = L"性能模式";
+    itemPerf.isInteractive = true;
+    itemPerf.isDisabled = !st.isConnected;
+    itemPerf.submenuType = 5;
+    if (st.isConnected) {
+        int perfMode = st.perfModeKnown ? st.perfMode : activeProfile.performanceMode;
+        if (!Rapoo::IsValidPerfMode(perfMode)) perfMode = Rapoo::NearestPerfMode(perfMode, st.pollingHz);
+        StringCchPrintfW(itemPerf.value, ARRAYSIZE(itemPerf.value), L"%s  ›", Rapoo::PerfModeName(perfMode));
+    } else {
+        StringCchCopyW(itemPerf.value, ARRAYSIZE(itemPerf.value), L"--");
+    }
+    g_mainItems.push_back(itemPerf);
 
     MenuItemData itemSleep = { 0 };
     itemSleep.label = L"休眠时间设置";
@@ -1669,25 +1772,27 @@ void UpdateTooltip(NOTIFYICONDATAW& nid, const Device::State& state) {
             StringCchPrintfW(
                 nid.szTip,
                 ARRAYSIZE(nid.szTip),
-                L"%s%s\n电量: %d%% (充电中)\nDPI: %d (第 %d 档)\n回报率: %d Hz",
+                L"%s%s\n电量: %d%% (充电中)\nDPI: %d (第 %d 档)\n回报率: %d Hz · %s",
                 state.modelName,
                 modeStr,
                 state.battery,
                 state.dpiX,
                 state.dpiLevel,
-                state.pollingHz
+                state.pollingHz,
+                Rapoo::PerfModeName(state.perfMode)
             );
         } else {
             StringCchPrintfW(
                 nid.szTip,
                 ARRAYSIZE(nid.szTip),
-                L"%s%s\n电量: %d%%\nDPI: %d (第 %d 档)\n回报率: %d Hz",
+                L"%s%s\n电量: %d%%\nDPI: %d (第 %d 档)\n回报率: %d Hz · %s",
                 state.modelName,
                 modeStr,
                 state.battery,
                 state.dpiX,
                 state.dpiLevel,
-                state.pollingHz
+                state.pollingHz,
+                Rapoo::PerfModeName(state.perfMode)
             );
         }
     } else {

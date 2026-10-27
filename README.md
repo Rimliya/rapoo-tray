@@ -4,7 +4,7 @@
   <p><b>雷柏VT系列游戏鼠标轻量化托盘程序</b></p>
 
   <p>
-    <a href="https://github.com/Rimliya/rapoo-tray/releases"><img src="https://img.shields.io/badge/Release-v1.7.0-blue?style=flat-square" alt="Release" /></a>
+    <a href="https://github.com/Rimliya/rapoo-tray/releases"><img src="https://img.shields.io/badge/Release-v1.8.0-blue?style=flat-square" alt="Release" /></a>
     <img src="https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?style=flat-square&logo=windows" alt="Platform" />
     <img src="https://img.shields.io/badge/Language-C%2B%2B20%20%2F%20Win32%20%2B%20Slint-00599C?style=flat-square&logo=c%2B%2B" alt="Language" />
     <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License" />
@@ -21,12 +21,13 @@
 
 ## 🚀 新版本特性
 
+- **六档性能模式**：设置页新增“狂暴竞技 / 竞技超核 / 超核 / 火力 / 均衡 / 办公”六档模式，按回报率自动限制可选组合，并随配置档案一起保存、应用和前台自动切换；托盘右键菜单也可直接切换当前模式。
 - **DPI 档位编辑器与托盘快速切换**：读取鼠标当前 DPI 档位，以 DPI 寄存器配置为权威来源，避免状态广播中的旧 800 DPI 覆盖实际值；支持按型号限制的 DPI 范围、增删档位、自定义 X/Y、升序排列和独立双轴设置。托盘菜单可直接选择当前型号已配置的 DPI 档位，启动/更新不会重置鼠标当前 DPI。
 - **无线射频策略与续航粗估**：设置页可切换“满格射频 / 智能调节”，并按鼠标型号、回报率、射频策略和当前电量估算续航；型号支持自动识别或手动指定。
 - **原地更新与强制停机**：安装器会从卸载信息、开机启动项或正在运行的托盘程序定位已有安装目录；安装前强制执行“检测并停止旧程序、确认进程退出、再覆盖文件”的顺序，无法停止时直接中止安装。
 - **设备识别增强**：补充 VT3 V2 的 `1462/4662` PID 变体，并增加 HID 产品字符串回退识别。
 - **Slint Fluent 设置中心**：配置档案、自动化、DPI 档位与关于页集中在单个 Slint 窗口中，使用 Windows 11 设置页式左侧导航，深浅色主题自动跟随系统。
-- **配置档案与快速切换**：可新建、重命名和删除独立配置，每个配置同时保存回报率、DPI X/Y 与休眠时间；托盘菜单和“配置中心”均可快速切换，切换时一起应用到鼠标。
+- **配置档案与快速切换**：可新建、重命名和删除独立配置，每个配置同时保存回报率、性能模式、DPI X/Y 与休眠时间；设置页将“保存”和“应用”拆开，保存只更新本机配置，应用才写入鼠标。托盘菜单和“配置中心”均可快速切换，硬件应用在后台执行。
 - **前台程序自动切换**：为配置指定程序后，程序进入前台（包括无边框 / 独占全屏游戏）时自动应用该配置；离开程序后恢复用户指定的默认配置。
 - **自动化总开关**：可分别关闭“前台程序自动切换”和“悬浮窗提示 (OSD)”，不影响原有手动回报率、休眠与托盘功能。
 - **硬件兼容体系重构**：建立雷柏二代 Nordic 架构通用兼容机制，未打标机型自动归入通用模式，支持使用主要功能。
@@ -78,6 +79,8 @@
    - 配置与样式选择自动持久化保存于 Windows 注册表。
 3. **硬件级回报率与休眠控制**：
    - 支持 125Hz、250Hz、500Hz、1000Hz（标准）及 2000Hz、4000Hz、8000Hz（电竞高刷）即时切换。
+   - 设置页提供六档性能模式；每档回报率只开放固件允许的组合，切换配置时一起应用。
+   - 性能模式寄存器采用 4 字节读改写、保留未知字段，并在写入后回读确认。
    - 休眠时间支持从 2 分钟到 120 分钟拖块调节或滚轮调节，且配置即刻下发至硬件。
 4. **开机自启**：
    - 基于当前用户注册表 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` 实现，无需管理员权限，启动无弹窗干扰。
@@ -155,6 +158,8 @@
 ## 🔬 技术协议解析 (Protocol Reverse Engineering)
 
 程序通过 Windows 原生 HID API 与鼠标专有端点建立通信：
+
+> 回报率与性能模式的完整实测矩阵、协议码和截图对照见 [docs/rapoo-performance-modes.md](docs/rapoo-performance-modes.md)。
 
 ### 1. 被动状态接收端点 (UsagePage: `0xFF00`, Usage: `0x0002`)
 通过中断传输接收 Report ID 为 `0x07` 的 19 字节实时状态包：

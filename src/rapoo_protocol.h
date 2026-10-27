@@ -15,11 +15,12 @@ constexpr BYTE BANK_BUTTON = 0x06; // Button mappings
 constexpr BYTE BANK_SYSTEM = 0x08; // System settings (DPI, Polling, Sleep, LOD)
 
 // System Register Addresses
-constexpr BYTE ADDR_POLLING_HZ    = 0x80;
-constexpr BYTE ADDR_KEY_SCAN_RATE = 0x81;
-constexpr BYTE ADDR_LOD_HEIGHT    = 0x84;
-constexpr BYTE ADDR_MOTION_SYNC   = 0x85;
-constexpr BYTE ADDR_SLEEP_TIMEOUT = 0xC2; // 2..120 minutes
+constexpr BYTE ADDR_POLLING_HZ     = 0x80;
+constexpr BYTE ADDR_KEY_SCAN_RATE  = 0x81;
+constexpr BYTE ADDR_LOD_HEIGHT     = 0x84;
+constexpr BYTE ADDR_MOTION_SYNC    = 0x85;
+constexpr BYTE ADDR_PERF_MODE_BASE = 0xDC; // One sensor mode per polling-rate slot
+constexpr BYTE ADDR_SLEEP_TIMEOUT  = 0xC2; // 2..120 minutes
 constexpr BYTE ADDR_RF_STRENGTHEN = 0xD8; // bit 0: 0=smart RF, 1=full RF
 constexpr BYTE ADDR_DPI_TABLE_X    = 0x88; // u16le table, up to 7 stages
 constexpr BYTE ADDR_DPI_TABLE_Y    = 0xC8; // u16le table, up to 7 stages
@@ -50,6 +51,22 @@ bool ParseFeatureRead(const BYTE* buf, DWORD bytesRead, BYTE expectedLen, BYTE* 
 // Polling Rate Converters
 int CodeToPollingHz(BYTE code);
 BYTE PollingHzToCode(int hz);
+
+// Performance / sensor mode converters
+enum PerfMode : BYTE {
+    PERF_OFFICE            = 0x00,
+    PERF_BALANCED          = 0x01,
+    PERF_FIRE              = 0x02,
+    PERF_HYPER_CORE        = 0x03,
+    PERF_GAMING_HYPER_CORE = 0x04,
+    PERF_FURY_GAMING       = 0x05,
+};
+
+bool IsValidPerfMode(int mode);
+bool IsPerfModeAllowed(int mode, int pollingHz);
+int NearestPerfMode(int mode, int pollingHz);
+BYTE PerfModeAddress(int pollingHz);
+const WCHAR* PerfModeName(int mode);
 
 // Sleep Timeout Clamping (2 to 120 minutes)
 inline int ClampSleepMinutes(int minutes) {

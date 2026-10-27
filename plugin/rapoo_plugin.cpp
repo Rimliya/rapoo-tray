@@ -504,7 +504,7 @@ public:
         case TMI_AUTHOR:      return L"Iris";
         case TMI_COPYRIGHT:   return L"Copyright (C) 2026 Iris";
         case TMI_VERSION:     return L"1.6.9";
-        case TMI_URL:         return L"https://github.com/Iris-0109/rapoo-tray";
+        case TMI_URL:         return L"https://github.com/Rimliya/rapoo-tray";
         default:              return L"";
         }
     }

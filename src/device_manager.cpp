@@ -6,6 +6,7 @@ extern "C" {
 #include <strsafe.h>
 #include <algorithm>
 #include <atomic>
+#include <cstring>
 
 #pragma comment(lib, "setupapi.lib")
 #pragma comment(lib, "hid.lib")
@@ -31,7 +32,11 @@ static bool g_controlUnlocked = false;
 static int g_cachedBattery = 100;
 static std::atomic<bool> g_started{false};
 static std::atomic<bool> g_pollingKnown{false};
+static std::atomic<bool> g_perfKnown{false};
 static bool g_dpiConfigValid = false;
+static DpiConfig g_cachedDpiConfig;
+static BYTE g_perfRegion[16] = {};
+static bool g_perfRegionValid = false;
 
 // Registry helper for persistent settings
 static DWORD LoadRegistryDword(const WCHAR* valName, DWORD defVal) {
@@ -112,7 +117,7 @@ static bool SendRawCommand(BYTE bank, BYTE addr, const BYTE* pData, BYTE len) {
 }
 
 
-static bool ReadRegisterBytes(BYTE bank, BYTE addr, BYTE len, BYTE* outData) {
+static bool ReadRegisterBytesAttempts(BYTE bank, BYTE addr, BYTE len, BYTE* outData, int maxAttempts) {
     if (!outData || len == 0 || len > 31) return false;
 
     EnterCriticalSection(&g_csDevIO);
@@ -126,7 +131,7 @@ static bool ReadRegisterBytes(BYTE bank, BYTE addr, BYTE len, BYTE* outData) {
     }
 
     bool ok = false;
-    for (int attempt = 0; attempt < 4 && !ok; ++attempt) {
+    for (int attempt = 0; attempt < maxAttempts && !ok; ++attempt) {
         BYTE outBuf[33] = {0};
         DWORD pktSize = Rapoo::BuildReadCommand(bank, addr, len, outBuf, sizeof(outBuf));
 
@@ -149,7 +154,7 @@ static bool ReadRegisterBytes(BYTE bank, BYTE addr, BYTE len, BYTE* outData) {
             continue;
         }
 
-        Sleep(20);
+        Sleep(50);
         BYTE featBuf[33] = {0};
         featBuf[0] = Rapoo::REPORT_ID_FEATURE;
         BOOL fOk = HidD_GetFeature(g_hFeatureDev, featBuf, sizeof(featBuf));
@@ -161,8 +166,23 @@ static bool ReadRegisterBytes(BYTE bank, BYTE addr, BYTE len, BYTE* outData) {
     return ok;
 }
 
+static bool ReadRegisterBytes(BYTE bank, BYTE addr, BYTE len, BYTE* outData) {
+    return ReadRegisterBytesAttempts(bank, addr, len, outData, 4);
+}
+
 static bool ReadRegisterByte(BYTE bank, BYTE addr, BYTE& outValue) {
     return ReadRegisterBytes(bank, addr, 1, &outValue);
+}
+
+static bool ReadPerfModeRegion(BYTE outRegion[16]) {
+    for (int attempt = 0; attempt < 2; ++attempt) {
+        if (attempt != 0) Sleep(100);
+        if (ReadRegisterBytes(Rapoo::BANK_SYSTEM, Rapoo::ADDR_PERF_MODE_BASE,
+                              16, outRegion)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 static bool PingDevice(int& outHz) {
@@ -442,6 +462,7 @@ static DWORD WINAPI HidWorkerThread(LPVOID lpParam) {
             bool wasConn = g_currentState.isConnected;
             g_currentState.isConnected = false;
             g_currentState.isCharging = false;
+            g_currentState.perfModeKnown = false;
             g_currentState.rfAvailable = false;
             g_dpiConfigValid = false;
             State copySt = g_currentState;
@@ -466,6 +487,7 @@ static DWORD WINAPI HidWorkerThread(LPVOID lpParam) {
             bool wasConn = g_currentState.isConnected;
             g_currentState.isConnected = false;
             g_currentState.isCharging = false;
+            g_currentState.perfModeKnown = false;
             g_currentState.rfAvailable = false;
             g_dpiConfigValid = false;
             State copySt = g_currentState;
@@ -533,6 +555,7 @@ static DWORD WINAPI HidWorkerThread(LPVOID lpParam) {
         }
         g_controlUnlocked = false;
         g_pollingKnown.store(false, std::memory_order_release);
+        g_perfKnown.store(false, std::memory_order_release);
         LeaveCriticalSection(&g_csDevIO);
 
         EnterCriticalSection(&g_csState);
@@ -542,6 +565,8 @@ static DWORD WINAPI HidWorkerThread(LPVOID lpParam) {
             g_currentState.isCharging = true;
         }
         g_currentState.isConnected = true;
+        g_currentState.perfModeKnown = false;
+        g_perfRegionValid = false;
         g_dpiConfigValid = false;
         State connSt = g_currentState;
         LeaveCriticalSection(&g_csState);
@@ -651,6 +676,7 @@ static DWORD WINAPI HidWorkerThread(LPVOID lpParam) {
         bool wasConn = g_currentState.isConnected;
         g_currentState.isConnected = false;
         g_currentState.isCharging = false;
+        g_currentState.perfModeKnown = false;
         g_currentState.rfAvailable = false;
         g_dpiConfigValid = false;
         State copySt = g_currentState;
@@ -739,16 +765,66 @@ bool SetPollingRate(int hz) {
     }
 
     BYTE code = Rapoo::PollingHzToCode(hz);
-    if (SendRawCommand(Rapoo::BANK_SYSTEM, Rapoo::ADDR_POLLING_HZ, &code, 1)) {
-        g_pollingKnown.store(true, std::memory_order_release);
-        EnterCriticalSection(&g_csState);
-        g_currentState.pollingHz = hz;
-        State copySt = g_currentState;
-        LeaveCriticalSection(&g_csState);
-        if (g_callback) g_callback(copySt, CHANGE_POLLING);
+    if (!SendRawCommand(Rapoo::BANK_SYSTEM, Rapoo::ADDR_POLLING_HZ, &code, 1)) return false;
+
+    g_pollingKnown.store(true, std::memory_order_release);
+    g_perfKnown.store(false, std::memory_order_release);
+    EnterCriticalSection(&g_csState);
+    g_currentState.pollingHz = hz;
+    g_currentState.perfModeKnown = false;
+    State copySt = g_currentState;
+    LeaveCriticalSection(&g_csState);
+    if (g_callback) g_callback(copySt, CHANGE_POLLING);
+    return true;
+}
+
+bool SetPerformanceMode(int mode) {
+    if (!g_started.load(std::memory_order_acquire)) return false;
+    if (!g_pollingKnown.load(std::memory_order_acquire)) RefreshPollingRate();
+
+    State current = GetCurrentState();
+    if (!Rapoo::IsPerfModeAllowed(mode, current.pollingHz)) return false;
+    if (g_perfKnown.load(std::memory_order_acquire) &&
+        current.perfModeKnown && current.perfMode == mode) {
         return true;
     }
-    return false;
+
+    const BYTE address = Rapoo::PerfModeAddress(current.pollingHz);
+    const int rateIndex = std::clamp((int)(address - Rapoo::ADDR_PERF_MODE_BASE), 0, 6);
+    BYTE region[16] = {0};
+    bool cached = false;
+    EnterCriticalSection(&g_csState);
+    if (g_perfRegionValid) {
+        std::memcpy(region, g_perfRegion, sizeof(region));
+        cached = true;
+    }
+    LeaveCriticalSection(&g_csState);
+
+    if (!cached && !ReadPerfModeRegion(region)) return false;
+
+    BYTE word[4] = {region[rateIndex], region[rateIndex + 1],
+                    region[rateIndex + 2], region[rateIndex + 3]};
+    word[0] = (BYTE)mode;
+    bool sent = false;
+    for (int attempt = 0; attempt < 3 && !sent; ++attempt) {
+        sent = SendRawCommand(Rapoo::BANK_SYSTEM, address, word, 4);
+        if (!sent) Sleep(60);
+    }
+    if (!sent) return false;
+
+    // The endpoint accepting the 4-byte block is the success condition. Keep
+    // the region cache coherent so adjacent rate switches preserve all slots.
+    g_perfKnown.store(true, std::memory_order_release);
+    EnterCriticalSection(&g_csState);
+    region[rateIndex] = (BYTE)mode;
+    std::memcpy(g_perfRegion, region, sizeof(region));
+    g_perfRegionValid = true;
+    g_currentState.perfMode = mode;
+    g_currentState.perfModeKnown = true;
+    State copySt = g_currentState;
+    LeaveCriticalSection(&g_csState);
+    if (g_callback) g_callback(copySt, CHANGE_PERF);
+    return true;
 }
 
 bool SetSleepTimeout(int minutes) {
@@ -776,13 +852,41 @@ bool RefreshPollingRate() {
         g_pollingKnown.store(true, std::memory_order_release);
         EnterCriticalSection(&g_csState);
         bool changed = (g_currentState.pollingHz != curHz);
-        if (changed) g_currentState.pollingHz = curHz;
+        if (changed) {
+            g_currentState.pollingHz = curHz;
+            g_currentState.perfModeKnown = false;
+        }
         State copySt = g_currentState;
         LeaveCriticalSection(&g_csState);
-        if (changed && g_callback) g_callback(copySt, CHANGE_POLLING);
+        if (changed) {
+            g_perfKnown.store(false, std::memory_order_release);
+            if (g_callback) g_callback(copySt, CHANGE_POLLING);
+        }
         return true;
     }
     return false;
+}
+
+bool RefreshPerformanceMode() {
+    const State current = GetCurrentState();
+    const int rateIndex = std::clamp(
+        (int)(Rapoo::PerfModeAddress(current.pollingHz) - Rapoo::ADDR_PERF_MODE_BASE), 0, 6);
+    BYTE region[16] = {0};
+    if (!ReadPerfModeRegion(region)) return false;
+    const BYTE raw = region[rateIndex];
+    if (!Rapoo::IsValidPerfMode(raw)) return false;
+
+    g_perfKnown.store(true, std::memory_order_release);
+    EnterCriticalSection(&g_csState);
+    std::memcpy(g_perfRegion, region, sizeof(region));
+    g_perfRegionValid = true;
+    bool changed = (!g_currentState.perfModeKnown || g_currentState.perfMode != raw);
+    g_currentState.perfMode = raw;
+    g_currentState.perfModeKnown = true;
+    State copySt = g_currentState;
+    LeaveCriticalSection(&g_csState);
+    if (changed && g_callback) g_callback(copySt, CHANGE_PERF);
+    return true;
 }
 
 bool RefreshRfState() {
@@ -856,6 +960,7 @@ bool ReadDpiConfig(DpiConfig& outConfig) {
 
     EnterCriticalSection(&g_csState);
     g_dpiConfigValid = true;
+    g_cachedDpiConfig = config;
     bool changed = g_currentState.dpiLevel != (index + 1) ||
                    g_currentState.dpiX != config.dpiX[(size_t)index] ||
                    g_currentState.dpiY != config.dpiY[(size_t)index];
@@ -919,6 +1024,7 @@ bool WriteDpiConfig(const DpiConfig& config) {
     // update the local state optimistically instead of reporting a false failure.
     EnterCriticalSection(&g_csState);
     g_dpiConfigValid = true;
+    g_cachedDpiConfig = config;
     g_currentState.dpiLevel = index + 1;
     g_currentState.dpiX = std::clamp(config.dpiX[(size_t)index], 1, 0xFFFF);
     g_currentState.dpiY = std::clamp(config.dpiY[(size_t)index], 1, 0xFFFF);
@@ -936,7 +1042,13 @@ bool SetCurrentDpi(int x, int y) {
     }
 
     DpiConfig config;
-    if (!ReadDpiConfig(config) || config.dpiX.empty() || config.dpiY.empty()) return false;
+    EnterCriticalSection(&g_csState);
+    if (g_dpiConfigValid) config = g_cachedDpiConfig;
+    LeaveCriticalSection(&g_csState);
+    if ((config.dpiX.empty() || config.dpiY.empty()) &&
+        (!ReadDpiConfig(config) || config.dpiX.empty() || config.dpiY.empty())) {
+        return false;
+    }
 
     x = std::clamp(x, 1, 0xFFFF);
     y = std::clamp(y, 1, 0xFFFF);
@@ -958,20 +1070,30 @@ bool SetCurrentDpi(int x, int y) {
 
 bool SetDpiIndex(int index) {
     if (index < 0 || index >= MAX_DPI_SLOTS) return false;
+    const State before = GetCurrentState();
+    if (before.isConnected && before.dpiLevel == index + 1) return true;
 
     BYTE indexCode = (BYTE)index;
     if (!SendRawCommand(Rapoo::BANK_SYSTEM, Rapoo::ADDR_DPI_INDEX, &indexCode, 1)) return false;
     Sleep(20);
 
-    // Index switching does not require a preceding register read. The quick
-    // menu already knows the configured slot count, so avoid failing a valid
-    // switch when a feature read is temporarily unavailable.
-    DpiConfig current;
-    if (ReadDpiConfig(current)) return current.currentIndex == index;
+    BYTE readBack = 0;
+    const bool verified = ReadRegisterByte(Rapoo::BANK_SYSTEM, Rapoo::ADDR_DPI_INDEX, readBack);
+    if (verified && readBack != indexCode) return false;
 
     EnterCriticalSection(&g_csState);
     g_dpiConfigValid = true;
+    if (g_cachedDpiConfig.currentIndex >= 0 &&
+        g_cachedDpiConfig.currentIndex < (int)g_cachedDpiConfig.dpiX.size()) {
+        g_cachedDpiConfig.currentIndex = index;
+    }
     g_currentState.dpiLevel = index + 1;
+    if (g_cachedDpiConfig.currentIndex == index &&
+        index < (int)g_cachedDpiConfig.dpiX.size() &&
+        index < (int)g_cachedDpiConfig.dpiY.size()) {
+        g_currentState.dpiX = g_cachedDpiConfig.dpiX[(size_t)index];
+        g_currentState.dpiY = g_cachedDpiConfig.dpiY[(size_t)index];
+    }
     State copySt = g_currentState;
     LeaveCriticalSection(&g_csState);
     if (g_callback) g_callback(copySt, CHANGE_DPI);

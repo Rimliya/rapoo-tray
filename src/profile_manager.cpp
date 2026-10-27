@@ -5,11 +5,13 @@
 
 #include <strsafe.h>
 #include <algorithm>
+#include <chrono>
 #include <cstdlib>
 #include <cstring>
 #include <cwchar>
 #include <cwctype>
 #include <mutex>
+#include <thread>
 
 namespace Profiles {
 namespace {
@@ -209,6 +211,7 @@ void SaveState() {
         if (RegCreateKeyExW(hRoot, subKeyName.c_str(), 0, NULL, 0, KEY_READ | KEY_WRITE, NULL, &hProfile, NULL) == ERROR_SUCCESS) {
             WriteString(hProfile, L"Name", profile.name);
             WriteDword(hProfile, L"PollingHz", (DWORD)profile.pollingHz);
+            WriteDword(hProfile, L"PerformanceMode", (DWORD)profile.performanceMode);
             WriteDword(hProfile, L"SleepMinutes", (DWORD)profile.sleepMinutes);
             WriteDword(hProfile, L"DpiX", (DWORD)profile.dpiX);
             WriteDword(hProfile, L"DpiY", (DWORD)profile.dpiY);
@@ -235,8 +238,8 @@ void SaveState() {
 
 void AddFactoryProfiles() {
     g_store.profiles.clear();
-    g_store.profiles.push_back({ 1, L"日常", 1000, 10, L"", L"" });
-    g_store.profiles.push_back({ 2, L"高性能", 4000, 10, L"", L"" });
+    g_store.profiles.push_back({ 1, L"日常", 1000, Rapoo::PERF_BALANCED, 10, L"", L"", 0, 0 });
+    g_store.profiles.push_back({ 2, L"高性能", 4000, Rapoo::PERF_HYPER_CORE, 10, L"", L"", 0, 0 });
     g_store.nextId = 3;
     g_store.defaultId = 1;
     g_store.activeId = 1;
@@ -290,6 +293,7 @@ void LoadState() {
         profile.id = (int)rawId;
         profile.name = Trim(ReadStringFromKey(hProfile, L"Name"));
         profile.pollingHz = (int)ReadDwordFromKey(hProfile, L"PollingHz", 1000);
+        profile.performanceMode = (int)ReadDwordFromKey(hProfile, L"PerformanceMode", 0xFFFFFFFFu);
         profile.sleepMinutes = (int)ReadDwordFromKey(hProfile, L"SleepMinutes", 10);
         profile.dpiX = (int)ReadDwordFromKey(hProfile, L"DpiX", 0);
         profile.dpiY = (int)ReadDwordFromKey(hProfile, L"DpiY", 0);
@@ -299,6 +303,7 @@ void LoadState() {
 
         if (profile.id <= 0 || profile.name.empty()) continue;
         if (!ValidPollingRate(profile.pollingHz)) profile.pollingHz = 1000;
+        profile.performanceMode = Rapoo::NearestPerfMode(profile.performanceMode, profile.pollingHz);
         profile.sleepMinutes = Rapoo::ClampSleepMinutes(profile.sleepMinutes);
         NormalizeDpiPair(profile.dpiX, profile.dpiY);
         if (profile.appPath.empty()) {
@@ -366,14 +371,19 @@ void ShowSwitchOsd(const Definition& profile, bool automatic, bool fallback, boo
         StringCchCopyW(line2, ARRAYSIZE(line2), profile.name.c_str());
     }
 
+    const WCHAR* perfName = Rapoo::PerfModeName(profile.performanceMode);
     if (!connected) {
-        StringCchPrintfW(line3, ARRAYSIZE(line3), L"%d Hz · %s · 设备未连接，连接后自动应用", profile.pollingHz, dpiText);
+        StringCchPrintfW(line3, ARRAYSIZE(line3), L"%d Hz · %s · %s · 设备未连接，连接后自动应用",
+                         profile.pollingHz, perfName, dpiText);
     } else if (automatic && !profile.appName.empty()) {
-        StringCchPrintfW(line3, ARRAYSIZE(line3), L"%d Hz · %s · %s 前台时启用", profile.pollingHz, dpiText, profile.appName.c_str());
+        StringCchPrintfW(line3, ARRAYSIZE(line3), L"%d Hz · %s · %s · %s 前台时启用",
+                         profile.pollingHz, perfName, dpiText, profile.appName.c_str());
     } else if (fallback) {
-        StringCchPrintfW(line3, ARRAYSIZE(line3), L"%d Hz · %s · 已离开关联程序", profile.pollingHz, dpiText);
+        StringCchPrintfW(line3, ARRAYSIZE(line3), L"%d Hz · %s · %s · 已离开关联程序",
+                         profile.pollingHz, perfName, dpiText);
     } else {
-        StringCchPrintfW(line3, ARRAYSIZE(line3), L"%d Hz · %s · 休眠 %d 分钟", profile.pollingHz, dpiText, profile.sleepMinutes);
+        StringCchPrintfW(line3, ARRAYSIZE(line3), L"%d Hz · %s · %s · 休眠 %d 分钟",
+                         profile.pollingHz, perfName, dpiText, profile.sleepMinutes);
     }
 
     Osd::Show(line1, line2, line3);
@@ -386,16 +396,23 @@ bool ApplyInternal(const Definition& profile, bool showOsd, bool automatic, bool
 
     Definition effective = profile;
     NormalizeDpiPair(effective.dpiX, effective.dpiY);
-    bool pollingOk = Device::SetPollingRate(profile.pollingHz);
-    bool sleepOk = Device::SetSleepTimeout(profile.sleepMinutes);
+    effective.performanceMode = Rapoo::NearestPerfMode(effective.performanceMode, effective.pollingHz);
+    bool pollingOk = Device::SetPollingRate(effective.pollingHz);
+    bool perfOk = pollingOk && Device::SetPerformanceMode(effective.performanceMode);
+    bool sleepOk = Device::SetSleepTimeout(effective.sleepMinutes);
     bool dpiOk = true;
     if (effective.dpiX > 0 && effective.dpiY > 0) {
         dpiOk = Device::SetCurrentDpi(effective.dpiX, effective.dpiY);
     }
+    const bool coreOk = pollingOk && perfOk;
     if (showOsd) {
-        ShowSwitchOsd(profile, automatic, fallback, before.isConnected && pollingOk && dpiOk);
+        ShowSwitchOsd(effective, automatic, fallback,
+                      before.isConnected && coreOk);
     }
-    return pollingOk && sleepOk && dpiOk;
+    // Polling rate and performance mode define the active switch. Sleep/DPI
+    // are best-effort because some receivers temporarily reject config reads
+    // immediately after changing the RF report rate.
+    return coreOk;
 }
 
 void RecordManualOverride(int matchedProfileId) {
@@ -467,7 +484,8 @@ bool HasAppRule(const Definition& profile) {
     return !profile.appPath.empty();
 }
 
-int Create(const std::wstring& requestedName, int pollingHz, int sleepMinutes, int dpiX, int dpiY) {
+int Create(const std::wstring& requestedName, int pollingHz, int sleepMinutes, int dpiX, int dpiY,
+           int performanceMode) {
     std::lock_guard<std::recursive_mutex> lock(g_apiMutex);
     EnsureInitialized();
     if ((int)g_store.profiles.size() >= MAX_PROFILES) return 0;
@@ -480,6 +498,11 @@ int Create(const std::wstring& requestedName, int pollingHz, int sleepMinutes, i
     profile.id = g_store.nextId++;
     profile.name = name;
     profile.pollingHz = ValidPollingRate(pollingHz) ? pollingHz : 1000;
+    if (performanceMode < 0) {
+        const Device::State state = Device::IsStarted() ? Device::GetCurrentState() : Device::State();
+        performanceMode = state.isConnected && state.perfModeKnown ? state.perfMode : Rapoo::PERF_OFFICE;
+    }
+    profile.performanceMode = Rapoo::NearestPerfMode(performanceMode, profile.pollingHz);
     profile.sleepMinutes = Rapoo::ClampSleepMinutes(sleepMinutes);
     profile.dpiX = dpiX;
     profile.dpiY = dpiY;
@@ -501,6 +524,7 @@ bool Update(const Definition& requested) {
     Definition updated = requested;
     updated.name = name;
     updated.pollingHz = ValidPollingRate(requested.pollingHz) ? requested.pollingHz : 1000;
+    updated.performanceMode = Rapoo::NearestPerfMode(requested.performanceMode, updated.pollingHz);
     updated.sleepMinutes = Rapoo::ClampSleepMinutes(requested.sleepMinutes);
     updated.dpiX = requested.dpiX;
     updated.dpiY = requested.dpiY;
@@ -509,10 +533,6 @@ bool Update(const Definition& requested) {
     updated.appName = updated.appPath.empty() ? std::wstring() : FileNameFromPath(updated.appPath);
     *profile = updated;
     SaveState();
-
-    if (g_store.activeId == updated.id) {
-        ApplyInternal(updated, false, false, false);
-    }
     return true;
 }
 
@@ -551,7 +571,7 @@ void SetDefault(int id) {
     SaveState();
 }
 
-bool Select(int id) {
+bool Select(int id, bool showOsd) {
     std::lock_guard<std::recursive_mutex> lock(g_apiMutex);
     EnsureInitialized();
     const Definition* profile = FindInternalConst(id);
@@ -565,7 +585,7 @@ bool Select(int id) {
     RecordManualOverride(matched);
 
     Definition selected = *profile;
-    return ApplyInternal(selected, true, false, false);
+    return ApplyInternal(selected, showOsd, false, false);
 }
 
 bool SetCurrentPolling(int hz) {
@@ -573,8 +593,15 @@ bool SetCurrentPolling(int hz) {
     EnsureInitialized();
     hz = ValidPollingRate(hz) ? hz : NormalizePollingRate(hz);
     Definition* active = FindInternal(g_store.activeId);
+    const int previousMode = active ? active->performanceMode : Rapoo::PERF_OFFICE;
+
+    const int mode = Rapoo::NearestPerfMode(previousMode, hz);
+    bool pollingOk = Device::SetPollingRate(hz);
+    bool perfOk = pollingOk && Device::SetPerformanceMode(mode);
+
     if (active) {
         active->pollingHz = hz;
+        active->performanceMode = mode;
         SaveState();
     }
 
@@ -584,7 +611,31 @@ bool SetCurrentPolling(int hz) {
         matched = FindMatchingProfile(processPath);
     }
     RecordManualOverride(matched);
-    return Device::SetPollingRate(hz);
+    return pollingOk && perfOk;
+}
+
+bool SetCurrentPerformanceMode(int mode) {
+    std::lock_guard<std::recursive_mutex> lock(g_apiMutex);
+    EnsureInitialized();
+    if (!Rapoo::IsValidPerfMode(mode)) return false;
+
+    Definition* active = FindInternal(g_store.activeId);
+    if (!Device::SetPerformanceMode(mode)) return false;
+
+    const Device::State state = Device::GetCurrentState();
+    if (active) {
+        active->pollingHz = state.pollingHz;
+        active->performanceMode = mode;
+        SaveState();
+    }
+
+    std::wstring processPath;
+    int matched = 0;
+    if (g_store.autoSwitch && TryGetForegroundProcessPath(processPath)) {
+        matched = FindMatchingProfile(processPath);
+    }
+    RecordManualOverride(matched);
+    return true;
 }
 
 bool SetCurrentSleep(int minutes) {
@@ -693,6 +744,12 @@ void OnDeviceConnected() {
     // The device retains its hardware settings across restarts. Reapplying the
     // active profile here causes unnecessary polling/DPI writes and a visible
     // cursor freeze at login, so profiles are applied only on an actual switch.
+    // Prefetch only the small performance-mode table so the first profile
+    // switch does not need a synchronous control read.
+    std::thread([] {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1200));
+        if (Device::IsStarted()) Device::RefreshPerformanceMode();
+    }).detach();
 }
 
 std::wstring MakeUniqueName() {
