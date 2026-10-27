@@ -35,7 +35,9 @@ jobs:
           dotnet restore settings-ui/RapooTray.Settings.csproj --configfile NuGet.config
           dotnet build settings-ui/RapooTray.Settings.csproj -c Release --no-restore
           New-Item -ItemType Directory -Force -Path bin | Out-Null
-          Get-ChildItem 'settings-ui/bin/Release/net48' -File | Where-Object { $_.Extension -ne '.pdb' } | Copy-Item -Destination bin -Force
+          $settingsExe = Get-ChildItem 'settings-ui/bin' -Recurse -File -Filter 'rapoo-tray-settings.exe' | Where-Object { $_.DirectoryName -match '\\Release\\net48$' } | Select-Object -First 1
+          if (!$settingsExe) { throw 'WPF settings output directory was not found' }
+          Get-ChildItem $settingsExe.DirectoryName -File | Where-Object { $_.Extension -ne '.pdb' } | Copy-Item -Destination bin -Force
 
       - name: Build native tray application
         shell: pwsh
