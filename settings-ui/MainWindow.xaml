@@ -585,11 +585,19 @@
                       </DataTemplate>
                     </ListBox.ItemTemplate>
                   </ListBox>
-                  <Grid Grid.Row="2" Margin="14,10,14,14">
-                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="8" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                    <local:CutButton x:Name="AddProfileButton" Content="新建配置" Style="{StaticResource SmallButtonStyle}" HorizontalAlignment="Stretch" Click="AddProfile_Click" />
-                    <local:CutButton x:Name="DeleteProfileButton" Grid.Column="2" Content="删除" Style="{StaticResource DangerButtonStyle}" HorizontalAlignment="Stretch" Click="DeleteProfile_Click" />
-                  </Grid>
+                  <StackPanel Grid.Row="2" Margin="14,8,14,14">
+                    <TextBlock Text="// TRANSFER" Style="{StaticResource EyebrowStyle}" Margin="2,0,0,6" />
+                    <Grid>
+                      <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="8" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                      <local:CutButton x:Name="ExportProfilesButton" Content="导出配置" Style="{StaticResource SmallButtonStyle}" HorizontalAlignment="Stretch" Click="ExportProfiles_Click" />
+                      <local:CutButton x:Name="ImportProfilesButton" Grid.Column="2" Content="导入配置" Style="{StaticResource SmallButtonStyle}" HorizontalAlignment="Stretch" Click="ImportProfiles_Click" />
+                    </Grid>
+                    <Grid Margin="0,8,0,0">
+                      <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="8" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                      <local:CutButton x:Name="AddProfileButton" Content="新建配置" Style="{StaticResource SmallButtonStyle}" HorizontalAlignment="Stretch" Click="AddProfile_Click" />
+                      <local:CutButton x:Name="DeleteProfileButton" Grid.Column="2" Content="删除" Style="{StaticResource DangerButtonStyle}" HorizontalAlignment="Stretch" Click="DeleteProfile_Click" />
+                    </Grid>
+                  </StackPanel>
                 </Grid>
                 <Border Grid.Column="1" Background="{DynamicResource AppRuleBrush}" Margin="0,14,0,14" />
                 <Grid Grid.Column="2" Margin="20,16,20,14">
@@ -783,7 +791,7 @@
                   <StackPanel Grid.Column="2" VerticalAlignment="Center">
                     <TextBlock Text="// ABOUT" Style="{StaticResource EyebrowStyle}" />
                     <TextBlock Text="rapoo-tray" FontFamily="{StaticResource AppSairaFont}" FontSize="28" FontWeight="ExtraBold" Margin="0,4,0,0" />
-                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0"><Border Background="{DynamicResource AppSignalBrush}" Padding="7,3" Margin="0,0,10,0"><TextBlock x:Name="AboutVersionText" Text="版本 1.12.0" FontSize="10.5" FontWeight="SemiBold" Foreground="{DynamicResource AppOnSignalBrush}" /></Border><TextBlock Text="WPF 原生  /  开源" Style="{StaticResource MutedTextStyle}" VerticalAlignment="Center" /></StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0"><Border Background="{DynamicResource AppSignalBrush}" Padding="7,3" Margin="0,0,10,0"><TextBlock x:Name="AboutVersionText" Text="版本 1.13.0" FontSize="10.5" FontWeight="SemiBold" Foreground="{DynamicResource AppOnSignalBrush}" /></Border><TextBlock Text="WPF 原生  /  开源" Style="{StaticResource MutedTextStyle}" VerticalAlignment="Center" /></StackPanel>
                     <TextBlock Text="雷柏 VT 系列游戏鼠标托盘工具" Style="{StaticResource MutedTextStyle}" Margin="0,8,0,0" />
                   </StackPanel>
                 </Grid>

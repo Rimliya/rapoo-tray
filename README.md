@@ -4,7 +4,7 @@
   <p><b>雷柏VT系列游戏鼠标轻量化托盘程序</b></p>
 
   <p>
-    <a href="https://github.com/Rimliya/rapoo-tray/releases"><img src="https://img.shields.io/badge/Release-v1.12.0-blue?style=flat-square" alt="Release" /></a>
+    <a href="https://github.com/Rimliya/rapoo-tray/releases"><img src="https://img.shields.io/badge/Release-v1.13.0-blue?style=flat-square" alt="Release" /></a>
     <img src="https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?style=flat-square&logo=windows" alt="Platform" />
     <img src="https://img.shields.io/badge/Language-C%2B%2B20%20%2F%20C%23%20WPF%20%2B%20Win32-00599C?style=flat-square&logo=c%2B%2B" alt="Language" />
     <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License" />
@@ -27,6 +27,8 @@
 - **原地更新与强制停机**：安装器会从卸载信息、开机启动项或正在运行的托盘程序定位已有安装目录；安装前强制执行“检测并停止旧程序、确认进程退出、再覆盖文件”的顺序，无法停止时直接中止安装。
 - **设备识别增强**：补充 VT3 V2 的 `1462/4662` PID 变体，并增加 HID 产品字符串回退识别。
 - **明暗双主题**：设置中心右上角可一键切换浅色/深色主题并持久化；首次启动仍跟随 Windows 系统主题。
+- **配置导入导出**：配置中心可生成 `.rapoo` 配置包，携带全部配置、默认项与自动切换开关；导入前自动备份，包内字段经校验后一次性替换，避免半写入。
+- **统一安装体验**：安装器改为与设置中心一致的浅色工业风界面，包含部署步骤、方形选项开关、切角操作按钮和实际安装进度，完成状态在窗口内呈现。
 - **内置 HarmonyOS Sans SC**：设置中心随包嵌入 Regular / Medium / Bold 三个字重，中文、字段标签与输入内容不再依赖系统中文字体；输入框、下拉框和数字框统一垂直居中，并启用 Display 字形布局与像素对齐。
 - **射频策略读取修复**：进入自动化页时主动读取鼠标当前射频策略；读取失败显示可重试状态，不再误报“设备不支持”。
 - **工业风 WPF 设置中心**：配置档案、自动化、DPI 档位与关于页使用统一冷灰网格、冰蓝当前位置信号、自绘切角、方形开关和方形滑杆；性能档位改为墨色分段选择，明暗主题与系统主题跟随保持一致。

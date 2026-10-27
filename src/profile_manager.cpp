@@ -233,6 +233,29 @@ void SaveState() {
     } else {
         RegDeleteValueW(hRoot, L"Ids");
     }
+
+    // Remove profile subkeys that are no longer referenced. This matters after
+    // a full import, where old IDs may be higher than the new profile count.
+    DWORD subKeyCount = 0;
+    if (RegQueryInfoKeyW(hRoot, NULL, NULL, NULL, &subKeyCount, NULL, NULL,
+                         NULL, NULL, NULL, NULL, NULL) == ERROR_SUCCESS) {
+        std::vector<std::wstring> staleKeys;
+        for (DWORD i = 0; i < subKeyCount; ++i) {
+            WCHAR name[128] = {0};
+            DWORD nameLen = (DWORD)(sizeof(name) / sizeof(name[0]));
+            if (RegEnumKeyExW(hRoot, i, name, &nameLen, NULL, NULL, NULL, NULL) != ERROR_SUCCESS) continue;
+            if (name[0] != L'P') continue;
+            WCHAR* end = NULL;
+            unsigned long rawId = wcstoul(name + 1, &end, 10);
+            if (!end || *end != L'\0' || rawId == 0) continue;
+            bool current = false;
+            for (DWORD id : ids) {
+                if (id == rawId) { current = true; break; }
+            }
+            if (!current) staleKeys.emplace_back(name);
+        }
+        for (const auto& key : staleKeys) RegDeleteKeyW(hRoot, key.c_str());
+    }
     RegCloseKey(hRoot);
 }
 
@@ -532,6 +555,62 @@ bool Update(const Definition& requested) {
     updated.appPath = NormalizeAppPath(requested.appPath);
     updated.appName = updated.appPath.empty() ? std::wstring() : FileNameFromPath(updated.appPath);
     *profile = updated;
+    SaveState();
+    return true;
+}
+
+bool ReplaceAll(const std::vector<Definition>& profiles, int defaultIndex,
+                bool autoSwitch, std::wstring& outError) {
+    std::lock_guard<std::recursive_mutex> lock(g_apiMutex);
+    EnsureInitialized();
+    outError.clear();
+
+    if (profiles.empty() || profiles.size() > (size_t)MAX_PROFILES) {
+        outError = L"配置包必须包含 1–16 个配置";
+        return false;
+    }
+    if (defaultIndex < 0 || defaultIndex >= (int)profiles.size()) {
+        outError = L"默认配置索引无效";
+        return false;
+    }
+
+    std::vector<Definition> normalized;
+    normalized.reserve(profiles.size());
+    for (size_t i = 0; i < profiles.size(); ++i) {
+        Definition value = profiles[i];
+        value.id = (int)i + 1;
+        value.name = Trim(value.name);
+        if (value.name.empty()) {
+            outError = L"配置名称不能为空";
+            return false;
+        }
+        if (value.name.size() > 64) {
+            outError = L"配置名称不能超过 64 个字符";
+            return false;
+        }
+        for (const auto& existing : normalized) {
+            if (EqualsNoCase(existing.name, value.name)) {
+                outError = L"配置名称不能重复：" + value.name;
+                return false;
+            }
+        }
+
+        value.pollingHz = ValidPollingRate(value.pollingHz) ? value.pollingHz : NormalizePollingRate(value.pollingHz);
+        value.performanceMode = Rapoo::NearestPerfMode(value.performanceMode, value.pollingHz);
+        value.sleepMinutes = Rapoo::ClampSleepMinutes(value.sleepMinutes);
+        NormalizeDpiPair(value.dpiX, value.dpiY);
+        value.appPath = NormalizeAppPath(value.appPath);
+        value.appName = value.appPath.empty() ? std::wstring() : FileNameFromPath(value.appPath);
+        normalized.push_back(value);
+    }
+
+    g_store.profiles.swap(normalized);
+    g_store.nextId = (int)g_store.profiles.size() + 1;
+    g_store.defaultId = g_store.profiles[(size_t)defaultIndex].id;
+    g_store.activeId = g_store.defaultId;
+    g_store.autoSwitch = autoSwitch;
+    g_autoContextProfileId = 0;
+    g_manualHoldMatchedProfileId = 0;
     SaveState();
     return true;
 }
