@@ -4,7 +4,7 @@
   <p><b>雷柏VT系列游戏鼠标轻量化托盘程序</b></p>
 
   <p>
-    <a href="https://github.com/Rimliya/rapoo-tray/releases"><img src="https://img.shields.io/badge/Release-v1.10.0-blue?style=flat-square" alt="Release" /></a>
+    <a href="https://github.com/Rimliya/rapoo-tray/releases"><img src="https://img.shields.io/badge/Release-v1.11.0-blue?style=flat-square" alt="Release" /></a>
     <img src="https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?style=flat-square&logo=windows" alt="Platform" />
     <img src="https://img.shields.io/badge/Language-C%2B%2B20%20%2F%20C%23%20WPF%20%2B%20Win32-00599C?style=flat-square&logo=c%2B%2B" alt="Language" />
     <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License" />
@@ -15,7 +15,7 @@
 
 ## 💡 项目简介
 
-**rapoo-tray** 是面向雷柏（Rapoo）游戏鼠标用户的轻量化辅助工具。核心托盘、HID 通信和 Fluent 亚克力右键菜单继续使用 C++20 与 Win32；设置中心使用原生 WPF 和 [WPF UI 4.3](https://github.com/lepoco/wpfui)，提供 Fluent 2、Mica 背景、深浅色主题与现代导航，不依赖 Chromium、Electron 或 WebView2。程序支持以任务栏系统托盘独立运行，或作为插件集成至 [TrafficMonitor](https://github.com/zhongyang219/TrafficMonitor)，提供电量监测、DPI 显示、回报率调节、休眠配置等常用功能。
+**rapoo-tray** 是面向雷柏（Rapoo）游戏鼠标用户的轻量化辅助工具。核心托盘、HID 通信和 Fluent 亚克力右键菜单继续使用 C++20 与 Win32；设置中心使用原生 WPF，以冷灰纸面、冰蓝信号、直角切角和机械式控件构成工业风界面，并提供完整明暗主题，不依赖 Chromium、Electron 或 WebView2。程序支持以任务栏系统托盘独立运行，或作为插件集成至 [TrafficMonitor](https://github.com/zhongyang219/TrafficMonitor)，提供电量监测、DPI 显示、回报率调节、休眠配置等常用功能。
 
 ---
 
@@ -29,7 +29,7 @@
 - **明暗双主题**：设置中心右上角可一键切换浅色/深色主题并持久化；首次启动仍跟随 Windows 系统主题。
 - **清晰中文渲染**：内容卡片使用高不透明承载层，优先 Microsoft YaHei UI，并启用 ClearType/Display 字形渲染。
 - **射频策略读取修复**：进入自动化页时主动读取鼠标当前射频策略；读取失败显示可重试状态，不再误报“设备不支持”。
-- **WPF UI 原生设置中心**：配置档案、自动化、DPI 档位与关于页集中在同一个 Fluent 2 窗口中，支持真实 Windows 11 Mica、圆角、低对比描边、卡片层级和系统主题跟随；原 Win32 托盘图标与亚克力右键菜单保持不变。
+- **工业风 WPF 设置中心**：配置档案、自动化、DPI 档位与关于页使用统一冷灰网格、冰蓝当前位置信号、自绘切角、方形开关和方形滑杆；性能档位改为墨色分段选择，明暗主题与系统主题跟随保持一致。
 - **配置档案与快速切换**：可新建、重命名和删除独立配置，每个配置同时保存回报率、性能模式、DPI X/Y 与休眠时间；设置页将“保存”和“应用”拆开，保存只更新本机配置，应用才写入鼠标。托盘菜单和“配置中心”均可快速切换，硬件应用在后台执行。
 - **前台程序自动切换**：为配置指定程序后，程序进入前台（包括无边框 / 独占全屏游戏）时自动应用该配置；离开程序后恢复用户指定的默认配置。
 - **自动化总开关**：可分别关闭“前台程序自动切换”和“悬浮窗提示 (OSD)”，不影响原有手动回报率、休眠与托盘功能。
@@ -53,9 +53,9 @@
 | :---: | :---: |
 | <img src="docs/screenshots/battery_style_1.png" height="42" alt="配置一：经典电池" /> &nbsp;&nbsp; <img src="docs/screenshots/battery_style_2.png" height="42" alt="配置二：状态大圆点" /> &nbsp;&nbsp; <img src="docs/screenshots/battery_style_3.png" height="42" alt="配置三：大号数字" /><br><sub>配置一：经典电池 &nbsp;·&nbsp; 配置二：环形电量 &nbsp;·&nbsp; 配置三：滑轨数字</sub> | <img src="docs/screenshots/osd.png" width="300" alt="OSD 屏幕自适应悬浮窗" /> |
 
-| WPF Fluent 2 设置中心（浅色） | WPF Fluent 2 设置中心（深色） |
+| 工业风设置中心（浅色） | 工业风设置中心（深色） |
 | :---: | :---: |
-| <img src="docs/screenshots/settings-wpf-fluent.png" width="520" alt="WPF UI Fluent 2 浅色设置中心" /> | <img src="docs/screenshots/settings-wpf-dark.png" width="520" alt="WPF UI Fluent 2 深色设置中心" /> |
+| <img src="docs/screenshots/settings-wpf-fluent.png" width="520" alt="工业风浅色设置中心" /> | <img src="docs/screenshots/settings-wpf-dark.png" width="520" alt="工业风深色设置中心" /> |
 
 | Fluent 亚克力右键菜单 |
 | :---: |
@@ -78,9 +78,9 @@
 
 ## 🎯 功能特性
 
-1. **Fluent 2 设置与原生托盘**：
-   - 系统托盘、HID 通信、自动切换与消息循环保持原生 Win32；设置中心使用原生 WPF UI，不引入 Chromium、Electron 或 WebView2。
-   - 设置窗口使用真实 Mica；主程序和设置中心通过本机命名管道通信，避免两套 HID 轮询同时访问鼠标。
+1. **工业风设置与原生托盘**：
+   - 系统托盘、HID 通信、自动切换与消息循环保持原生 Win32；设置中心使用原生 WPF，不引入 Chromium、Electron 或 WebView2。
+   - 设置窗口使用冷灰网格与冰蓝当前位置信号；主程序和设置中心通过本机命名管道通信，避免两套 HID 轮询同时访问鼠标。
 2. **多态电池托盘图标**：
    - 智能四色指示：$\le 30\%$ 红色警示、$> 30\%$ 科技蓝/主题色、充电中翡翠绿、离线/休眠暗灰虚线或横杠。
    - 配置与样式选择自动持久化保存于 Windows 注册表。
@@ -221,7 +221,8 @@ build_plugin.bat
 
 ## ⚖️ 第三方组件
 
-- [WPF UI 4.3.0](https://github.com/lepoco/wpfui)：Fluent 2 控件、Mica、Navigation 与主题资源，MIT License。详见 [WPF UI License](licenses/wpf-ui-LICENSE.md) 与 [Third-party notices](licenses/wpf-ui-THIRDPARTY.txt)。
+- [WPF UI 4.3.0](https://github.com/lepoco/wpfui)：底层 WPF 控件、主题资源和 Windows 集成，MIT License。详见 [WPF UI License](licenses/wpf-ui-LICENSE.md) 与 [Third-party notices](licenses/wpf-ui-THIRDPARTY.txt)。
+- [Saira](https://github.com/Omnibus-Type/Saira)：设置中心宽体界面拉丁字体，SIL Open Font License 1.1。详见 [Saira License](licenses/saira-OFL.txt)。
 - .NET Framework 4.8：Windows 10 / 11 内置运行时，设置中心无需额外安装运行时。
 
 ---

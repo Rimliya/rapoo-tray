@@ -89,7 +89,8 @@ jobs:
             'bin/System.Numerics.Vectors.dll',
             'bin/System.Runtime.CompilerServices.Unsafe.dll',
             'licenses/wpf-ui-LICENSE.md',
-            'licenses/wpf-ui-THIRDPARTY.txt'
+            'licenses/wpf-ui-THIRDPARTY.txt',
+            'licenses/saira-OFL.txt'
           )
           Compress-Archive -Path $files -DestinationPath 'dist/rapoo-tray-portable.zip' -Force
 
@@ -125,3 +126,4 @@ jobs:
             bin/rapoo-plugin.dll
             licenses/wpf-ui-LICENSE.md
             licenses/wpf-ui-THIRDPARTY.txt
+            licenses/saira-OFL.txt

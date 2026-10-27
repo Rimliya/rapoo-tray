@@ -82,8 +82,7 @@ namespace RapooTray.Settings
         private void UpdateThemeToggle()
         {
             bool dark = ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Dark;
-            ThemeToggleButton.Icon = new Wpf.Ui.Controls.SymbolIcon(
-                dark ? Wpf.Ui.Controls.SymbolRegular.WeatherSunny24 : Wpf.Ui.Controls.SymbolRegular.WeatherMoon24, 16);
+            ThemeToggleButton.Content = dark ? "浅色" : "深色";
             ThemeToggleButton.ToolTip = dark ? "切换到浅色模式" : "切换到深色模式";
         }
 
@@ -135,7 +134,7 @@ namespace RapooTray.Settings
         private static HttpClient CreateHttpClient()
         {
             var client = new HttpClient { Timeout = TimeSpan.FromSeconds(12) };
-            client.DefaultRequestHeaders.UserAgent.ParseAdd("rapoo-tray-settings/1.10");
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("rapoo-tray-settings/1.11");
             return client;
         }
 
@@ -234,10 +233,10 @@ namespace RapooTray.Settings
         private void ApplyLiveState(AppState state)
         {
             _state = state;
-            HeaderConnectionText.Text = state.Connected ? "已连接 · " + state.Battery + "%" : "等待设备";
+            HeaderConnectionText.Text = state.Connected ? "已连接 │ " + state.Battery + "%" : "等待设备";
             HeaderModeText.Text = state.DeviceMode;
             HeaderDpiText.Text = state.DeviceDpiX + " DPI";
-            HeaderStatusDot.Fill = new SolidColorBrush(state.Connected ? Color.FromRgb(24, 166, 106) : Color.FromRgb(196, 58, 58));
+            HeaderStatusDot.Fill = (Brush)FindResource(state.Connected ? "AppSignalBrush" : "AppSecondaryTextBrush");
             RailDeviceDot.Fill = HeaderStatusDot.Fill;
             CurrentModelText.Text = state.DeviceName;
             CurrentModeText.Text = state.DeviceMode;
@@ -273,7 +272,7 @@ namespace RapooTray.Settings
         private void SetStatus(string text, bool good)
         {
             StatusText.Text = string.IsNullOrWhiteSpace(text) ? "就绪" : text;
-            StatusDot.Fill = new SolidColorBrush(good ? Color.FromRgb(24, 166, 106) : Color.FromRgb(196, 58, 58));
+            StatusDot.Fill = (Brush)FindResource(good ? "AppTraceBrush" : "AppSignalBrush");
         }
 
         private void SetBusy(bool busy, string text = null)
@@ -308,23 +307,27 @@ namespace RapooTray.Settings
 
             if (page == 0)
             {
+                PageEyebrow.Text = "// PROFILES";
                 PageTitle.Text = "配置档案";
                 PageSubtitle.Text = "为不同应用保存回报率、性能模式、DPI 与启动规则";
             }
             else if (page == 1)
             {
+                PageEyebrow.Text = "// AUTOMATION";
                 PageTitle.Text = "自动化";
                 PageSubtitle.Text = "管理前台联动、悬浮提示与设备策略";
                 if (_state != null && _state.Connected) { var ignored = RefreshRfStateAsync(); }
             }
             else if (page == 2)
             {
+                PageEyebrow.Text = "// DPI";
                 PageTitle.Text = "DPI 档位";
                 PageSubtitle.Text = "编辑鼠标内建 DPI 档位并安全写入设备";
                 if (!_dpiLoaded) { var ignored = LoadDpiAsync(); }
             }
             else
             {
+                PageEyebrow.Text = "// ABOUT";
                 PageTitle.Text = "关于";
                 PageSubtitle.Text = "版本信息、项目源码与更新检查";
             }
@@ -422,9 +425,9 @@ namespace RapooTray.Settings
         private void UpdateDirtyVisuals()
         {
             ProfileDirtyText.Text = _profileDirty ? "未保存" : "已保存";
-            ProfileDirtyText.Foreground = _profileDirty
-                ? new SolidColorBrush(Color.FromRgb(194, 122, 0))
-                : (Brush)FindResource("TextFillColorSecondaryBrush");
+            ProfileDirtyChip.Background = _profileDirty ? (Brush)FindResource("AppSignalBrush") : Brushes.Transparent;
+            ProfileDirtyChip.BorderBrush = (Brush)FindResource(_profileDirty ? "AppSignalBrush" : "AppRuleBrush");
+            ProfileDirtyText.Foreground = (Brush)FindResource(_profileDirty ? "AppOnSignalBrush" : "AppSecondaryTextBrush");
             SaveProfileButton.IsEnabled = !_busy && _profileDirty;
             ApplyProfileButton.IsEnabled = !_busy && !_profileDirty && _selectedProfileId != 0;
         }
@@ -762,7 +765,7 @@ namespace RapooTray.Settings
                 DpiYBox.IsEnabled = slot.X != slot.Y;
                 DpiPageTitle.Text = "第 " + (_selectedDpiIndex + 1) + " 档";
                 DpiPageSubtitle.Text = (_dpi.FromDevice ? "鼠标当前第 " : "当前视图第 ") + (_selectedDpiIndex + 1) + " 档使用 " + (slot.X == slot.Y ? slot.X.ToString() : slot.X + " × " + slot.Y) + " DPI";
-                DpiRangeText.Text = _dpi.Min + "–" + _dpi.Max + " DPI · 步进 " + _dpi.Step + " · 最多 " + Math.Min(7, _dpi.MaxSlots) + " 档";
+                DpiRangeText.Text = _dpi.Min + "–" + _dpi.Max + " DPI │ 步进 " + _dpi.Step + " │ 最多 " + Math.Min(7, _dpi.MaxSlots) + " 档";
                 DpiCountText.Text = _dpi.Slots.Count + " / " + Math.Min(7, _dpi.MaxSlots);
             }
             finally { _loading = oldLoading; }
