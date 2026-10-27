@@ -1,5 +1,28 @@
 # Changelog
 
+## [v1.9.0] - 2026-10-27
+
+### 新增
+
+- 设置中心迁移到原生 WPF + WPF UI 4.3，带来 Fluent 2 卡片、圆角、低对比描边、胶囊状态、Windows 11 Mica 背景和系统深浅色跟随。
+- 新增独立 `rapoo-tray-settings.exe` 设置进程，通过仅限本机的命名管道复用托盘中的配置、HID、DPI、自动化与射频逻辑。
+- 设置中心支持单实例重复唤起，并可直接从托盘跳转到配置、自动化、DPI 或关于页。
+
+### 优化
+
+- 配置档案页改为图标导航、左侧配置列表与右侧详情卡片的双层布局，降低大型表单的视觉密度。
+- 性能模式卡片按当前回报率联动置灰，保存和应用状态、设备连接状态与电量信息集中在顶部状态区。
+- DPI 编辑器改为与设置中心一致的 Fluent 2 列表与编辑面板，保留增删档位、双轴独立和应用切换能力。
+- 关于页支持异步检查 GitHub Releases；项目源码、版本和许可证信息统一在新设置中心展示。
+
+### 变更
+
+- 完全移除 Slint 运行时和 `slint_cpp.dll` 依赖，设置中心不需要 Chromium、Electron、WebView2 或额外 .NET 运行时安装。
+- 本地 `build.bat` 仅用于测试构建；正式版本继续由 `v*` tag 触发 GitHub Actions，使用 `GITHUB_TOKEN` 创建 Release。
+- 安装器改为内嵌 WPF 设置中心及其 WPF UI/System 依赖，便携包通过完整 ZIP 分发。
+
+**完整变更**：https://github.com/Rimliya/rapoo-tray/compare/v1.8.0...v1.9.0
+
 ## [v1.8.0] - 2026-10-27
 
 ### 新增

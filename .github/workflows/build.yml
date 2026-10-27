@@ -23,25 +23,29 @@ jobs:
         with:
           arch: x64
 
-      - name: Install Slint C++ SDK
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $installer = Join-Path $PWD 'slint-cpp-installer.exe'
-          $sdk = Join-Path $PWD 'slint-sdk'
-          Invoke-WebRequest -Uri 'https://github.com/slint-ui/slint/releases/download/v1.18.1/Slint-cpp-1.18.1-win64-MSVC-AMD64.exe' -OutFile $installer
-          $process = Start-Process -FilePath $installer -ArgumentList '/S', "/D=$sdk" -Wait -PassThru
-          if ($process.ExitCode -ne 0) { throw "Slint SDK installer failed with exit code $($process.ExitCode)" }
-          "SLINT_SDK=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
 
-      - name: Build Slint Fluent application
+      - name: Build WPF Fluent settings
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$env:SLINT_SDK" -DSLINT_STYLE=fluent
+          dotnet restore settings-ui/RapooTray.Settings.csproj --configfile NuGet.config
+          dotnet build settings-ui/RapooTray.Settings.csproj -c Release --no-restore
+          New-Item -ItemType Directory -Force -Path bin | Out-Null
+          Get-ChildItem 'settings-ui/bin/Release/net48' -File | Where-Object { $_.Extension -ne '.pdb' } | Copy-Item -Destination bin -Force
+
+      - name: Build native tray application
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
           cmake --build build --config Release
           if (!(Test-Path 'bin/rapoo-tray.exe')) { throw 'rapoo-tray.exe was not produced' }
-          if (!(Test-Path 'bin/slint_cpp.dll')) { throw 'slint_cpp.dll was not copied' }
+          if (!(Test-Path 'bin/rapoo-tray-settings.exe')) { throw 'rapoo-tray-settings.exe was not staged' }
+          if (!(Test-Path 'bin/Wpf.Ui.dll')) { throw 'Wpf.Ui.dll was not staged' }
 
       - name: Setup MinGW
         uses: msys2/setup-msys2@v2
@@ -50,7 +54,7 @@ jobs:
           update: false
           install: mingw-w64-x86_64-gcc mingw-w64-x86_64-binutils
 
-      - name: Build Slint-embedded installer
+      - name: Build WPF-embedded installer
         shell: msys2 {0}
         run: |
           mkdir -p dist
@@ -68,16 +72,44 @@ jobs:
           g++ -shared -O3 -std=c++17 -mwindows -municode -s -static rapoo_plugin.cpp plugin.o -lsetupapi -lhid -luser32 -lgdi32 -lshell32 -ladvapi32 -o ../bin/rapoo-plugin.dll
           rm -f plugin.o
 
+      - name: Create portable bundle
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          $files = @(
+            'bin/rapoo-tray.exe',
+            'bin/rapoo-tray-settings.exe',
+            'bin/rapoo-tray-settings.exe.config',
+            'bin/Wpf.Ui.dll',
+            'bin/Wpf.Ui.Abstractions.dll',
+            'bin/System.Memory.dll',
+            'bin/System.Buffers.dll',
+            'bin/System.Numerics.Vectors.dll',
+            'bin/System.Runtime.CompilerServices.Unsafe.dll',
+            'licenses/wpf-ui-LICENSE.md',
+            'licenses/wpf-ui-THIRDPARTY.txt'
+          )
+          Compress-Archive -Path $files -DestinationPath 'dist/rapoo-tray-portable.zip' -Force
+
       - name: Upload build bundle
         uses: actions/upload-artifact@v4
         with:
           name: rapoo-tray-bundle-windows
           path: |
             bin/rapoo-tray.exe
-            bin/slint_cpp.dll
+            bin/rapoo-tray-settings.exe
+            bin/rapoo-tray-settings.exe.config
+            bin/Wpf.Ui.dll
+            bin/Wpf.Ui.Abstractions.dll
+            bin/System.Memory.dll
+            bin/System.Buffers.dll
+            bin/System.Numerics.Vectors.dll
+            bin/System.Runtime.CompilerServices.Unsafe.dll
+            dist/rapoo-tray-portable.zip
             dist/rapoo-tray-setup.exe
             bin/rapoo-plugin.dll
-            licenses/slint-LICENSE.md
-            licenses/slint-THIRDPARTY.md
+            licenses/wpf-ui-LICENSE.md
+            licenses/wpf-ui-THIRDPARTY.txt
           if-no-files-found: error
           retention-days: 14

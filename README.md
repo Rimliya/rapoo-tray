@@ -4,9 +4,9 @@
   <p><b>雷柏VT系列游戏鼠标轻量化托盘程序</b></p>
 
   <p>
-    <a href="https://github.com/Rimliya/rapoo-tray/releases"><img src="https://img.shields.io/badge/Release-v1.8.0-blue?style=flat-square" alt="Release" /></a>
+    <a href="https://github.com/Rimliya/rapoo-tray/releases"><img src="https://img.shields.io/badge/Release-v1.9.0-blue?style=flat-square" alt="Release" /></a>
     <img src="https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?style=flat-square&logo=windows" alt="Platform" />
-    <img src="https://img.shields.io/badge/Language-C%2B%2B20%20%2F%20Win32%20%2B%20Slint-00599C?style=flat-square&logo=c%2B%2B" alt="Language" />
+    <img src="https://img.shields.io/badge/Language-C%2B%2B20%20%2F%20C%23%20WPF%20%2B%20Win32-00599C?style=flat-square&logo=c%2B%2B" alt="Language" />
     <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License" />
   </p>
 </div>
@@ -15,7 +15,7 @@
 
 ## 💡 项目简介
 
-**rapoo-tray** 是面向雷柏（Rapoo）游戏鼠标用户的轻量化辅助工具。核心托盘与 HID 通信基于 C++20 和 Win32 API；设置界面使用 Slint 1.18.1 的 Fluent 控件库，兼顾系统托盘轻量运行与更精细的 Windows 11 风格交互。程序支持以任务栏系统托盘独立运行，或作为插件集成至 [TrafficMonitor](https://github.com/zhongyang219/TrafficMonitor)，提供电量监测、DPI 显示、回报率调节、休眠配置等常用功能。
+**rapoo-tray** 是面向雷柏（Rapoo）游戏鼠标用户的轻量化辅助工具。核心托盘、HID 通信和 Fluent 亚克力右键菜单继续使用 C++20 与 Win32；设置中心使用原生 WPF 和 [WPF UI 4.3](https://github.com/lepoco/wpfui)，提供 Fluent 2、Mica 背景、深浅色主题与现代导航，不依赖 Chromium、Electron 或 WebView2。程序支持以任务栏系统托盘独立运行，或作为插件集成至 [TrafficMonitor](https://github.com/zhongyang219/TrafficMonitor)，提供电量监测、DPI 显示、回报率调节、休眠配置等常用功能。
 
 ---
 
@@ -26,7 +26,7 @@
 - **无线射频策略与续航粗估**：设置页可切换“满格射频 / 智能调节”，并按鼠标型号、回报率、射频策略和当前电量估算续航；型号支持自动识别或手动指定。
 - **原地更新与强制停机**：安装器会从卸载信息、开机启动项或正在运行的托盘程序定位已有安装目录；安装前强制执行“检测并停止旧程序、确认进程退出、再覆盖文件”的顺序，无法停止时直接中止安装。
 - **设备识别增强**：补充 VT3 V2 的 `1462/4662` PID 变体，并增加 HID 产品字符串回退识别。
-- **Slint Fluent 设置中心**：配置档案、自动化、DPI 档位与关于页集中在单个 Slint 窗口中，使用 Windows 11 设置页式左侧导航，深浅色主题自动跟随系统。
+- **WPF UI 原生设置中心**：配置档案、自动化、DPI 档位与关于页集中在同一个 Fluent 2 窗口中，支持真实 Windows 11 Mica、圆角、低对比描边、卡片层级和系统主题跟随；原 Win32 托盘图标与亚克力右键菜单保持不变。
 - **配置档案与快速切换**：可新建、重命名和删除独立配置，每个配置同时保存回报率、性能模式、DPI X/Y 与休眠时间；设置页将“保存”和“应用”拆开，保存只更新本机配置，应用才写入鼠标。托盘菜单和“配置中心”均可快速切换，硬件应用在后台执行。
 - **前台程序自动切换**：为配置指定程序后，程序进入前台（包括无边框 / 独占全屏游戏）时自动应用该配置；离开程序后恢复用户指定的默认配置。
 - **自动化总开关**：可分别关闭“前台程序自动切换”和“悬浮窗提示 (OSD)”，不影响原有手动回报率、休眠与托盘功能。
@@ -50,9 +50,9 @@
 | :---: | :---: |
 | <img src="docs/screenshots/battery_style_1.png" height="42" alt="配置一：经典电池" /> &nbsp;&nbsp; <img src="docs/screenshots/battery_style_2.png" height="42" alt="配置二：状态大圆点" /> &nbsp;&nbsp; <img src="docs/screenshots/battery_style_3.png" height="42" alt="配置三：大号数字" /><br><sub>配置一：经典电池 &nbsp;·&nbsp; 配置二：环形电量 &nbsp;·&nbsp; 配置三：滑轨数字</sub> | <img src="docs/screenshots/osd.png" width="300" alt="OSD 屏幕自适应悬浮窗" /> |
 
-| Slint Fluent 设置中心 | Fluent 亚克力右键菜单 |
+| WPF Fluent 2 设置中心 | Fluent 亚克力右键菜单 |
 | :---: | :---: |
-| <img src="docs/screenshots/settings-slint.png" width="520" alt="Slint Fluent 设置中心" /> | <img src="docs/screenshots/menu.png" width="220" alt="原生 Fluent 亚克力右键控制面板" /> |
+| <img src="docs/screenshots/settings-wpf-fluent.png" width="520" alt="WPF UI Fluent 2 设置中心" /> | <img src="docs/screenshots/menu.png" width="220" alt="原生 Fluent 亚克力右键控制面板" /> |
 
 | 休眠调节滑块 |
 | :---: |
@@ -71,9 +71,9 @@
 
 ## 🎯 功能特性
 
-1. **Fluent 设置与原生托盘**：
-   - 系统托盘、HID 通信、自动切换与消息循环保持原生 Win32；设置界面使用 Slint Fluent，不引入 .NET / Electron / WebView。
-   - 便携目录主要体积来自 `slint_cpp.dll`；空闲时仍无高频 HID 轮询。
+1. **Fluent 2 设置与原生托盘**：
+   - 系统托盘、HID 通信、自动切换与消息循环保持原生 Win32；设置中心使用原生 WPF UI，不引入 Chromium、Electron 或 WebView2。
+   - 设置窗口使用真实 Mica；主程序和设置中心通过本机命名管道通信，避免两套 HID 轮询同时访问鼠标。
 2. **多态电池托盘图标**：
    - 智能四色指示：$\le 30\%$ 红色警示、$> 30\%$ 科技蓝/主题色、充电中翡翠绿、离线/休眠暗灰虚线或横杠。
    - 配置与样式选择自动持久化保存于 Windows 注册表。
@@ -149,8 +149,8 @@
 
 请前往 [GitHub Releases](https://github.com/Rimliya/rapoo-tray/releases) 下载最新发行版：
 
-- **便携版 (`rapoo-tray.exe` + `slint_cpp.dll`)**：约 29 MB，两个文件需放在同一目录。
-- **一键安装向导 (`rapoo-tray-setup.exe`)**：约 29 MB，内置主程序与 Slint 运行库，自动部署至本地目录，创建快捷方式并支持控制面板卸载。
+- **便携版 (`rapoo-tray-portable.zip`)**：解压后保持目录内文件结构不变，双击 `rapoo-tray.exe` 即可运行。
+- **一键安装向导 (`rapoo-tray-setup.exe`)**：约 9 MB，内置主程序、WPF 设置中心与依赖，自动部署至本地目录，创建快捷方式并支持控制面板卸载。
 - **TrafficMonitor 插件 (`rapoo-plugin.dll`)**：约 28 KB，供 TrafficMonitor 用户按需下载使用。
 
 ---
@@ -180,14 +180,13 @@
 
 ## 🛠️ 源码编译 (Build from Source)
 
-环境要求：Windows 10 / 11、Visual Studio 2022 C++ 工具链、CMake 3.21+、Ninja，以及 Slint 1.18.1 Windows MSVC C++ SDK。主程序必须使用 MSVC 构建；安装器与 TrafficMonitor 插件仍可使用 MinGW。
+环境要求：Windows 10 / 11、Visual Studio 2022 C++ 工具链、CMake 3.21+、Ninja、.NET SDK 8+。`build.bat` 会同时编译 Win32 托盘与 WPF 设置中心；本机未安装 MSVC 时，开发工作区可使用 `.tools` 内的 Zig 回退工具链。
 
 ### 1. 编译可执行程序
-将 Slint C++ SDK 安装到 `.tools\slint-prefix`（或设置 `SLINT_SDK_OVERRIDE`），然后运行：
 ```cmd
 build.bat
 ```
-输出产物：`bin\rapoo-tray.exe` 与 `bin\slint_cpp.dll`
+输出产物：`bin\rapoo-tray.exe`、`bin\rapoo-tray-settings.exe` 及 WPF UI 依赖。本地构建只用于测试，不直接上传为正式发布包。
 
 ### 2. 编译安装程序
 先完成主程序编译，再执行：
@@ -204,11 +203,19 @@ build_plugin.bat
 ```
 输出产物：`bin\rapoo-plugin.dll`
 
+
+### 4. 正式发布流程
+1. 本地运行 `build.bat` 做测试，不直接上传本地产物。
+2. 提交并推送 `v*` tag 后，由 GitHub Actions 的 `release.yml` 使用 MSVC、.NET 与 MinGW 完成正式构建。
+3. Release Step 使用仓库 `GITHUB_TOKEN` / Actions 的 `contents: write` 权限创建 GitHub Release。
+4. Git 推送使用本机或 CI 配置的 GitHub token 凭据，禁止把 token 写进源码、脚本或构建产物。
+
 ---
 
 ## ⚖️ 第三方组件
 
-- [Slint 1.18.1](https://slint.dev/)：Fluent 设置界面与运行库。Slint 使用其自身的多重许可协议，详见 [Slint License](licenses/slint-LICENSE.md) 与 [Third-party notices](licenses/slint-THIRDPARTY.md)。
+- [WPF UI 4.3.0](https://github.com/lepoco/wpfui)：Fluent 2 控件、Mica、Navigation 与主题资源，MIT License。详见 [WPF UI License](licenses/wpf-ui-LICENSE.md) 与 [Third-party notices](licenses/wpf-ui-THIRDPARTY.txt)。
+- .NET Framework 4.8：Windows 10 / 11 内置运行时，设置中心无需额外安装运行时。
 
 ---
 

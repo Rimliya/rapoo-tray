@@ -24,3 +24,6 @@ Desktop.ini
 .tools/
 .research/
 hid-probe-result.txt
+obj/
+.nuget/
+.dotnet-home/

@@ -132,8 +132,8 @@ addr   = addr24 & 0xFF
 | 协议 | `src/rapoo_protocol.h/.cpp` | 模式编码、能力矩阵、寄存器地址 |
 | 设备 | `src/device_manager.h/.cpp` | 读取、4 字节读改写、回读校验 |
 | 配置 | `src/profile_manager.h/.cpp` | 保存并应用 `PerformanceMode` |
-| 设置页 | `src/slint_settings_window.cpp` | Slint 属性与回调绑定 |
-| UI | `ui/settings.slint` | 六张模式卡片与回报率联动 |
+| 设置页后端 | `src/ui_bridge.cpp` | 本机命名管道、配置/DPI/设备命令与状态序列化 |
+| 设置页 UI | `settings-ui/MainWindow.xaml` | WPF UI 六张模式卡片、回报率联动与 Fluent 2 布局 |
 
 ## 6. 截图对照
 
