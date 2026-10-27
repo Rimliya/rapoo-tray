@@ -503,7 +503,7 @@ public:
         case TMI_DESCRIPTION: return L"在任务栏与悬浮窗实时显示雷柏鼠标电量与DPI";
         case TMI_AUTHOR:      return L"Iris";
         case TMI_COPYRIGHT:   return L"Copyright (C) 2026 Iris";
-        case TMI_VERSION:     return L"1.11.0";
+        case TMI_VERSION:     return L"1.12.0";
         case TMI_URL:         return L"https://github.com/Rimliya/rapoo-tray";
         default:              return L"";
         }

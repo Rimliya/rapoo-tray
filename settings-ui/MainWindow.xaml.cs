@@ -11,9 +11,11 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
+using System.Windows.Resources;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Wpf.Ui.Appearance;
+using RapooTray.Settings.Controls;
 using NumberBoxValueChangedEventArgs = Wpf.Ui.Controls.NumberBoxValueChangedEventArgs;
 
 namespace RapooTray.Settings
@@ -39,6 +41,7 @@ namespace RapooTray.Settings
         private int _profilePerfMode = 1;
         private int _selectedDpiIndex;
         private bool _updateAvailable;
+        private bool? _dirtyVisualState;
         private string _modelSignature = "";
         private string _releaseUrl = "https://github.com/Rimliya/rapoo-tray/releases/latest";
         private static readonly int[] PollRates = { 125, 250, 500, 1000, 2000, 4000, 8000 };
@@ -82,7 +85,12 @@ namespace RapooTray.Settings
         private void UpdateThemeToggle()
         {
             bool dark = ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Dark;
-            ThemeToggleButton.Content = dark ? "浅色" : "深色";
+            string label = dark ? "浅色" : "深色";
+            if (!string.Equals(Convert.ToString(ThemeToggleButton.Content), label, StringComparison.Ordinal))
+            {
+                ThemeToggleButton.Content = label;
+                EfMotion.Nudge(ThemeToggleButton, 1.5);
+            }
             ThemeToggleButton.ToolTip = dark ? "切换到浅色模式" : "切换到深色模式";
         }
 
@@ -141,9 +149,19 @@ namespace RapooTray.Settings
         private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
             _initialized = true;
+            var ignored = Dispatcher.BeginInvoke(new Action(AnimateShellEntrance), DispatcherPriority.Loaded);
             await ReloadStateAsync(true);
             ActivatePage(_initialPage, true);
             _liveTimer.Start();
+        }
+
+        private void AnimateShellEntrance()
+        {
+            EfMotion.Reveal(NavRail, -10, 0, 0);
+            EfMotion.Reveal(HeaderPanel, 0, 9, 45);
+            EfMotion.Reveal(HeaderCommandCluster, 8, 0, 90);
+            EfMotion.Reveal(FooterBar, 0, 3, 120);
+            EfMotion.ScanOnce(HeaderScan, HeaderAccentTrack.ActualWidth, false);
         }
 
         private void MainWindow_SourceInitialized(object sender, EventArgs e)
@@ -233,15 +251,15 @@ namespace RapooTray.Settings
         private void ApplyLiveState(AppState state)
         {
             _state = state;
-            HeaderConnectionText.Text = state.Connected ? "已连接 │ " + state.Battery + "%" : "等待设备";
-            HeaderModeText.Text = state.DeviceMode;
-            HeaderDpiText.Text = state.DeviceDpiX + " DPI";
+            SetReadout(HeaderConnectionText, state.Connected ? "已连接 │ " + state.Battery + "%" : "等待设备");
+            SetReadout(HeaderModeText, state.DeviceMode);
+            SetReadout(HeaderDpiText, state.DeviceDpiX + " DPI");
             HeaderStatusDot.Fill = (Brush)FindResource(state.Connected ? "AppSignalBrush" : "AppSecondaryTextBrush");
             RailDeviceDot.Fill = HeaderStatusDot.Fill;
-            CurrentModelText.Text = state.DeviceName;
-            CurrentModeText.Text = state.DeviceMode;
-            CurrentBatteryText.Text = state.Battery + "%";
-            CurrentDpiText.Text = state.DeviceDpiX == state.DeviceDpiY ? state.DeviceDpiX.ToString() : state.DeviceDpiX + " × " + state.DeviceDpiY;
+            SetReadout(CurrentModelText, state.DeviceName);
+            SetReadout(CurrentModeText, state.DeviceMode);
+            SetReadout(CurrentBatteryText, state.Battery + "%");
+            SetReadout(CurrentDpiText, state.DeviceDpiX == state.DeviceDpiY ? state.DeviceDpiX.ToString() : state.DeviceDpiX + " × " + state.DeviceDpiY);
 
             bool oldLoading = _loading;
             _loading = true;
@@ -271,8 +289,14 @@ namespace RapooTray.Settings
 
         private void SetStatus(string text, bool good)
         {
-            StatusText.Text = string.IsNullOrWhiteSpace(text) ? "就绪" : text;
+            string value = string.IsNullOrWhiteSpace(text) ? "就绪" : text;
+            if (!string.Equals(StatusText.Text, value, StringComparison.Ordinal))
+            {
+                StatusText.Text = value;
+                EfMotion.ReadoutSettle(StatusText);
+            }
             StatusDot.Fill = (Brush)FindResource(good ? "AppTraceBrush" : "AppSignalBrush");
+            EfMotion.Pulse(StatusDot);
         }
 
         private void SetBusy(bool busy, string text = null)
@@ -287,6 +311,7 @@ namespace RapooTray.Settings
             ApplyDpiButton.IsEnabled = !busy && _dpi != null && _dpiDirty;
             if (!string.IsNullOrEmpty(text)) SetStatus(text, true);
             Cursor = busy ? System.Windows.Input.Cursors.Wait : System.Windows.Input.Cursors.Arrow;
+            EfMotion.SetBusyScan(BusyScan, BusyTrack.ActualWidth, busy);
         }
 
         private void ActivatePage(int page, bool force)
@@ -331,6 +356,10 @@ namespace RapooTray.Settings
                 PageTitle.Text = "关于";
                 PageSubtitle.Text = "版本信息、项目源码与更新检查";
             }
+
+            FrameworkElement pageElement = page == 0 ? ProfilePage : page == 1 ? (FrameworkElement)AutomationPage : page == 2 ? DpiPage : AboutPage;
+            EfMotion.RevealPage(pageElement, PageEyebrow, PageTitle, PageSubtitle);
+            EfMotion.Nudge(HeaderCommandCluster, 2);
         }
 
         private void Nav_Checked(object sender, RoutedEventArgs e)
@@ -425,6 +454,12 @@ namespace RapooTray.Settings
         private void UpdateDirtyVisuals()
         {
             ProfileDirtyText.Text = _profileDirty ? "未保存" : "已保存";
+            if (_dirtyVisualState != _profileDirty)
+            {
+                _dirtyVisualState = _profileDirty;
+                EfMotion.Nudge(ProfileDirtyChip, _profileDirty ? 3 : 1.5);
+                EfMotion.Pulse(ProfileDirtyChip);
+            }
             ProfileDirtyChip.Background = _profileDirty ? (Brush)FindResource("AppSignalBrush") : Brushes.Transparent;
             ProfileDirtyChip.BorderBrush = (Brush)FindResource(_profileDirty ? "AppSignalBrush" : "AppRuleBrush");
             ProfileDirtyText.Foreground = (Brush)FindResource(_profileDirty ? "AppOnSignalBrush" : "AppSecondaryTextBrush");
@@ -882,6 +917,27 @@ namespace RapooTray.Settings
 
         private void OpenSource_Click(object sender, RoutedEventArgs e) => OpenUrl("https://github.com/Rimliya/rapoo-tray");
 
+        private void ShowFontLicense_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var uri = new Uri("pack://application:,,,/rapoo-tray-settings;component/Assets/Fonts/HarmonyOS-Sans-LICENSE.txt", UriKind.Absolute);
+                StreamResourceInfo resource = Application.GetResourceStream(uri);
+                if (resource == null) throw new InvalidOperationException("未找到字体许可资源");
+                using (var reader = new StreamReader(resource.Stream))
+                {
+                    string license = reader.ReadToEnd();
+                    int terminator = license.IndexOf('\0');
+                    if (terminator >= 0) license = license.Substring(0, terminator);
+                    MessageBox.Show(this, license.Trim(), "HarmonyOS Sans Fonts License Agreement", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, "无法读取字体许可：" + ex.Message, "rapoo-tray", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
         private async void CheckUpdate_Click(object sender, RoutedEventArgs e)
         {
             if (_updateAvailable)
@@ -941,6 +997,13 @@ namespace RapooTray.Settings
             var m = Regex.Match(value ?? "", "(\\d+)\\.(\\d+)(?:\\.(\\d+))?(?:\\.(\\d+))?");
             if (!m.Success) return new[] { 0, 0, 0, 0 };
             return new[] { int.Parse(m.Groups[1].Value), int.Parse(m.Groups[2].Value), m.Groups[3].Success ? int.Parse(m.Groups[3].Value) : 0, m.Groups[4].Success ? int.Parse(m.Groups[4].Value) : 0 };
+        }
+
+        private static void SetReadout(TextBlock target, string value)
+        {
+            if (target == null || string.Equals(target.Text, value, StringComparison.Ordinal)) return;
+            target.Text = value;
+            EfMotion.ReadoutSettle(target);
         }
 
         private static void OpenUrl(string url)

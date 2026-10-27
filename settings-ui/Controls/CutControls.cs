@@ -40,6 +40,9 @@ namespace RapooTray.Settings.Controls
         }
     }
 
+    public class FieldFrame : ContentControl
+    {
+    }
     public class CutButton : Button
     {
         public static readonly DependencyProperty CutSizeProperty = DependencyProperty.Register(

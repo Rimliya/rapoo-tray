@@ -13,7 +13,9 @@
       <CornerRadius x:Key="ControlCornerRadius">0</CornerRadius>
       <CornerRadius x:Key="OverlayCornerRadius">0</CornerRadius>
 
-      <FontFamily x:Key="AppSairaFont">pack://application:,,,/RapooTray.Settings;component/Assets/Fonts/#Rapoo Saira</FontFamily>
+      <FontFamily x:Key="AppSairaFont">pack://application:,,,/rapoo-tray-settings;component/Assets/Fonts/#Rapoo Saira</FontFamily>
+      <FontFamily x:Key="AppHarmonyFont">pack://application:,,,/rapoo-tray-settings;component/Assets/Fonts/#HarmonyOS Sans SC</FontFamily>
+      <FontFamily x:Key="AppHarmonyMediumFont">pack://application:,,,/rapoo-tray-settings;component/Assets/Fonts/#HarmonyOS Sans SC Medium</FontFamily>
 
       <SolidColorBrush x:Key="AppPaperBrush" Color="#F0F3F5" />
       <SolidColorBrush x:Key="AppPanelBrush" Color="#FFFFFF" />
