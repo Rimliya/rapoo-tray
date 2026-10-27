@@ -1,15 +1,29 @@
 #pragma code_page(65001)
 
 #define IDR_APP_PAYLOAD 1001
-#define IDR_SLINT_PAYLOAD 1002
+#define IDR_SETTINGS_PAYLOAD 1002
+#define IDR_SETTINGS_CONFIG 1003
+#define IDR_WPF_UI 1004
+#define IDR_WPF_UI_ABSTRACTIONS 1005
+#define IDR_SYSTEM_MEMORY 1006
+#define IDR_SYSTEM_BUFFERS 1007
+#define IDR_SYSTEM_NUMERICS 1008
+#define IDR_SYSTEM_UNSAFE 1009
 
 1 ICON "..\\res\\app.ico"
 IDR_APP_PAYLOAD RCDATA "..\\bin\\rapoo-tray.exe"
-IDR_SLINT_PAYLOAD RCDATA "..\\bin\\slint_cpp.dll"
+IDR_SETTINGS_PAYLOAD RCDATA "..\\bin\\rapoo-tray-settings.exe"
+IDR_SETTINGS_CONFIG RCDATA "..\\bin\\rapoo-tray-settings.exe.config"
+IDR_WPF_UI RCDATA "..\\bin\\Wpf.Ui.dll"
+IDR_WPF_UI_ABSTRACTIONS RCDATA "..\\bin\\Wpf.Ui.Abstractions.dll"
+IDR_SYSTEM_MEMORY RCDATA "..\\bin\\System.Memory.dll"
+IDR_SYSTEM_BUFFERS RCDATA "..\\bin\\System.Buffers.dll"
+IDR_SYSTEM_NUMERICS RCDATA "..\\bin\\System.Numerics.Vectors.dll"
+IDR_SYSTEM_UNSAFE RCDATA "..\\bin\\System.Runtime.CompilerServices.Unsafe.dll"
 
 1 VERSIONINFO
-FILEVERSION 1,8,0,0
-PRODUCTVERSION 1,8,0,0
+FILEVERSION 1,9,0,0
+PRODUCTVERSION 1,9,0,0
 FILEFLAGSMASK 0x3fL
 FILEFLAGS 0x0L
 FILEOS 0x40004L
@@ -22,23 +36,23 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "Iris"
             VALUE "FileDescription", "rapoo-tray 安装程序"
-            VALUE "FileVersion", "1.8.0.0"
+            VALUE "FileVersion", "1.9.0.0"
             VALUE "InternalName", "rapoo-tray-setup"
             VALUE "LegalCopyright", "Copyright (C) 2026 Iris"
             VALUE "OriginalFilename", "rapoo-tray-setup.exe"
             VALUE "ProductName", "rapoo-tray"
-            VALUE "ProductVersion", "1.8.0.0"
+            VALUE "ProductVersion", "1.9.0.0"
         END
         BLOCK "040904b0"
         BEGIN
             VALUE "CompanyName", "Iris"
             VALUE "FileDescription", "rapoo-tray Setup"
-            VALUE "FileVersion", "1.8.0.0"
+            VALUE "FileVersion", "1.9.0.0"
             VALUE "InternalName", "rapoo-tray-setup"
             VALUE "LegalCopyright", "Copyright (C) 2026 Iris"
             VALUE "OriginalFilename", "rapoo-tray-setup.exe"
             VALUE "ProductName", "rapoo-tray"
-            VALUE "ProductVersion", "1.8.0.0"
+            VALUE "ProductVersion", "1.9.0.0"
         END
     END
     BLOCK "VarFileInfo"

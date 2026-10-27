@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(rapoo-tray VERSION 1.8.0 LANGUAGES CXX RC)
+project(rapoo-tray VERSION 1.9.0 LANGUAGES CXX RC)
 
 if(NOT WIN32)
     message(FATAL_ERROR "rapoo-tray is a Windows application.")
@@ -8,10 +8,6 @@ endif()
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-set(SLINT_STYLE "fluent" CACHE STRING "Slint widget style" FORCE)
-
-find_package(Slint REQUIRED)
-
 add_executable(rapoo-tray WIN32
     src/main.cpp
     src/rapoo_protocol.cpp
@@ -22,13 +18,11 @@ add_executable(rapoo-tray WIN32
     src/profile_manager.cpp
     src/battery_estimator.cpp
     src/dpi_window.cpp
-    src/slint_settings_window.cpp
-    src/slint_about_window.cpp
+    src/settings_launcher.cpp
+    src/ui_bridge.cpp
+    src/about_launcher.cpp
     res/app.rc
 )
-
-set_property(TARGET rapoo-tray PROPERTY SLINT_EMBED_RESOURCES embed-files)
-slint_target_sources(rapoo-tray ui/settings.slint NAMESPACE RapooUi)
 
 target_include_directories(rapoo-tray PRIVATE src)
 target_compile_definitions(rapoo-tray PRIVATE
@@ -39,7 +33,6 @@ target_compile_definitions(rapoo-tray PRIVATE
     _CRT_SECURE_NO_WARNINGS
 )
 target_link_libraries(rapoo-tray PRIVATE
-    Slint::Slint
     setupapi
     hid
     user32
@@ -65,15 +58,7 @@ foreach(config DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
     )
 endforeach()
 
-add_custom_command(TARGET rapoo-tray POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "$<TARGET_FILE:slint_cpp-shared>"
-        "$<TARGET_FILE_DIR:rapoo-tray>/slint_cpp.dll"
-    COMMENT "Copying Slint runtime"
-)
-
 install(TARGETS rapoo-tray RUNTIME DESTINATION .)
-install(FILES "$<TARGET_FILE:slint_cpp-shared>" DESTINATION . RENAME slint_cpp.dll)
 
 if(MSVC)
     target_compile_options(rapoo-tray PRIVATE /utf-8 /bigobj)
@@ -83,7 +68,3 @@ else()
     # Windows GUI subsystem. Keep wWinMain and suppress the console window.
     target_link_options(rapoo-tray PRIVATE -municode -Wl,--subsystem,windows)
 endif()
-
-
-install(FILES licenses/slint-LICENSE.md licenses/slint-THIRDPARTY.md DESTINATION licenses)
-

@@ -16,7 +16,14 @@
 #include <tlhelp32.h>
 
 #define IDR_APP_PAYLOAD      1001
-#define IDR_SLINT_PAYLOAD    1002
+#define IDR_SETTINGS_PAYLOAD 1002
+#define IDR_SETTINGS_CONFIG  1003
+#define IDR_WPF_UI           1004
+#define IDR_WPF_UI_ABSTRACTIONS 1005
+#define IDR_SYSTEM_MEMORY    1006
+#define IDR_SYSTEM_BUFFERS   1007
+#define IDR_SYSTEM_NUMERICS  1008
+#define IDR_SYSTEM_UNSAFE    1009
 
 #define IDC_BTN_INSTALL      2001
 #define IDC_BTN_CANCEL       2002
@@ -340,15 +347,28 @@ static void DoInstall() {
 
     WCHAR appExePath[MAX_PATH];
     StringCchPrintfW(appExePath, MAX_PATH, L"%s\\rapoo-tray.exe", installDir);
-    WCHAR slintDllPath[MAX_PATH];
-    StringCchPrintfW(slintDllPath, MAX_PATH, L"%s\\slint_cpp.dll", installDir);
-
     WCHAR uninstallerPath[MAX_PATH];
     StringCchPrintfW(uninstallerPath, MAX_PATH, L"%s\\Uninstall.exe", installDir);
 
-    // 3. Extract application and Slint runtime
-    if (!ExtractPayloadToFile(IDR_APP_PAYLOAD, appExePath) ||
-        !ExtractPayloadToFile(IDR_SLINT_PAYLOAD, slintDllPath)) {
+    // 3. Extract the native tray and the WPF Fluent settings payload.
+    struct PayloadFile { WORD id; const WCHAR* name; };
+    const PayloadFile settingsPayload[] = {
+        { IDR_SETTINGS_PAYLOAD, L"rapoo-tray-settings.exe" },
+        { IDR_SETTINGS_CONFIG, L"rapoo-tray-settings.exe.config" },
+        { IDR_WPF_UI, L"Wpf.Ui.dll" },
+        { IDR_WPF_UI_ABSTRACTIONS, L"Wpf.Ui.Abstractions.dll" },
+        { IDR_SYSTEM_MEMORY, L"System.Memory.dll" },
+        { IDR_SYSTEM_BUFFERS, L"System.Buffers.dll" },
+        { IDR_SYSTEM_NUMERICS, L"System.Numerics.Vectors.dll" },
+        { IDR_SYSTEM_UNSAFE, L"System.Runtime.CompilerServices.Unsafe.dll" },
+    };
+    bool extracted = ExtractPayloadToFile(IDR_APP_PAYLOAD, appExePath);
+    for (const auto& payload : settingsPayload) {
+        WCHAR path[MAX_PATH];
+        StringCchPrintfW(path, MAX_PATH, L"%s\\%s", installDir, payload.name);
+        extracted = extracted && ExtractPayloadToFile(payload.id, path);
+    }
+    if (!extracted) {
         MessageBoxW(g_hMainWnd, L"旧程序已停止，但写入文件仍失败。请检查安装目录权限后重试。", L"错误", MB_ICONERROR);
         SetWindowTextW(g_hBtnInstall, g_isUpdate ? L"更新" : L"安装");
         EnableWindow(g_hBtnInstall, TRUE);

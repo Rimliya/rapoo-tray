@@ -26,8 +26,26 @@ if %ERRORLEVEL% equ 0 (
     goto done
 )
 
-echo [ERROR] g++ not found in PATH!
-exit /b 1
+if not exist "..\.tools\ziglang\ziglang\zig.exe" (
+    echo [ERROR] g++ not found and bundled Zig fallback is unavailable.
+    exit /b 1
+)
+
+echo [Toolchain] Using bundled Zig fallback
+python "..\.tools\buildtools\bin\windres.py" plugin.rc -o plugin.o -O coff
+if errorlevel 1 (
+    echo [ERROR] resource compilation failed!
+    exit /b 1
+)
+set "ZIG_GLOBAL_CACHE_DIR=%~dp0..\.tools\zig-cache-global"
+set "ZIG_LOCAL_CACHE_DIR=%~dp0..\.tools\zig-cache-local"
+"..\.tools\ziglang\ziglang\zig.exe" c++ -target x86_64-windows-gnu -shared -O2 -std=c++17 -DUNICODE -D_UNICODE -mwindows -municode rapoo_plugin.cpp plugin.o -o ..\bin\rapoo-plugin.dll -Wl,--subsystem,windows -lsetupapi -lhid -luser32 -lgdi32 -lshell32 -ladvapi32
+if errorlevel 1 (
+    echo [ERROR] Zig compilation failed!
+    exit /b 1
+)
+if exist plugin.o del plugin.o
+goto done
 
 :done
 if exist ..\bin\rapoo-plugin.dll (

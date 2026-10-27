@@ -14,6 +14,7 @@ extern "C" {
 #include "profile_manager.h"
 #include "settings_window.h"
 #include "about_window.h"
+#include "ui_bridge.h"
 
 static const UINT WM_APP_TRAYMSG = WM_APP + 1;
 static const UINT WM_APP_STATE_UPDATE = WM_APP + 2;
@@ -97,6 +98,10 @@ static void OnDeviceStateChanged(const Device::State& state, DWORD changeMask) {
 }
 
 static LRESULT CALLBACK MainWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    if (msg == UiBridge::WM_APP_UI_COMMAND) {
+        return UiBridge::HandleMainMessage(hWnd, msg, wParam, lParam);
+    }
+
     if (g_openSettingsMessage != 0 && msg == g_openSettingsMessage) {
         Settings::ShowPage(hWnd, (int)wParam);
         return 0;
@@ -174,6 +179,7 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
         }
 
         case WM_DESTROY: {
+            UiBridge::Stop();
             Shell_NotifyIconW(NIM_DELETE, &g_nid);
             if (g_hCurrentTrayIcon) {
                 DestroyIcon(g_hCurrentTrayIcon);
@@ -264,6 +270,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     // Load persistent profile rules and start polling the foreground app.
     Profiles::Initialize();
     Device::Start(g_hMainWnd, OnDeviceStateChanged);
+    UiBridge::Start(g_hMainWnd);
     SetTimer(g_hMainWnd, TIMER_PROFILE_POLL, 600, NULL);
     if (requestedPage >= 0) {
         PostMessageW(g_hMainWnd, g_openSettingsMessage, (WPARAM)requestedPage, 0);
