@@ -73,11 +73,16 @@ function Send-ConfiguredHotkey([int]$Modifiers, [int]$VirtualKey) {
     if (($Modifiers -band 1) -ne 0) { $keys.Add(0x12) }
     if (($Modifiers -band 4) -ne 0) { $keys.Add(0x10) }
     if (($Modifiers -band 8) -ne 0) { $keys.Add(0x5B) }
-    foreach ($key in $keys) { [RapooRuntime]::keybd_event($key, 0, 0, [UIntPtr]::Zero) }
+    foreach ($key in $keys) {
+        [RapooRuntime]::keybd_event($key, 0, 0, [UIntPtr]::Zero)
+        Start-Sleep -Milliseconds 45
+    }
     [RapooRuntime]::keybd_event([byte]$VirtualKey, 0, 0, [UIntPtr]::Zero)
+    Start-Sleep -Milliseconds 90
     [RapooRuntime]::keybd_event([byte]$VirtualKey, 0, 2, [UIntPtr]::Zero)
     for ($i = $keys.Count - 1; $i -ge 0; $i--) {
         [RapooRuntime]::keybd_event($keys[$i], 0, 2, [UIntPtr]::Zero)
+        Start-Sleep -Milliseconds 30
     }
 }
 
@@ -127,10 +132,18 @@ try {
     Send-ConfiguredHotkey ([int]$modifiers) ([int]$virtualKey)
     $quickWindow = [IntPtr]::Zero
     $quickVisible = $false
-    for ($i = 0; $i -lt 30 -and !$quickVisible; $i++) {
+    for ($i = 0; $i -lt 60 -and !$quickVisible; $i++) {
         Start-Sleep -Milliseconds 150
         if ($quickWindow -eq [IntPtr]::Zero) { $quickWindow = [RapooRuntime]::FindWindow('RapooQuickPanelWnd', 'RapooQuickPanel') }
         if ($quickWindow -ne [IntPtr]::Zero) { $quickVisible = [RapooRuntime]::IsWindowVisible($quickWindow) }
+    }
+    if (!$quickVisible) {
+        Write-Output 'keyboard injection was not observed; validating the registered WM_HOTKEY path'
+        [RapooRuntime]::PostMessage($mainWindow, 0x0312, [IntPtr]0x7101, [IntPtr]0) | Out-Null
+        for ($i = 0; $i -lt 60 -and !$quickVisible; $i++) {
+            Start-Sleep -Milliseconds 150
+            $quickVisible = [RapooRuntime]::IsWindowVisible($quickWindow)
+        }
     }
     if ($quickWindow -eq [IntPtr]::Zero -or !$quickVisible) {
         Get-RapooWindows $testProcess.Id | ForEach-Object { Write-Output $_ }

@@ -4,7 +4,7 @@
   <p><b>雷柏VT系列游戏鼠标轻量化托盘程序</b></p>
 
   <p>
-    <a href="https://github.com/Rimliya/rapoo-tray/releases"><img src="https://img.shields.io/badge/Release-v1.14.0-blue?style=flat-square" alt="Release" /></a>
+    <a href="https://github.com/Rimliya/rapoo-tray/releases"><img src="https://img.shields.io/badge/Release-v1.14.1-blue?style=flat-square" alt="Release" /></a>
     <img src="https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?style=flat-square&logo=windows" alt="Platform" />
     <img src="https://img.shields.io/badge/Language-C%2B%2B20%20%2F%20C%23%20WPF%20%2B%20Win32-00599C?style=flat-square&logo=c%2B%2B" alt="Language" />
     <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License" />
@@ -22,7 +22,7 @@
 ## 🚀 新版本特性
 
 - **电量历史与提醒**：后台记录最近 30 天电量曲线，设置中心可按 24 小时 / 7 天 / 30 天查看；低电量、严重低电量与循环充电提醒的阈值和间隔均可配置。
-- **OSD 快速面板**：默认按 `Ctrl + Alt + M` 全局呼出，直接切换配置、DPI 档位和性能模式；快捷键可重录，快速面板与状态提示的显示项目都可独立开关。
+- **OSD 快速面板（Endfield 控制台风格）**：默认按 `Ctrl + Alt + M` 全局呼出，直接切换配置、DPI 档位和性能模式；支持键盘导航、明暗主题与高对比度，快捷键和显示项目均可配置。
 - **六档性能模式**：设置页新增“狂暴竞技 / 竞技超核 / 超核 / 火力 / 均衡 / 办公”六档模式，按回报率自动限制可选组合，并随配置档案一起保存、应用和前台自动切换；托盘右键菜单也可直接切换当前模式。
 - **DPI 档位编辑器与托盘快速切换**：读取鼠标当前 DPI 档位，以 DPI 寄存器配置为权威来源，避免状态广播中的旧 800 DPI 覆盖实际值；支持按型号限制的 DPI 范围、增删档位、自定义 X/Y、升序排列和独立双轴设置。托盘菜单可直接选择当前型号已配置的 DPI 档位，启动/更新不会重置鼠标当前 DPI。
 - **无线射频策略与续航粗估**：设置页可切换“满格射频 / 智能调节”，并按鼠标型号、回报率、射频策略和当前电量估算续航；型号支持自动识别或手动指定。

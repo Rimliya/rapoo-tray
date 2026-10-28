@@ -5,9 +5,13 @@
 1 ICON "app.ico"
 1 24 "app.manifest"
 
+201 RCDATA "..\\settings-ui\\Assets\\Fonts\\Saira-Wide-SemiBold.ttf"
+202 RCDATA "..\\settings-ui\\Assets\\Fonts\\Saira-Wide-ExtraBold.ttf"
+203 RCDATA "..\\settings-ui\\Assets\\Fonts\\Saira-Field.ttf"
+
 1 VERSIONINFO
-FILEVERSION 1,14,0,0
-PRODUCTVERSION 1,14,0,0
+FILEVERSION 1,14,1,0
+PRODUCTVERSION 1,14,1,0
 FILEFLAGSMASK 0x3fL
 FILEFLAGS 0x0L
 FILEOS 0x40004L
@@ -20,23 +24,23 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "Iris"
             VALUE "FileDescription", "rapoo-tray"
-            VALUE "FileVersion", "1.14.0.0"
+            VALUE "FileVersion", "1.14.1.0"
             VALUE "InternalName", "rapoo-tray"
             VALUE "LegalCopyright", "Copyright (C) 2026 Iris"
             VALUE "OriginalFilename", "rapoo-tray.exe"
             VALUE "ProductName", "rapoo-tray"
-            VALUE "ProductVersion", "1.14.0.0"
+            VALUE "ProductVersion", "1.14.1.0"
         END
         BLOCK "040904b0"
         BEGIN
             VALUE "CompanyName", "Iris"
             VALUE "FileDescription", "rapoo-tray"
-            VALUE "FileVersion", "1.14.0.0"
+            VALUE "FileVersion", "1.14.1.0"
             VALUE "InternalName", "rapoo-tray"
             VALUE "LegalCopyright", "Copyright (C) 2026 Iris"
             VALUE "OriginalFilename", "rapoo-tray.exe"
             VALUE "ProductName", "rapoo-tray"
-            VALUE "ProductVersion", "1.14.0.0"
+            VALUE "ProductVersion", "1.14.1.0"
         END
     END
     BLOCK "VarFileInfo"
