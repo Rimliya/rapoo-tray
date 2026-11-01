@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 Add-Type @"
 using System;
@@ -95,6 +95,7 @@ if (!(Test-Path $testExe)) { throw "Native test binary not found: $testExe" }
 
 $installedProcess = Get-Process rapoo-tray -ErrorAction SilentlyContinue | Select-Object -First 1
 $installedWasRunning = $null -ne $installedProcess
+$script:osdRestoreCommand = $null
 $installedExe = if ($installedProcess) { $installedProcess.Path } else { $null }
 $testProcess = $null
 try {
@@ -114,15 +115,23 @@ try {
     if ($state -notmatch '(?m)^OSD\|') { throw 'GET_STATE omitted OSD settings.' }
     if ($state -notmatch '(?m)^BATTERY_SETTINGS\|') { throw 'GET_STATE omitted battery settings.' }
     $osdLine = [regex]::Match($state, '(?m)^OSD\|([^\r\n]+)').Groups[1].Value.Split('|')
-    if ($osdLine.Length -lt 7) { throw 'OSD state has an invalid shape.' }
+    if ($osdLine.Length -lt 23) { throw 'OSD state has an invalid shape; expected extended OSD fields.' }
     $modifiers = $osdLine[2]
     $virtualKey = $osdLine[3]
     $displayMask = $osdLine[5]
     $panelMask = $osdLine[6]
     if ($osdLine[4] -ne '1') { throw 'Configured global hotkey was not registered.' }
 
-    $osdResponse = Send-RapooCommand "SET_OSD_CONFIG|1|1|$modifiers|$virtualKey|$displayMask|$panelMask"
+    $osdOriginalArgs = @($osdLine[0], $osdLine[1], $osdLine[2], $osdLine[3], $osdLine[5], $osdLine[6]) + @($osdLine[7..21])
+    $script:osdRestoreCommand = "SET_OSD_CONFIG|" + ($osdOriginalArgs -join '|')
+    $osdTestArgs = @('1', '1', $osdLine[2], $osdLine[3], $osdLine[5], $osdLine[6]) + @('1', '0', '0', '0', '110', '94', '1800') + @('7', '117', '7', '118', '7', '119', '7', '120')
+    $osdResponse = Send-RapooCommand ("SET_OSD_CONFIG|" + ($osdTestArgs -join '|'))
     if (!$osdResponse.StartsWith('OK')) { throw 'SET_OSD_CONFIG failed.' }
+    $osdTestLine = [regex]::Match($osdResponse, '(?m)^OSD\|([^\r\n]+)').Groups[1].Value.Split('|')
+    if ($osdTestLine.Length -lt 23) { throw 'SET_OSD_CONFIG response omitted extended fields.' }
+    $registrationMask = [Convert]::ToInt32($osdTestLine[22])
+    if (($registrationMask -band 0x1F) -ne 0x1F) { throw "Expected all five global hotkeys to register; mask=$registrationMask" }
+    if ($osdTestLine[7] -ne '1' -or $osdTestLine[11] -ne '110' -or $osdTestLine[13] -ne '1800') { Write-Output ('osd_pos=' + $osdTestLine[7] + ' scale=' + $osdTestLine[11] + ' duration=' + $osdTestLine[13]); throw 'Extended OSD appearance fields were not persisted.' }
     $batteryLine = [regex]::Match($state, '(?m)^BATTERY_SETTINGS\|([^\r\n]+)').Groups[1].Value.Split('|')
     $batteryResponse = Send-RapooCommand "SET_BATTERY_CONFIG|$($batteryLine[0])|$($batteryLine[1])|$($batteryLine[2])|$($batteryLine[3])|$($batteryLine[4])"
     if (!$batteryResponse.StartsWith('OK')) { throw 'SET_BATTERY_CONFIG failed.' }
@@ -170,6 +179,9 @@ try {
     Write-Output $osdShot
 }
 finally {
+    if ($testProcess -and !$testProcess.HasExited -and $script:osdRestoreCommand) {
+        try { Send-RapooCommand $script:osdRestoreCommand | Out-Null } catch { }
+    }
     if ($testProcess -and !$testProcess.HasExited) { Stop-Process -Id $testProcess.Id -Force }
     Start-Sleep -Milliseconds 300
     if ($installedWasRunning -and (Test-Path $installedExe)) {

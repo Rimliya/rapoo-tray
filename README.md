@@ -4,7 +4,7 @@
   <p><b>雷柏VT系列游戏鼠标轻量化托盘程序</b></p>
 
   <p>
-    <a href="https://github.com/Rimliya/rapoo-tray/releases"><img src="https://img.shields.io/badge/Release-v1.15.0-blue?style=flat-square" alt="Release" /></a>
+    <a href="https://github.com/Rimliya/rapoo-tray/releases"><img src="https://img.shields.io/badge/Release-v1.16.0-blue?style=flat-square" alt="Release" /></a>
     <img src="https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?style=flat-square&logo=windows" alt="Platform" />
     <img src="https://img.shields.io/badge/Language-C%2B%2B20%20%2F%20C%23%20WPF%20%2B%20Win32-00599C?style=flat-square&logo=c%2B%2B" alt="Language" />
     <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License" />
@@ -19,11 +19,17 @@
 
 ---
 
+> **v1.16.0 发布说明**：发布包不进行代码签名，仅提供 SHA256 校验文件。Windows 可能显示 SmartScreen 或“未知发布者”提示。仓库保留可选的签名脚本与配置文档，后续取得受信任证书后可以启用。
 ## 🚀 新版本特性
 
 - **电量历史与提醒**：后台记录最近 30 天电量曲线，设置中心可按 24 小时 / 7 天 / 30 天查看；低电量、严重低电量与循环充电提醒的阈值和间隔均可配置。
 - **OSD 快速面板（Endfield 控制台风格）**：默认按 `Ctrl + Alt + M` 全局呼出，直接切换配置、DPI 档位和性能模式；支持键盘导航、明暗主题与高对比度，快捷键和显示项目均可配置。
 - **状态 OSD（Endfield 冷库控制台）**：切换连接、DPI、配置或性能模式时显示；顶部三色细带、Saira Wide 字标、冷库蓝状态标记与细线分区，宽度随启用字段和文本长度自适应。
+- **状态 OSD 外观自定义**：可设置屏幕位置、显示器、缩放、透明度、停留时间与 X/Y 偏移，并在设置中心直接预览。
+- **全局快捷键套件**：支持呼出快速面板、切换配置、切换 DPI、循环性能模式和开关状态 OSD；重复组合会被拒绝。
+- **配置快照**：保存、新增、删除、应用和导入前自动保留 `.rapoo` 快照，最多 20 份，并可从关于页恢复。
+- **设备诊断与回报率验证**：通过 Raw Input 观察系统收到的鼠标输入频率、抖动和最大间隔，并导出脱敏诊断摘要。
+- **应用内更新闭环**：下载 Release 安装包，校验 SHA256 后启动安装器；若资产带有效 Authenticode 签名则会额外验证。
 - **六档性能模式**：设置页新增“狂暴竞技 / 竞技超核 / 超核 / 火力 / 均衡 / 办公”六档模式，按回报率自动限制可选组合，并随配置档案一起保存、应用和前台自动切换；托盘右键菜单也可直接切换当前模式。
 - **DPI 档位编辑器与托盘快速切换**：读取鼠标当前 DPI 档位，以 DPI 寄存器配置为权威来源，避免状态广播中的旧 800 DPI 覆盖实际值；支持按型号限制的 DPI 范围、增删档位、自定义 X/Y、升序排列和独立双轴设置。托盘菜单可直接选择当前型号已配置的 DPI 档位，启动/更新不会重置鼠标当前 DPI。
 - **无线射频策略与续航粗估**：设置页可切换“满格射频 / 智能调节”，并按鼠标型号、回报率、射频策略和当前电量估算续航；型号支持自动识别或手动指定。
@@ -43,13 +49,12 @@
   - **配置一**：经典电池胶囊外观
   - **配置二**：环形电量进度风格
   - **配置三**：纯数字搭配底部横轨
-- **美化信息悬浮窗 (OSD)**：
-  - 弃用固定宽框，改为毫秒级文本动态计算卡片宽度（`DT_CALCRECT`）。
-  - 三行精简架构，型号、连接、DPI 档位与数值、电量、回报率和性能模式均可独立显示或隐藏。
-  - 默认快捷键 `Ctrl + Alt + M` 呼出快速面板，可不进设置中心直接切换配置、DPI 与性能模式。
-  - 快速面板顶部电量、回报率、型号信息和三组切换区均可配置。
+- **状态 OSD（Endfield 冷库控制台）**：
+  - 直角工业面板、顶部三色细带、Saira Wide 字标和冷库蓝状态标记。
+  - 型号、连接、DPI 档位与数值、电量、回报率和性能模式均可独立显示或隐藏。
+  - 支持跟随鼠标或主显示器，以及四角位置、缩放、透明度、停留时间和偏移。
 - **托盘右键面板**：菜单设计成 Fluent 亚克力材质；新增回报率调节、休眠配置功能。
-- **关于与在线更新检查**：托盘右键菜单新增“关于 rapoo-tray”，集中显示版本号、项目源码入口，并可异步检查 GitHub Releases 最新版本。
+- **关于与应用内更新**：托盘右键菜单新增“关于 rapoo-tray”，集中显示版本号、配置快照、项目源码与完整应用内更新；更新包必须通过 SHA256 校验；若资产有 Authenticode 签名则额外验证发布者。
 
 ---
 
@@ -63,6 +68,9 @@
 | :---: | :---: |
 | <img src="docs/screenshots/settings-wpf-fluent.png" width="520" alt="工业风浅色设置中心" /> | <img src="docs/screenshots/settings-wpf-dark.png" width="520" alt="工业风深色设置中心" /> |
 
+| 回报率验证与设备诊断 |
+| :---: |
+| <img src="docs/screenshots/settings-diagnostics.png" width="1040" alt="回报率验证与设备诊断页" /> |
 | Fluent 亚克力右键菜单 |
 | :---: |
 | <img src="docs/screenshots/menu.png" width="260" alt="原生 Fluent 亚克力右键控制面板" /> |
@@ -249,6 +257,13 @@ build_plugin.bat
 1. 本项目为个人开源业余作品，旨在为雷柏无线鼠标用户提供轻量、低占用的系统级托盘助手，**非雷柏官方出品**。
 2. “雷柏”与“RAPOO”商标及产品名称所有权归深圳市雷柏科技股份有限公司所有。
 3. 软件按“原样”（AS IS）提供，作者不对使用过程中可能出现的任何偶发问题承担法律责任。
+
+---
+
+## 🧭 开发文档
+
+- [开发路线与未完成项](docs/roadmap.md)
+- [Windows 代码签名配置](docs/signing.md)
 
 ---
 

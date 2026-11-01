@@ -32,6 +32,46 @@ bool IsModifierKey(UINT virtualKey) {
            virtualKey == VK_LWIN || virtualKey == VK_RWIN;
 }
 
+void LoadOptionalHotkey(HKEY key, const WCHAR* modifierName, const WCHAR* keyName,
+                        UINT& modifiers, UINT& virtualKey) {
+    const DWORD storedModifiers = ReadDword(key, modifierName, modifiers);
+    const DWORD storedVirtualKey = ReadDword(key, keyName, virtualKey);
+    if (storedModifiers == 0 && storedVirtualKey == 0) {
+        modifiers = 0;
+        virtualKey = 0;
+        return;
+    }
+
+    UINT normalizedModifiers = 0;
+    UINT normalizedVirtualKey = 0;
+    if (NormalizeHotkey(storedModifiers, storedVirtualKey,
+                        normalizedModifiers, normalizedVirtualKey)) {
+        modifiers = normalizedModifiers;
+        virtualKey = normalizedVirtualKey;
+    } else {
+        modifiers = 0;
+        virtualKey = 0;
+    }
+}
+
+void SaveOptionalHotkey(HKEY key, const WCHAR* modifierName, const WCHAR* keyName,
+                        UINT modifiers, UINT virtualKey) {
+    UINT normalizedModifiers = 0;
+    UINT normalizedVirtualKey = 0;
+    if (!NormalizeHotkey(modifiers, virtualKey, normalizedModifiers, normalizedVirtualKey)) {
+        normalizedModifiers = 0;
+        normalizedVirtualKey = 0;
+    }
+    RegSetValueExW(key, modifierName, 0, REG_DWORD,
+        reinterpret_cast<const BYTE*>(&normalizedModifiers), sizeof(normalizedModifiers));
+    RegSetValueExW(key, keyName, 0, REG_DWORD,
+        reinterpret_cast<const BYTE*>(&normalizedVirtualKey), sizeof(normalizedVirtualKey));
+}
+
+int ClampInt(int value, int minimum, int maximum) {
+    return std::clamp(value, minimum, maximum);
+}
+
 } // namespace
 
 bool NormalizeHotkey(UINT modifiers, UINT virtualKey, UINT& outModifiers, UINT& outVirtualKey) {
@@ -50,6 +90,41 @@ bool IsHotkeyValid(UINT modifiers, UINT virtualKey) {
     UINT normalizedModifiers = 0;
     UINT normalizedVirtualKey = 0;
     return NormalizeHotkey(modifiers, virtualKey, normalizedModifiers, normalizedVirtualKey);
+}
+
+bool IsHotkeyAssigned(UINT modifiers, UINT virtualKey) {
+    return modifiers != 0 || virtualKey != 0;
+}
+
+bool AreHotkeysUnique(const Config& config, std::wstring* error) {
+    struct Binding {
+        const WCHAR* label;
+        UINT modifiers;
+        UINT virtualKey;
+        bool enabled;
+    };
+    const Binding bindings[] = {
+        {L"快速面板", config.hotkeyModifiers, config.hotkeyVirtualKey, config.quickPanelEnabled},
+        {L"切换配置", config.profileCycleHotkeyModifiers, config.profileCycleHotkeyVirtualKey, true},
+        {L"切换 DPI", config.dpiCycleHotkeyModifiers, config.dpiCycleHotkeyVirtualKey, true},
+        {L"循环性能模式", config.performanceCycleHotkeyModifiers, config.performanceCycleHotkeyVirtualKey, true},
+        {L"开关状态 OSD", config.toggleOsdHotkeyModifiers, config.toggleOsdHotkeyVirtualKey, true},
+    };
+
+    for (size_t i = 0; i < ARRAYSIZE(bindings); ++i) {
+        if (!bindings[i].enabled || !IsHotkeyAssigned(bindings[i].modifiers, bindings[i].virtualKey)) continue;
+        for (size_t j = i + 1; j < ARRAYSIZE(bindings); ++j) {
+            if (!bindings[j].enabled || !IsHotkeyAssigned(bindings[j].modifiers, bindings[j].virtualKey)) continue;
+            if (bindings[i].modifiers == bindings[j].modifiers &&
+                bindings[i].virtualKey == bindings[j].virtualKey) {
+                if (error) {
+                    *error = std::wstring(L"快捷键冲突：") + bindings[i].label + L" 与 " + bindings[j].label + L" 使用了同一组合键";
+                }
+                return false;
+            }
+        }
+    }
+    return true;
 }
 
 std::wstring FormatHotkey(UINT modifiers, UINT virtualKey) {
@@ -130,6 +205,31 @@ Config Load() {
     }
     config.displayFields = NormalizeDisplayMask(ReadDword(key, L"OsdDisplayFields", config.displayFields));
     config.panelItems = NormalizePanelMask(ReadDword(key, L"QuickPanelItems", config.panelItems));
+
+    config.osdPosition = std::min<DWORD>(OSD_POSITION_TOP_LEFT,
+        ReadDword(key, L"OsdPosition", config.osdPosition));
+    config.osdMonitor = std::min<DWORD>(OSD_MONITOR_PRIMARY,
+        ReadDword(key, L"OsdMonitor", config.osdMonitor));
+    config.osdOffsetX = ClampInt(static_cast<int>(ReadDword(key, L"OsdOffsetX",
+        static_cast<DWORD>(config.osdOffsetX))), -1000, 1000);
+    config.osdOffsetY = ClampInt(static_cast<int>(ReadDword(key, L"OsdOffsetY",
+        static_cast<DWORD>(config.osdOffsetY))), -1000, 1000);
+    config.osdScalePercent = ClampInt(static_cast<int>(ReadDword(key, L"OsdScalePercent",
+        static_cast<DWORD>(config.osdScalePercent))), 75, 150);
+    config.osdOpacityPercent = ClampInt(static_cast<int>(ReadDword(key, L"OsdOpacityPercent",
+        static_cast<DWORD>(config.osdOpacityPercent))), 40, 100);
+    config.osdDurationMs = ClampInt(static_cast<int>(ReadDword(key, L"OsdDurationMs",
+        static_cast<DWORD>(config.osdDurationMs))), 800, 8000);
+
+    LoadOptionalHotkey(key, L"ProfileCycleHotkeyModifiers", L"ProfileCycleHotkeyVirtualKey",
+        config.profileCycleHotkeyModifiers, config.profileCycleHotkeyVirtualKey);
+    LoadOptionalHotkey(key, L"DpiCycleHotkeyModifiers", L"DpiCycleHotkeyVirtualKey",
+        config.dpiCycleHotkeyModifiers, config.dpiCycleHotkeyVirtualKey);
+    LoadOptionalHotkey(key, L"PerformanceCycleHotkeyModifiers", L"PerformanceCycleHotkeyVirtualKey",
+        config.performanceCycleHotkeyModifiers, config.performanceCycleHotkeyVirtualKey);
+    LoadOptionalHotkey(key, L"ToggleOsdHotkeyModifiers", L"ToggleOsdHotkeyVirtualKey",
+        config.toggleOsdHotkeyModifiers, config.toggleOsdHotkeyVirtualKey);
+
     RegCloseKey(key);
     return config;
 }
@@ -146,8 +246,20 @@ bool Save(const Config& input) {
         config.hotkeyModifiers = normalizedModifiers;
         config.hotkeyVirtualKey = normalizedVirtualKey;
     }
+
     config.displayFields = NormalizeDisplayMask(config.displayFields);
     config.panelItems = NormalizePanelMask(config.panelItems);
+    config.osdPosition = std::min<DWORD>(OSD_POSITION_TOP_LEFT, config.osdPosition);
+    config.osdMonitor = std::min<DWORD>(OSD_MONITOR_PRIMARY, config.osdMonitor);
+    config.osdOffsetX = ClampInt(config.osdOffsetX, -1000, 1000);
+    config.osdOffsetY = ClampInt(config.osdOffsetY, -1000, 1000);
+    config.osdScalePercent = ClampInt(config.osdScalePercent, 75, 150);
+    config.osdOpacityPercent = ClampInt(config.osdOpacityPercent, 40, 100);
+    config.osdDurationMs = ClampInt(config.osdDurationMs, 800, 8000);
+
+    if (!AreHotkeysUnique(config)) {
+        return false;
+    }
 
     HKEY key = NULL;
     if (RegCreateKeyExW(HKEY_CURRENT_USER, APP_KEY, 0, NULL, 0, KEY_WRITE, NULL, &key, NULL) != ERROR_SUCCESS) {
@@ -162,6 +274,21 @@ bool Save(const Config& input) {
     setDword(L"QuickPanelHotkeyVirtualKey", config.hotkeyVirtualKey);
     setDword(L"OsdDisplayFields", config.displayFields);
     setDword(L"QuickPanelItems", config.panelItems);
+    setDword(L"OsdPosition", config.osdPosition);
+    setDword(L"OsdMonitor", config.osdMonitor);
+    setDword(L"OsdOffsetX", static_cast<DWORD>(config.osdOffsetX));
+    setDword(L"OsdOffsetY", static_cast<DWORD>(config.osdOffsetY));
+    setDword(L"OsdScalePercent", static_cast<DWORD>(config.osdScalePercent));
+    setDword(L"OsdOpacityPercent", static_cast<DWORD>(config.osdOpacityPercent));
+    setDword(L"OsdDurationMs", static_cast<DWORD>(config.osdDurationMs));
+    SaveOptionalHotkey(key, L"ProfileCycleHotkeyModifiers", L"ProfileCycleHotkeyVirtualKey",
+        config.profileCycleHotkeyModifiers, config.profileCycleHotkeyVirtualKey);
+    SaveOptionalHotkey(key, L"DpiCycleHotkeyModifiers", L"DpiCycleHotkeyVirtualKey",
+        config.dpiCycleHotkeyModifiers, config.dpiCycleHotkeyVirtualKey);
+    SaveOptionalHotkey(key, L"PerformanceCycleHotkeyModifiers", L"PerformanceCycleHotkeyVirtualKey",
+        config.performanceCycleHotkeyModifiers, config.performanceCycleHotkeyVirtualKey);
+    SaveOptionalHotkey(key, L"ToggleOsdHotkeyModifiers", L"ToggleOsdHotkeyVirtualKey",
+        config.toggleOsdHotkeyModifiers, config.toggleOsdHotkeyVirtualKey);
     RegCloseKey(key);
     return true;
 }

@@ -20,6 +20,11 @@ dist/
 Thumbs.db
 Desktop.ini
 
+# Signing secrets and private keys
+*.pfx
+*.p12
+*.snk
+
 # Local dependencies and protocol research
 .tools/
 .research/

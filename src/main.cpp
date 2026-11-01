@@ -159,8 +159,8 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
         }
 
         case WM_HOTKEY: {
-            if ((UINT)wParam == QuickPanel::HOTKEY_ID) {
-                QuickPanel::Toggle();
+            if (QuickPanel::HandleHotkey((UINT)wParam)) {
+                PostMessageW(g_hMainWnd, WM_APP_STATE_UPDATE, 0, 0);
                 return 0;
             }
             break;
@@ -199,7 +199,8 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow) {
     g_openSettingsMessage = RegisterWindowMessageW(L"RapooTrayOpenSettingsPage");
     int requestedPage = -1;
-    if (pCmdLine && wcsstr(pCmdLine, L"--about")) requestedPage = 5;
+    if (pCmdLine && wcsstr(pCmdLine, L"--about")) requestedPage = 6;
+    else if (pCmdLine && wcsstr(pCmdLine, L"--diagnostics")) requestedPage = 5;
     else if (pCmdLine && wcsstr(pCmdLine, L"--osd")) requestedPage = 2;
     else if (pCmdLine && wcsstr(pCmdLine, L"--battery")) requestedPage = 3;
     else if (pCmdLine && wcsstr(pCmdLine, L"--dpi")) requestedPage = 4;

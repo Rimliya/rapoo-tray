@@ -89,7 +89,7 @@ namespace RapooTray.Settings
 
     public sealed class AppState
     {
-        public string Version = "1.15.0";
+        public string Version = "1.16.0";
         public string DeviceName = "雷柏游戏鼠标";
         public string DeviceMode = "未连接";
         public bool Connected;
@@ -108,6 +108,22 @@ namespace RapooTray.Settings
         public bool HotkeyRegistered = true;
         public int OsdDisplayFields = 127;
         public int QuickPanelItems = 63;
+        public int OsdPosition;
+        public int OsdMonitor;
+        public int OsdOffsetX;
+        public int OsdOffsetY;
+        public int OsdScalePercent = 100;
+        public int OsdOpacityPercent = 94;
+        public int OsdDurationMs = 2200;
+        public int ProfileHotkeyModifiers = 3;
+        public int ProfileHotkeyVirtualKey = 80;
+        public int DpiHotkeyModifiers = 3;
+        public int DpiHotkeyVirtualKey = 71;
+        public int PerformanceHotkeyModifiers = 3;
+        public int PerformanceHotkeyVirtualKey = 70;
+        public int ToggleOsdHotkeyModifiers = 3;
+        public int ToggleOsdHotkeyVirtualKey = 79;
+        public int HotkeyRegistrationMask = 31;
         public bool BatteryAlertsEnabled = true;
         public int BatteryWarningThreshold = 20;
         public int BatteryCriticalThreshold = 10;
@@ -119,6 +135,31 @@ namespace RapooTray.Settings
         public int CreatedProfileId;
         public readonly ObservableCollection<ProfileRow> Profiles = new ObservableCollection<ProfileRow>();
         public readonly ObservableCollection<ModelOption> Models = new ObservableCollection<ModelOption>();
+    }
+
+    public sealed class OsdSettings
+    {
+        public bool Enabled;
+        public bool QuickPanelEnabled;
+        public int HotkeyModifiers;
+        public int HotkeyVirtualKey;
+        public int DisplayFields;
+        public int PanelItems;
+        public int Position;
+        public int Monitor;
+        public int OffsetX;
+        public int OffsetY;
+        public int ScalePercent = 100;
+        public int OpacityPercent = 94;
+        public int DurationMs = 2200;
+        public int ProfileHotkeyModifiers;
+        public int ProfileHotkeyVirtualKey;
+        public int DpiHotkeyModifiers;
+        public int DpiHotkeyVirtualKey;
+        public int PerformanceHotkeyModifiers;
+        public int PerformanceHotkeyVirtualKey;
+        public int ToggleOsdHotkeyModifiers;
+        public int ToggleOsdHotkeyVirtualKey;
     }
 
     public sealed class DpiState

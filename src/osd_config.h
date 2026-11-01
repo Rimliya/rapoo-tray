@@ -22,6 +22,14 @@ constexpr DWORD PANEL_POLLING      = 1u << 4;
 constexpr DWORD PANEL_DETAILS      = 1u << 5;
 constexpr DWORD PANEL_ALL          = (1u << 6) - 1;
 
+constexpr DWORD OSD_POSITION_BOTTOM_CENTER = 0;
+constexpr DWORD OSD_POSITION_BOTTOM_RIGHT  = 1;
+constexpr DWORD OSD_POSITION_TOP_RIGHT     = 2;
+constexpr DWORD OSD_POSITION_TOP_LEFT      = 3;
+
+constexpr DWORD OSD_MONITOR_CURSOR  = 0;
+constexpr DWORD OSD_MONITOR_PRIMARY = 1;
+
 struct Config {
     bool enabled = true;
     bool quickPanelEnabled = true;
@@ -29,10 +37,29 @@ struct Config {
     UINT hotkeyVirtualKey = 'M';
     DWORD displayFields = FIELD_ALL;
     DWORD panelItems = PANEL_ALL;
+
+    DWORD osdPosition = OSD_POSITION_BOTTOM_CENTER;
+    DWORD osdMonitor = OSD_MONITOR_CURSOR;
+    int osdOffsetX = 0;
+    int osdOffsetY = 0;
+    int osdScalePercent = 100;
+    int osdOpacityPercent = 94;
+    int osdDurationMs = 2200;
+
+    UINT profileCycleHotkeyModifiers = MOD_CONTROL | MOD_ALT;
+    UINT profileCycleHotkeyVirtualKey = 'P';
+    UINT dpiCycleHotkeyModifiers = MOD_CONTROL | MOD_ALT;
+    UINT dpiCycleHotkeyVirtualKey = 'G';
+    UINT performanceCycleHotkeyModifiers = MOD_CONTROL | MOD_ALT;
+    UINT performanceCycleHotkeyVirtualKey = 'F';
+    UINT toggleOsdHotkeyModifiers = MOD_CONTROL | MOD_ALT;
+    UINT toggleOsdHotkeyVirtualKey = 'O';
 };
 
 bool NormalizeHotkey(UINT modifiers, UINT virtualKey, UINT& outModifiers, UINT& outVirtualKey);
 bool IsHotkeyValid(UINT modifiers, UINT virtualKey);
+bool IsHotkeyAssigned(UINT modifiers, UINT virtualKey);
+bool AreHotkeysUnique(const Config& config, std::wstring* error = nullptr);
 std::wstring FormatHotkey(UINT modifiers, UINT virtualKey);
 DWORD NormalizeDisplayMask(DWORD mask);
 DWORD NormalizePanelMask(DWORD mask);

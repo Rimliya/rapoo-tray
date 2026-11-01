@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
 
@@ -67,6 +67,35 @@ try {
     if ($samples -eq $null -or $samples.Current.Name -ne '168') {
         throw "Battery history UI did not update to 168 samples; got '$($samples.Current.Name)'."
     }
+    $navDiagnostics = Find-ById $window 'NavDiagnostics'
+    if ($navDiagnostics -eq $null) { throw 'NavDiagnostics was not found.' }
+    $navDiagnostics.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+    Start-Sleep -Milliseconds 900
+    $pollingStart = Find-ById $window 'PollingStartButton'
+    if ($pollingStart -eq $null) { throw 'PollingStartButton was not found.' }
+    $pollingStart.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    Start-Sleep -Milliseconds 600
+    if ($pollingStart.Current.Name -ne '停止采样') { $pollingStatus = Find-ById $window 'PollingStatusText'; Write-Output ('polling_button=' + $pollingStart.Current.Name); if ($pollingStatus) { Write-Output ('polling_status=' + $pollingStatus.Current.Name) }; $footerStatus = Find-ById $window 'StatusText'; if ($footerStatus) { Write-Output ('footer_status=' + $footerStatus.Current.Name) }; throw 'Polling probe did not enter running state.' }
+    $pollingStart.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    Start-Sleep -Milliseconds 350
+
+    $snapshotDir = Join-Path $env:APPDATA 'rapoo-tray\snapshots'
+    $beforeSnapshots = @()
+    if (Test-Path $snapshotDir) { $beforeSnapshots = @(Get-ChildItem $snapshotDir -Filter *.rapoo -File | Select-Object -ExpandProperty FullName) }
+    $navAbout = Find-ById $window 'NavAbout'
+    if ($navAbout -eq $null) { throw 'NavAbout was not found.' }
+    $navAbout.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+    Start-Sleep -Milliseconds 700
+    $snapshotButton = Find-ByName $window '立即备份'
+    if ($snapshotButton -eq $null) { throw 'Snapshot backup button was not found.' }
+    $snapshotButton.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    Start-Sleep -Milliseconds 700
+    $afterSnapshots = @()
+    if (Test-Path $snapshotDir) { $afterSnapshots = @(Get-ChildItem $snapshotDir -Filter *.rapoo -File | Select-Object -ExpandProperty FullName) }
+    $createdSnapshots = @($afterSnapshots | Where-Object { $beforeSnapshots -notcontains $_ })
+    if ($createdSnapshots.Count -lt 1) { throw 'Snapshot backup did not create a .rapoo file.' }
+    foreach ($created in $createdSnapshots) { Remove-Item -LiteralPath $created -Force }
+
     Write-Output 'settings UI smoke test passed'
 }
 finally {

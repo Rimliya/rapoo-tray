@@ -24,9 +24,32 @@ namespace RapooTray.Settings
 {
     public partial class MainWindow
     {
+        private enum HotkeyKind { Panel, Profile, Dpi, Performance, ToggleOsd }
+
+        private sealed class HotkeyBinding
+        {
+            public int Modifiers;
+            public int VirtualKey;
+            public int DefaultModifiers;
+            public int DefaultVirtualKey;
+            public int RegistrationBit;
+            public TextBlock ValueText;
+            public TextBlock StatusText;
+
+            public HotkeyBinding(int modifiers, int virtualKey, int registrationBit,
+                TextBlock valueText, TextBlock statusText)
+            {
+                Modifiers = DefaultModifiers = modifiers;
+                VirtualKey = DefaultVirtualKey = virtualKey;
+                RegistrationBit = registrationBit;
+                ValueText = valueText;
+                StatusText = statusText;
+            }
+        }
         private readonly TrayBridge _bridge;
         private readonly int _initialPage;
         private readonly DispatcherTimer _liveTimer;
+        private readonly PollingProbe _pollingProbe;
         private HwndSource _source;
         private AppState _state;
         private DpiState _dpi;
@@ -39,6 +62,8 @@ namespace RapooTray.Settings
         private bool _dpiLoaded;
         private bool _rfRefreshInFlight;
         private bool _capturingHotkey;
+        private HotkeyKind? _capturingHotkeyKind;
+        private readonly Dictionary<HotkeyKind, HotkeyBinding> _hotkeyBindings;
         private bool _batteryLoading;
         private bool _osdDirty;
         private bool _batteryDirty;
@@ -47,19 +72,27 @@ namespace RapooTray.Settings
         private int _profilePerfMode = 1;
         private int _selectedDpiIndex;
         private int _batteryHistoryDays = 1;
-        private int _hotkeyModifiers = 3;
-        private int _hotkeyVirtualKey = 77;
         private DateTime _batteryLoadedAt = DateTime.MinValue;
         private bool _updateAvailable;
+        private bool _updateDownloading;
+        private GitHubReleaseInfo _latestRelease;
+        private VerifiedUpdate _verifiedUpdate;
         private bool? _dirtyVisualState;
         private string _modelSignature = "";
-        private string _releaseUrl = "https://github.com/Rimliya/rapoo-tray/releases/latest";
         private static readonly int[] PollRates = { 125, 250, 500, 1000, 2000, 4000, 8000 };
         private static readonly HttpClient Http = CreateHttpClient();
 
         public MainWindow(int page, bool demo)
         {
             InitializeComponent();
+            _hotkeyBindings = new Dictionary<HotkeyKind, HotkeyBinding>
+            {
+                { HotkeyKind.Panel, new HotkeyBinding(3, 'M', 0, HotkeyValueText, HotkeyStatusText) },
+                { HotkeyKind.Profile, new HotkeyBinding(3, 'P', 1, ProfileHotkeyValueText, ProfileHotkeyStatusText) },
+                { HotkeyKind.Dpi, new HotkeyBinding(3, 'G', 2, DpiHotkeyValueText, DpiHotkeyStatusText) },
+                { HotkeyKind.Performance, new HotkeyBinding(3, 'F', 3, PerformanceHotkeyValueText, PerformanceHotkeyStatusText) },
+                { HotkeyKind.ToggleOsd, new HotkeyBinding(3, 'O', 4, ToggleOsdHotkeyValueText, ToggleOsdHotkeyStatusText) },
+            };
             int savedTheme = ReadThemePreference();
             if (savedTheme == 1 || savedTheme == 2)
             {
@@ -72,8 +105,10 @@ namespace RapooTray.Settings
             }
             ApplicationThemeManager.Changed += OnApplicationThemeChanged;
             UpdateThemeToggle();
-            _initialPage = Math.Max(0, Math.Min(5, page));
+            _initialPage = Math.Max(0, Math.Min(6, page));
             _bridge = new TrayBridge(demo);
+            _pollingProbe = new PollingProbe();
+            _pollingProbe.Updated += OnPollingProbeUpdated;
             _liveTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
             _liveTimer.Tick += LiveTimer_Tick;
             Loaded += MainWindow_Loaded;
@@ -82,6 +117,7 @@ namespace RapooTray.Settings
             Closed += (_, __) =>
             {
                 _liveTimer.Stop();
+                _pollingProbe.Dispose();
                 ApplicationThemeManager.Changed -= OnApplicationThemeChanged;
                 if (_source != null) _source.RemoveHook(WndProc);
             };
@@ -154,7 +190,7 @@ namespace RapooTray.Settings
         private static HttpClient CreateHttpClient()
         {
             var client = new HttpClient { Timeout = TimeSpan.FromSeconds(12) };
-            client.DefaultRequestHeaders.UserAgent.ParseAdd("rapoo-tray-settings/1.15.0");
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("rapoo-tray-settings/1.16.0");
             return client;
         }
 
@@ -289,15 +325,12 @@ namespace RapooTray.Settings
                 QuickPanelToggle.IsChecked = state.QuickPanelEnabled;
                 if (!_capturingHotkey)
                 {
-                    _hotkeyModifiers = state.HotkeyModifiers;
-                    _hotkeyVirtualKey = state.HotkeyVirtualKey;
-                    HotkeyValueText.Text = FormatHotkey(_hotkeyModifiers, _hotkeyVirtualKey);
-                    HotkeyStatusText.Text = state.HotkeyRegistered
-                        ? "快捷键已注册，可在任意应用上方呼出快速面板"
-                        : "快捷键当前不可用，请更换组合键";
+                    LoadHotkeyBindings(state);
+                    UpdateHotkeyVisuals(state.HotkeyRegistrationMask);
                 }
                 SetDisplayFieldChecks(state.OsdDisplayFields);
                 SetQuickPanelItemChecks(state.QuickPanelItems);
+                LoadOsdAppearance(state);
             }
             if (!_batteryDirty)
             {
@@ -327,6 +360,7 @@ namespace RapooTray.Settings
             var modelItems = ModelCombo.ItemsSource as ObservableCollection<ModelOption>;
             var model = modelItems == null ? null : modelItems.FirstOrDefault(x => x.Index == state.ModelIndex);
             if (model != null) ModelCombo.SelectedItem = model;
+            UpdateDiagnostics();
             _loading = oldLoading;
 
             AboutVersionText.Text = "版本 " + state.Version;
@@ -369,14 +403,16 @@ namespace RapooTray.Settings
         private void ActivatePage(int page, bool force)
         {
             if (!force && !_initialized) return;
-            page = Math.Max(0, Math.Min(5, page));
+            page = Math.Max(0, Math.Min(6, page));
+            if (page != 5 && _pollingProbe.IsRunning) _pollingProbe.Stop();
             _switchingPage = true;
             NavProfile.IsChecked = page == 0;
             NavAutomation.IsChecked = page == 1;
             NavOsd.IsChecked = page == 2;
             NavBattery.IsChecked = page == 3;
             NavDpi.IsChecked = page == 4;
-            NavAbout.IsChecked = page == 5;
+            NavDiagnostics.IsChecked = page == 5;
+            NavAbout.IsChecked = page == 6;
             _switchingPage = false;
 
             ProfilePage.Visibility = page == 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -384,7 +420,8 @@ namespace RapooTray.Settings
             OsdPage.Visibility = page == 2 ? Visibility.Visible : Visibility.Collapsed;
             BatteryPage.Visibility = page == 3 ? Visibility.Visible : Visibility.Collapsed;
             DpiPage.Visibility = page == 4 ? Visibility.Visible : Visibility.Collapsed;
-            AboutPage.Visibility = page == 5 ? Visibility.Visible : Visibility.Collapsed;
+            DiagnosticsPage.Visibility = page == 5 ? Visibility.Visible : Visibility.Collapsed;
+            AboutPage.Visibility = page == 6 ? Visibility.Visible : Visibility.Collapsed;
 
             if (page == 0)
             {
@@ -419,11 +456,20 @@ namespace RapooTray.Settings
                 PageSubtitle.Text = "编辑鼠标内建 DPI 档位并安全写入设备";
                 if (!_dpiLoaded) { var ignored = LoadDpiAsync(); }
             }
+            else if (page == 5)
+            {
+                PageEyebrow.Text = "// DIAGNOSTICS";
+                PageTitle.Text = "设备诊断";
+                PageSubtitle.Text = "验证实际回报率、检查连接状态并导出诊断摘要";
+                UpdateDiagnostics();
+                if (!_dpiLoaded) { var ignored = LoadDpiAsync(); }
+            }
             else
             {
                 PageEyebrow.Text = "// ABOUT";
                 PageTitle.Text = "关于";
-                PageSubtitle.Text = "版本信息、项目源码与更新检查";
+                PageSubtitle.Text = "版本信息、项目源码、配置快照与更新检查";
+                RefreshSnapshots();
             }
 
             FrameworkElement pageElement = page == 0 ? ProfilePage
@@ -431,6 +477,7 @@ namespace RapooTray.Settings
                 : page == 2 ? OsdPage
                 : page == 3 ? BatteryPage
                 : page == 4 ? DpiPage
+                : page == 5 ? (FrameworkElement)DiagnosticsPage
                 : AboutPage;
             EfMotion.RevealPage(pageElement, PageEyebrow, PageTitle, PageSubtitle);
             EfMotion.Nudge(HeaderCommandCluster, 2);
@@ -630,6 +677,7 @@ namespace RapooTray.Settings
                 return;
             }
 
+            CaptureSnapshot("保存前");
             SetBusy(true, "正在保存配置…");
             try
             {
@@ -645,6 +693,7 @@ namespace RapooTray.Settings
         {
             if (_busy) return;
             if (_profileDirty && System.Windows.MessageBox.Show("当前配置有未保存修改。放弃修改并新建配置？", "rapoo-tray", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+            CaptureSnapshot("新增前");
             SetBusy(true, "正在新增配置…");
             try
             {
@@ -662,6 +711,7 @@ namespace RapooTray.Settings
             var row = _state == null ? null : _state.Profiles.FirstOrDefault(x => x.Id == _selectedProfileId);
             if (row == null) return;
             if (System.Windows.MessageBox.Show("确定删除配置“" + row.Name + "”吗？", "删除配置", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+            CaptureSnapshot("删除前");
             SetBusy(true, "正在删除配置…");
             try
             {
@@ -743,6 +793,7 @@ namespace RapooTray.Settings
                              "导入前会自动备份当前配置，自动切换开关也会随包恢复。是否继续？";
             if (MessageBox.Show(this, confirm, "导入配置", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
 
+            CaptureSnapshot("导入前");
             string backupPath;
             try
             {
@@ -807,6 +858,7 @@ namespace RapooTray.Settings
                 SetStatus("请先保存修改，再应用配置", false);
                 return;
             }
+            CaptureSnapshot("应用前");
             SetBusy(true, "正在应用配置到鼠标…");
             try
             {
@@ -900,6 +952,77 @@ namespace RapooTray.Settings
             PanelDetailsCheck.IsChecked = (mask & 32) != 0;
         }
 
+        private void LoadHotkeyBindings(AppState state)
+        {
+            _hotkeyBindings[HotkeyKind.Panel].Modifiers = state.HotkeyModifiers;
+            _hotkeyBindings[HotkeyKind.Panel].VirtualKey = state.HotkeyVirtualKey;
+            _hotkeyBindings[HotkeyKind.Profile].Modifiers = state.ProfileHotkeyModifiers;
+            _hotkeyBindings[HotkeyKind.Profile].VirtualKey = state.ProfileHotkeyVirtualKey;
+            _hotkeyBindings[HotkeyKind.Dpi].Modifiers = state.DpiHotkeyModifiers;
+            _hotkeyBindings[HotkeyKind.Dpi].VirtualKey = state.DpiHotkeyVirtualKey;
+            _hotkeyBindings[HotkeyKind.Performance].Modifiers = state.PerformanceHotkeyModifiers;
+            _hotkeyBindings[HotkeyKind.Performance].VirtualKey = state.PerformanceHotkeyVirtualKey;
+            _hotkeyBindings[HotkeyKind.ToggleOsd].Modifiers = state.ToggleOsdHotkeyModifiers;
+            _hotkeyBindings[HotkeyKind.ToggleOsd].VirtualKey = state.ToggleOsdHotkeyVirtualKey;
+        }
+
+        private void UpdateHotkeyVisuals(int registrationMask)
+        {
+            foreach (KeyValuePair<HotkeyKind, HotkeyBinding> pair in _hotkeyBindings)
+            {
+                HotkeyBinding binding = pair.Value;
+                bool assigned = binding.Modifiers != 0 || binding.VirtualKey != 0;
+                binding.ValueText.Text = FormatHotkey(binding.Modifiers, binding.VirtualKey);
+                if (!assigned)
+                {
+                    binding.StatusText.Text = "已禁用";
+                    binding.StatusText.Foreground = (Brush)FindResource("AppSecondaryTextBrush");
+                    continue;
+                }
+                if (pair.Key == HotkeyKind.Panel && QuickPanelToggle.IsChecked != true)
+                {
+                    binding.StatusText.Text = "快速面板已关闭";
+                    binding.StatusText.Foreground = (Brush)FindResource("AppSecondaryTextBrush");
+                    continue;
+                }
+                bool registered = (registrationMask & (1 << binding.RegistrationBit)) != 0;
+                binding.StatusText.Text = registered ? "已注册" : "注册失败或组合键被占用";
+                binding.StatusText.Foreground = (Brush)FindResource(registered ? "AppSignalBrush" : "AppDangerBrush");
+            }
+        }
+
+        private static int ComboTag(ComboBox combo, int fallback)
+        {
+            ComboBoxItem item = combo == null ? null : combo.SelectedItem as ComboBoxItem;
+            int value;
+            return item != null && item.Tag != null && int.TryParse(Convert.ToString(item.Tag, CultureInfo.InvariantCulture), out value)
+                ? value : fallback;
+        }
+
+        private static void SelectComboTag(ComboBox combo, int value)
+        {
+            if (combo == null) return;
+            foreach (ComboBoxItem item in combo.Items)
+            {
+                int tag;
+                if (item.Tag != null && int.TryParse(Convert.ToString(item.Tag, CultureInfo.InvariantCulture), out tag) && tag == value)
+                {
+                    combo.SelectedItem = item;
+                    return;
+                }
+            }
+        }
+
+        private void LoadOsdAppearance(AppState state)
+        {
+            SelectComboTag(OsdPositionCombo, state.OsdPosition);
+            SelectComboTag(OsdMonitorCombo, state.OsdMonitor);
+            SelectComboTag(OsdScaleCombo, state.OsdScalePercent <= 0 ? 100 : state.OsdScalePercent);
+            SelectComboTag(OsdOpacityCombo, state.OsdOpacityPercent <= 0 ? 94 : state.OsdOpacityPercent);
+            OsdDurationBox.Value = state.OsdDurationMs <= 0 ? 2200 : state.OsdDurationMs;
+            OsdOffsetXBox.Value = state.OsdOffsetX;
+            OsdOffsetYBox.Value = state.OsdOffsetY;
+        }
         private static bool IsFunctionKey(Key key)
         {
             return key >= Key.F1 && key <= Key.F24;
@@ -941,25 +1064,46 @@ namespace RapooTray.Settings
             return string.Join(" + ", parts);
         }
 
+        private static HotkeyKind? ParseHotkeyKind(object tag)
+        {
+            switch (Convert.ToString(tag))
+            {
+                case "panel": return HotkeyKind.Panel;
+                case "profile": return HotkeyKind.Profile;
+                case "dpi": return HotkeyKind.Dpi;
+                case "performance": return HotkeyKind.Performance;
+                case "toggleOsd": return HotkeyKind.ToggleOsd;
+                default: return null;
+            }
+        }
+
         private void CaptureHotkey_Click(object sender, RoutedEventArgs e)
         {
             if (_busy) return;
+            HotkeyKind? kind = ParseHotkeyKind((sender as Button)?.Tag);
+            if (!kind.HasValue) return;
             _capturingHotkey = true;
-            HotkeyValueText.Text = "请按下组合键…";
-            HotkeyStatusText.Text = "按 Esc 取消；字母/数字/方向键需搭配修饰键";
-            HotkeyCaptureButton.Focus();
+            _capturingHotkeyKind = kind;
+            HotkeyBinding binding = _hotkeyBindings[kind.Value];
+            binding.ValueText.Text = "请按下组合键…";
+            binding.StatusText.Text = "按 Esc 取消；字母/数字/方向键需搭配修饰键";
+            binding.StatusText.Foreground = (Brush)FindResource("AppSecondaryTextBrush");
+            (sender as Button)?.Focus();
         }
 
         private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
         {
-            if (!_capturingHotkey) return;
+            if (!_capturingHotkey || !_capturingHotkeyKind.HasValue) return;
             e.Handled = true;
             Key key = e.Key == Key.System ? e.SystemKey : e.Key;
+            HotkeyBinding binding = _hotkeyBindings[_capturingHotkeyKind.Value];
             if (key == Key.Escape)
             {
                 _capturingHotkey = false;
-                HotkeyValueText.Text = FormatHotkey(_hotkeyModifiers, _hotkeyVirtualKey);
-                HotkeyStatusText.Text = "已取消快捷键录制";
+                _capturingHotkeyKind = null;
+                binding.ValueText.Text = FormatHotkey(binding.Modifiers, binding.VirtualKey);
+                binding.StatusText.Text = "已取消快捷键录制";
+                binding.StatusText.Foreground = (Brush)FindResource("AppSecondaryTextBrush");
                 return;
             }
             if (key == Key.LeftCtrl || key == Key.RightCtrl || key == Key.LeftAlt || key == Key.RightAlt ||
@@ -969,31 +1113,54 @@ namespace RapooTray.Settings
             int virtualKey = KeyInterop.VirtualKeyFromKey(key);
             if ((modifiers & 15) == 0 && !IsFunctionKey(key))
             {
-                HotkeyStatusText.Text = "该组合键无修饰键；请使用 Ctrl / Alt / Shift / Win，或单独使用 F1–F24";
+                binding.StatusText.Text = "无修饰键的组合不可用；请使用 Ctrl / Alt / Shift / Win，或单独使用 F1–F24";
                 return;
             }
             if (virtualKey <= 0 || key == Key.None)
             {
-                HotkeyStatusText.Text = "该按键不可用作全局快捷键";
+                binding.StatusText.Text = "该按键不可用作全局快捷键";
                 return;
             }
             _capturingHotkey = false;
-            _hotkeyModifiers = modifiers & 15;
-            _hotkeyVirtualKey = virtualKey;
+            _capturingHotkeyKind = null;
+            binding.Modifiers = modifiers & 15;
+            binding.VirtualKey = virtualKey;
+            binding.ValueText.Text = FormatHotkey(binding.Modifiers, binding.VirtualKey);
+            binding.StatusText.Text = "已录制；保存后重新注册";
+            binding.StatusText.Foreground = (Brush)FindResource("AppSignalBrush");
             _osdDirty = true;
-            HotkeyValueText.Text = FormatHotkey(_hotkeyModifiers, _hotkeyVirtualKey);
-            HotkeyStatusText.Text = "快捷键已录制；保存 OSD 设置后生效";
             OsdConfigStatusText.Text = "有未保存的 OSD 设置";
         }
 
-        private void ResetHotkey_Click(object sender, RoutedEventArgs e)
+        private void ClearActionHotkey_Click(object sender, RoutedEventArgs e)
         {
+            HotkeyKind? kind = ParseHotkeyKind((sender as Button)?.Tag);
+            if (!kind.HasValue || kind.Value == HotkeyKind.Panel) return;
+            HotkeyBinding binding = _hotkeyBindings[kind.Value];
+            binding.Modifiers = 0;
+            binding.VirtualKey = 0;
+            binding.ValueText.Text = "未设置";
+            binding.StatusText.Text = "已禁用；保存后生效";
+            binding.StatusText.Foreground = (Brush)FindResource("AppSecondaryTextBrush");
             _capturingHotkey = false;
-            _hotkeyModifiers = 3;
-            _hotkeyVirtualKey = 'M';
+            _capturingHotkeyKind = null;
             _osdDirty = true;
-            HotkeyValueText.Text = "Ctrl + Alt + M";
-            HotkeyStatusText.Text = "已恢复默认组合键；保存后重新注册";
+            OsdConfigStatusText.Text = "有未保存的 OSD 设置";
+        }
+
+        private void ResetAllHotkeys_Click(object sender, RoutedEventArgs e)
+        {
+            foreach (HotkeyBinding binding in _hotkeyBindings.Values)
+            {
+                binding.Modifiers = binding.DefaultModifiers;
+                binding.VirtualKey = binding.DefaultVirtualKey;
+                binding.ValueText.Text = FormatHotkey(binding.Modifiers, binding.VirtualKey);
+                binding.StatusText.Text = "已恢复默认；保存后重新注册";
+                binding.StatusText.Foreground = (Brush)FindResource("AppSecondaryTextBrush");
+            }
+            _capturingHotkey = false;
+            _capturingHotkeyKind = null;
+            _osdDirty = true;
             OsdConfigStatusText.Text = "有未保存的 OSD 设置";
         }
 
@@ -1004,30 +1171,100 @@ namespace RapooTray.Settings
             OsdConfigStatusText.Text = "有未保存的 OSD 设置";
         }
 
-        private async void SaveOsdSettings_Click(object sender, RoutedEventArgs e)
+        private OsdSettings ReadOsdSettings()
         {
-            if (_busy) return;
-            int displayFields = ReadCheckMask(DisplayModelCheck, DisplayModeCheck, DisplayDpiLevelCheck,
-                DisplayDpiValueCheck, DisplayBatteryCheck, DisplayPollingCheck, DisplayPerformanceCheck);
-            int panelItems = ReadCheckMask(PanelProfilesCheck, PanelDpiCheck, PanelPerformanceCheck,
-                PanelBatteryCheck, PanelPollingCheck, PanelDetailsCheck);
-            SetBusy(true, "正在保存 OSD 设置并重新注册快捷键…");
+            HotkeyBinding panel = _hotkeyBindings[HotkeyKind.Panel];
+            HotkeyBinding profile = _hotkeyBindings[HotkeyKind.Profile];
+            HotkeyBinding dpi = _hotkeyBindings[HotkeyKind.Dpi];
+            HotkeyBinding performance = _hotkeyBindings[HotkeyKind.Performance];
+            HotkeyBinding toggleOsd = _hotkeyBindings[HotkeyKind.ToggleOsd];
+            return new OsdSettings
+            {
+                Enabled = OsdToggle.IsChecked == true,
+                QuickPanelEnabled = QuickPanelToggle.IsChecked == true,
+                HotkeyModifiers = panel.Modifiers,
+                HotkeyVirtualKey = panel.VirtualKey,
+                DisplayFields = ReadCheckMask(DisplayModelCheck, DisplayModeCheck, DisplayDpiLevelCheck,
+                    DisplayDpiValueCheck, DisplayBatteryCheck, DisplayPollingCheck, DisplayPerformanceCheck),
+                PanelItems = ReadCheckMask(PanelProfilesCheck, PanelDpiCheck, PanelPerformanceCheck,
+                    PanelBatteryCheck, PanelPollingCheck, PanelDetailsCheck),
+                Position = ComboTag(OsdPositionCombo, 0),
+                Monitor = ComboTag(OsdMonitorCombo, 0),
+                OffsetX = (int)Math.Round(OsdOffsetXBox.Value ?? 0),
+                OffsetY = (int)Math.Round(OsdOffsetYBox.Value ?? 0),
+                ScalePercent = ComboTag(OsdScaleCombo, 100),
+                OpacityPercent = ComboTag(OsdOpacityCombo, 94),
+                DurationMs = (int)Math.Round(OsdDurationBox.Value ?? 2200),
+                ProfileHotkeyModifiers = profile.Modifiers,
+                ProfileHotkeyVirtualKey = profile.VirtualKey,
+                DpiHotkeyModifiers = dpi.Modifiers,
+                DpiHotkeyVirtualKey = dpi.VirtualKey,
+                PerformanceHotkeyModifiers = performance.Modifiers,
+                PerformanceHotkeyVirtualKey = performance.VirtualKey,
+                ToggleOsdHotkeyModifiers = toggleOsd.Modifiers,
+                ToggleOsdHotkeyVirtualKey = toggleOsd.VirtualKey
+            };
+        }
+
+        private void OsdNumber_Changed(object sender, NumberBoxValueChangedEventArgs e)
+        {
+            if (_loading || !_initialized) return;
+            _osdDirty = true;
+            OsdConfigStatusText.Text = "有未保存的 OSD 设置";
+        }
+        private async Task<bool> SaveOsdSettingsAsync()
+        {
+            if (_busy) return false;
+            SetBusy(true, "正在保存 OSD 外观并重新注册快捷键…");
             try
             {
-                AppState state = await _bridge.SetOsdConfigAsync(OsdToggle.IsChecked == true,
-                    QuickPanelToggle.IsChecked == true, _hotkeyModifiers, _hotkeyVirtualKey, displayFields, panelItems);
-                _osdDirty = false;
+                AppState state = await _bridge.SetOsdConfigAsync(ReadOsdSettings());
+                _osdDirty = !state.StatusGood;
                 ApplyState(state, false);
-                OsdConfigStatusText.Text = state.HotkeyRegistered || !state.QuickPanelEnabled
-                    ? "OSD 设置已保存"
-                    : "快捷键注册失败：可能已被其他程序占用";
+                OsdConfigStatusText.Text = state.StatusGood ? "OSD、外观与快捷键设置已保存" : state.StatusText;
                 SetStatus(state.StatusText, state.StatusGood);
+                return state.StatusGood;
             }
             catch (Exception ex)
             {
                 SetStatus(ex.Message, false);
+                return false;
             }
             finally { SetBusy(false); }
+        }
+
+        private async void SaveOsdSettings_Click(object sender, RoutedEventArgs e)
+        {
+            await SaveOsdSettingsAsync();
+        }
+
+        private async void PreviewOsd_Click(object sender, RoutedEventArgs e)
+        {
+            if (OsdToggle.IsChecked != true)
+            {
+                SetStatus("请先开启“状态悬浮提示”再预览 OSD", false);
+                return;
+            }
+            if (_osdDirty && !await SaveOsdSettingsAsync()) return;
+            try
+            {
+                AppState state = await _bridge.PreviewOsdAsync();
+                SetStatus(state.StatusText, state.StatusGood);
+            }
+            catch (Exception ex) { SetStatus(ex.Message, false); }
+        }
+
+        private void ResetOsdAppearance_Click(object sender, RoutedEventArgs e)
+        {
+            SelectComboTag(OsdPositionCombo, 0);
+            SelectComboTag(OsdMonitorCombo, 0);
+            SelectComboTag(OsdScaleCombo, 100);
+            SelectComboTag(OsdOpacityCombo, 94);
+            OsdDurationBox.Value = 2200;
+            OsdOffsetXBox.Value = 0;
+            OsdOffsetYBox.Value = 0;
+            _osdDirty = true;
+            OsdConfigStatusText.Text = "已恢复默认外观；保存后生效";
         }
 
         private async void PreviewQuickPanel_Click(object sender, RoutedEventArgs e)
@@ -1206,6 +1443,7 @@ namespace RapooTray.Settings
             {
                 _dpi = await _bridge.GetDpiStateAsync();
                 _dpiLoaded = true;
+                UpdateDiagnostics();
                 _selectedDpiIndex = Math.Max(0, Math.Min(_dpi.ActiveIndex, Math.Max(0, _dpi.Slots.Count - 1)));
                 DpiSlotsList.ItemsSource = _dpi.Slots;
                 SelectDpiSlot(_selectedDpiIndex);
@@ -1375,6 +1613,193 @@ namespace RapooTray.Settings
             finally { SetBusy(false); }
         }
 
+        private void CaptureSnapshot(string reason)
+        {
+            try
+            {
+                if (SnapshotService.Create(_state, reason) != null)
+                {
+                    RefreshSnapshots();
+                }
+            }
+            catch (Exception ex)
+            {
+                SetStatus("自动快照失败：" + ex.Message, false);
+            }
+        }
+
+        private void RefreshSnapshots()
+        {
+            try
+            {
+                List<ProfileSnapshot> snapshots = SnapshotService.List();
+                SnapshotCombo.ItemsSource = snapshots;
+                SnapshotCombo.SelectedIndex = snapshots.Count > 0 ? 0 : -1;
+                SnapshotStatusText.Text = snapshots.Count == 0
+                    ? "暂无快照；保存、删除、应用或导入前会自动备份"
+                    : "共 " + snapshots.Count + " 份快照，最多保留 20 份";
+            }
+            catch (Exception ex)
+            {
+                SnapshotStatusText.Text = "读取快照失败：" + ex.Message;
+            }
+        }
+
+        private void RefreshSnapshots_Click(object sender, RoutedEventArgs e)
+        {
+            RefreshSnapshots();
+        }
+
+        private void CreateSnapshot_Click(object sender, RoutedEventArgs e)
+        {
+            if (_state == null || _state.Profiles.Count == 0)
+            {
+                SetStatus("当前没有可备份的配置", false);
+                return;
+            }
+            try
+            {
+                ProfileSnapshot snapshot = SnapshotService.Create(_state, "手动");
+                RefreshSnapshots();
+                SnapshotCombo.SelectedItem = snapshot;
+                SnapshotStatusText.Text = "已创建手动快照：" + Path.GetFileName(snapshot.Path);
+                SetStatus("已创建配置快照", true);
+            }
+            catch (Exception ex)
+            {
+                SetStatus("创建快照失败：" + ex.Message, false);
+            }
+        }
+
+        private async void RestoreSnapshot_Click(object sender, RoutedEventArgs e)
+        {
+            if (_busy) return;
+            ProfileSnapshot snapshot = SnapshotCombo.SelectedItem as ProfileSnapshot;
+            if (snapshot == null)
+            {
+                SetStatus("请选择要恢复的快照", false);
+                return;
+            }
+            if (MessageBox.Show(this, "恢复会替换当前配置档案。当前配置会先自动备份，是否继续？",
+                "恢复配置快照", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+            CaptureSnapshot("恢复前");
+            SetBusy(true, "正在恢复配置快照…");
+            try
+            {
+                ProfilePackage package = SnapshotService.Load(snapshot);
+                AppState state = await _bridge.ImportProfilesAsync(package);
+                _profileDirty = false;
+                _selectedProfileId = 0;
+                ApplyState(state, true);
+                RefreshSnapshots();
+                SetStatus(state.StatusGood ? "配置快照已恢复；应用后写入鼠标" : state.StatusText, state.StatusGood);
+            }
+            catch (Exception ex)
+            {
+                SetStatus("恢复快照失败：" + ex.Message, false);
+            }
+            finally { SetBusy(false); }
+        }
+        private void OnPollingProbeUpdated(object sender, PollingProbeSnapshot snapshot)
+        {
+            if (snapshot == null) return;
+            if (!Dispatcher.CheckAccess())
+            {
+                Dispatcher.BeginInvoke(new Action(() => OnPollingProbeUpdated(sender, snapshot)));
+                return;
+            }
+            PollingMeasuredText.Text = Math.Round(snapshot.MeasuredHz).ToString(CultureInfo.InvariantCulture) + " Hz";
+            PollingJitterText.Text = snapshot.JitterMs.ToString("0.00", CultureInfo.InvariantCulture) + " ms";
+            PollingMaxGapText.Text = snapshot.MaxGapMs.ToString("0.00", CultureInfo.InvariantCulture) + " ms";
+            PollingSamplesText.Text = snapshot.Samples.ToString(CultureInfo.InvariantCulture);
+            PollingStatusText.Text = snapshot.Running
+                ? (snapshot.Samples == 0 ? "请持续移动鼠标以采集原始输入间隔" : "采样中：保持鼠标持续移动，结果会每秒更新")
+                : "采样已停止";
+            PollingStartButton.Content = snapshot.Running ? "停止采样" : "开始采样";
+        }
+
+        private void TogglePollingProbe_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (_pollingProbe.IsRunning)
+                {
+                    _pollingProbe.Stop();
+                    return;
+                }
+                _pollingProbe.Start(this);
+                PollingStartButton.Content = "停止采样";
+                PollingStatusText.Text = "请持续移动鼠标以采集原始输入间隔";
+            }
+            catch (Exception ex)
+            {
+                SetStatus("无法启动回报率验证：" + ex.Message, false);
+            }
+        }
+
+        private void UpdateDiagnostics()
+        {
+            if (_state == null) return;
+            DiagModelText.Text = _state.DeviceName;
+            DiagModeText.Text = _state.DeviceMode;
+            DiagBatteryText.Text = _state.Battery + "%";
+            ProfileRow active = _state.Profiles.FirstOrDefault(x => x.Id == _state.ActiveProfileId);
+            DiagPollingText.Text = active == null ? "--" : active.PollingHz + " Hz";
+            DiagPerfText.Text = active == null ? "--" : active.PerformanceLabel;
+            DiagDpiText.Text = _state.DeviceDpiX == _state.DeviceDpiY
+                ? _state.DeviceDpiX + " DPI"
+                : _state.DeviceDpiX + " × " + _state.DeviceDpiY + " DPI";
+            DiagDpiRangeText.Text = _dpi == null
+                ? "打开 DPI 页后读取"
+                : _dpi.Min + "–" + _dpi.Max + " / " + _dpi.Slots.Count + " 档";
+        }
+
+        private void ExportDiagnostics_Click(object sender, RoutedEventArgs e)
+        {
+            if (_state == null) return;
+            var dialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Title = "导出 rapoo-tray 诊断报告",
+                Filter = "文本文件 (*.txt)|*.txt",
+                DefaultExt = ".txt",
+                AddExtension = true,
+                FileName = "rapoo-tray-diagnostics-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".txt"
+            };
+            if (dialog.ShowDialog(this) != true) return;
+            PollingProbeSnapshot polling = _pollingProbe.GetSnapshot();
+            ProfileRow active = _state.Profiles.FirstOrDefault(x => x.Id == _state.ActiveProfileId);
+            var lines = new List<string>
+            {
+                "rapoo-tray diagnostics",
+                "timestamp=" + DateTime.Now.ToString("O"),
+                "app_version=" + _state.Version,
+                "os=" + Environment.OSVersion.VersionString,
+                "device=" + _state.DeviceName,
+                "connection=" + _state.DeviceMode,
+                "connected=" + _state.Connected,
+                "battery=" + _state.Battery + "%",
+                "dpi=" + _state.DeviceDpiX + "x" + _state.DeviceDpiY,
+                "configured_polling=" + (active == null ? "--" : active.PollingHz.ToString(CultureInfo.InvariantCulture)),
+                "performance_mode=" + (active == null ? "--" : active.PerformanceLabel),
+                "dpi_range=" + (_dpi == null ? "--" : _dpi.Min + "-" + _dpi.Max),
+                "dpi_slots=" + (_dpi == null ? "--" : _dpi.Slots.Count.ToString(CultureInfo.InvariantCulture)),
+                "hotkey_mask=" + _state.HotkeyRegistrationMask,
+                "measured_polling_hz=" + polling.MeasuredHz.ToString("0", CultureInfo.InvariantCulture),
+                "jitter_ms=" + polling.JitterMs.ToString("0.000", CultureInfo.InvariantCulture),
+                "max_gap_ms=" + polling.MaxGapMs.ToString("0.000", CultureInfo.InvariantCulture),
+                "probe_samples=" + polling.Samples.ToString(CultureInfo.InvariantCulture),
+                "note=measured_polling_uses_raw_input_arrival_times"
+            };
+            try
+            {
+                File.WriteAllLines(dialog.FileName, lines);
+                SetStatus("诊断报告已导出：" + Path.GetFileName(dialog.FileName), true);
+            }
+            catch (Exception ex)
+            {
+                SetStatus("导出诊断报告失败：" + ex.Message, false);
+            }
+        }
         private void OpenSource_Click(object sender, RoutedEventArgs e) => OpenUrl("https://github.com/Rimliya/rapoo-tray");
 
         private void ShowFontLicense_Click(object sender, RoutedEventArgs e)
@@ -1400,40 +1825,81 @@ namespace RapooTray.Settings
 
         private async void CheckUpdate_Click(object sender, RoutedEventArgs e)
         {
-            if (_updateAvailable)
+            if (_updateDownloading) return;
+            if (_verifiedUpdate != null)
             {
-                OpenUrl(_releaseUrl);
+                try
+                {
+                    Process.Start(new ProcessStartInfo(_verifiedUpdate.InstallerPath)
+                    {
+                        UseShellExecute = true,
+                        WorkingDirectory = Path.GetDirectoryName(_verifiedUpdate.InstallerPath)
+                    });
+                    Close();
+                }
+                catch (Exception ex)
+                {
+                    UpdateStatusText.Text = "无法启动安装器：" + ex.Message;
+                    SetStatus(ex.Message, false);
+                }
                 return;
             }
+            if (_updateAvailable && _latestRelease != null)
+            {
+                CheckUpdateButton.IsEnabled = false;
+                CheckUpdateButton.Content = "下载中…";
+                _updateDownloading = true;
+                UpdateStatusText.Text = "正在下载更新…";
+                try
+                {
+                    var progress = new Progress<string>(message => UpdateStatusText.Text = message);
+                    _verifiedUpdate = await UpdateService.DownloadAndVerifyAsync(Http, _latestRelease, progress);
+                    UpdateStatusText.Text = _verifiedUpdate.Signed
+                        ? "更新包已通过 SHA256 和数字签名验证：" + _verifiedUpdate.Publisher
+                        : "更新包已通过 SHA256 校验（未签名）；SmartScreen 可能提示未知发布者";
+                    CheckUpdateButton.Content = "安装更新";
+                }
+                catch (Exception ex)
+                {
+                    UpdateStatusText.Text = "自动更新失败：" + ex.Message + "；可前往 GitHub 手动下载。";
+                    CheckUpdateButton.Content = "重试下载";
+                    SetStatus(ex.Message, false);
+                }
+                finally
+                {
+                    _updateDownloading = false;
+                    CheckUpdateButton.IsEnabled = true;
+                }
+                return;
+            }
+
             CheckUpdateButton.IsEnabled = false;
             CheckUpdateButton.Content = "检查中…";
             UpdateStatusText.Text = "正在检查 GitHub 最新发行版…";
+            _verifiedUpdate = null;
+            _latestRelease = null;
             try
             {
-                using (var response = await Http.GetAsync("https://github.com/Rimliya/rapoo-tray/releases/latest"))
+                _latestRelease = await UpdateService.GetLatestReleaseAsync(Http);
+                string latest = _latestRelease.TagName;
+                int versionComparison = CompareVersions(latest, _state == null ? "0" : _state.Version);
+                if (versionComparison > 0)
                 {
-                    response.EnsureSuccessStatusCode();
-                    _releaseUrl = response.RequestMessage.RequestUri.ToString();
-                    var tagMatch = Regex.Match(_releaseUrl, "/tag/(v[^/?#]+)");
-                    string latest = tagMatch.Success ? tagMatch.Groups[1].Value : "";
-                    if (latest.Length == 0) throw new InvalidOperationException("未找到最新版本信息");
-                    int versionComparison = CompareVersions(latest, _state == null ? "0" : _state.Version);
-                    if (versionComparison > 0)
-                    {
-                        _updateAvailable = true;
-                        UpdateStatusText.Text = "发现新版本 " + latest + "，可前往 GitHub 下载";
-                        CheckUpdateButton.Content = "前往下载";
-                    }
-                    else if (versionComparison < 0)
-                    {
-                        UpdateStatusText.Text = "当前测试版 " + _state.Version + "；GitHub 最新发行版为 " + latest;
-                        CheckUpdateButton.Content = "再次检查";
-                    }
-                    else
-                    {
-                        UpdateStatusText.Text = "已是最新版本 " + latest;
-                        CheckUpdateButton.Content = "再次检查";
-                    }
+                    _updateAvailable = true;
+                    UpdateStatusText.Text = "发现新版本 " + latest + "，可直接下载、校验并安装";
+                    CheckUpdateButton.Content = "下载更新";
+                }
+                else if (versionComparison < 0)
+                {
+                    _updateAvailable = false;
+                    UpdateStatusText.Text = "当前测试版 " + _state.Version + "；GitHub 最新发行版为 " + latest;
+                    CheckUpdateButton.Content = "再次检查";
+                }
+                else
+                {
+                    _updateAvailable = false;
+                    UpdateStatusText.Text = "已是最新版本 " + latest;
+                    CheckUpdateButton.Content = "再次检查";
                 }
             }
             catch (Exception ex)
@@ -1444,7 +1910,6 @@ namespace RapooTray.Settings
             }
             finally { CheckUpdateButton.IsEnabled = true; }
         }
-
         private static int CompareVersions(string left, string right)
         {
             int[] a = VersionParts(left), b = VersionParts(right);
