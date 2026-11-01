@@ -47,7 +47,7 @@ namespace RapooTray.Settings
             using (var request = new HttpRequestMessage(HttpMethod.Get, LatestReleaseApi))
             {
                 request.Headers.Accept.ParseAdd("application/vnd.github+json");
-                request.Headers.UserAgent.ParseAdd("rapoo-tray-settings/1.16.2");
+                request.Headers.UserAgent.ParseAdd("rapoo-tray-settings/1.16.3");
                 using (HttpResponseMessage response = await client.SendAsync(request).ConfigureAwait(false))
                 {
                     response.EnsureSuccessStatusCode();
@@ -82,7 +82,7 @@ namespace RapooTray.Settings
             string hashPath = installerPath + ".sha256";
             string tempPath = installerPath + ".downloading";
             var downloadClient = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
-            downloadClient.DefaultRequestHeaders.UserAgent.ParseAdd("rapoo-tray-settings/1.16.2");
+            downloadClient.DefaultRequestHeaders.UserAgent.ParseAdd("rapoo-tray-settings/1.16.3");
 
             try
             {

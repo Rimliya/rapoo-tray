@@ -7,6 +7,7 @@
     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
     xmlns:local="clr-namespace:RapooTray.Settings.Controls"
     Title="rapoo-tray 设置" Width="1200" Height="800" MinWidth="1040" MinHeight="680"
+    Icon="pack://application:,,,/rapoo-tray-settings;component/Assets/app.ico"
     Background="{DynamicResource AppPaperBrush}" ExtendsContentIntoTitleBar="True"
     FontFamily="{StaticResource AppHarmonyFont}" FontSize="14" Foreground="{DynamicResource AppInkBrush}"
     WindowBackdropType="None" WindowCornerPreference="DoNotRound" WindowStartupLocation="CenterScreen"
@@ -481,7 +482,7 @@
   <Grid Background="{DynamicResource AppPaperBrush}">
     <Grid.RowDefinitions><RowDefinition Height="42" /><RowDefinition Height="3" /><RowDefinition Height="*" /><RowDefinition Height="44" /></Grid.RowDefinitions>
     <ui:TitleBar Grid.Row="0" Title="RAPOO-TRAY  //  设置中心" Height="42" Background="{DynamicResource AppPaperBrush}" Foreground="{DynamicResource AppInkBrush}">
-      <ui:TitleBar.Icon><ui:ImageIcon Source="pack://application:,,,/rapoo-tray-settings;component/Assets/logo.png" /></ui:TitleBar.Icon>
+      <ui:TitleBar.Icon><ui:ImageIcon Source="pack://application:,,,/rapoo-tray-settings;component/Assets/app-icon.png" /></ui:TitleBar.Icon>
     </ui:TitleBar>
     <Grid x:Name="HeaderAccentTrack" Grid.Row="1" ClipToBounds="True">
       <UniformGrid Columns="3">
@@ -502,7 +503,7 @@
             <Grid Margin="18,18,14,17">
               <Grid.ColumnDefinitions><ColumnDefinition Width="40" /><ColumnDefinition Width="10" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
               <Border Width="40" Height="40" BorderBrush="{DynamicResource AppInkBrush}" BorderThickness="1" Background="{DynamicResource AppPanelBrush}" VerticalAlignment="Center">
-                <Image Source="pack://application:,,,/rapoo-tray-settings;component/Assets/logo.png" Width="30" Height="30" Stretch="Uniform" />
+                <Image Source="pack://application:,,,/rapoo-tray-settings;component/Assets/app-icon.png" Width="30" Height="30" Stretch="Uniform" />
               </Border>
               <StackPanel Grid.Column="2" VerticalAlignment="Center">
                 <TextBlock Text="RAPOO" FontFamily="{StaticResource AppSairaFont}" FontSize="15" FontWeight="ExtraBold" Foreground="{DynamicResource AppInkBrush}" />
@@ -1086,7 +1087,7 @@
                   <StackPanel Grid.Column="2" VerticalAlignment="Center">
                     <TextBlock Text="// ABOUT" Style="{StaticResource EyebrowStyle}" />
                     <TextBlock Text="rapoo-tray" FontFamily="{StaticResource AppSairaFont}" FontSize="30" FontWeight="ExtraBold" Margin="0,4,0,0" />
-                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0"><Border Background="{DynamicResource AppSignalBrush}" Padding="7,3" Margin="0,0,10,0"><TextBlock x:Name="AboutVersionText" Text="版本 1.16.2" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource AppOnSignalBrush}" /></Border><TextBlock Text="WPF 原生  /  开源" Style="{StaticResource MutedTextStyle}" VerticalAlignment="Center" /></StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0"><Border Background="{DynamicResource AppSignalBrush}" Padding="7,3" Margin="0,0,10,0"><TextBlock x:Name="AboutVersionText" Text="版本 1.16.3" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource AppOnSignalBrush}" /></Border><TextBlock Text="WPF 原生  /  开源" Style="{StaticResource MutedTextStyle}" VerticalAlignment="Center" /></StackPanel>
                     <TextBlock Text="雷柏 VT 系列游戏鼠标托盘工具" Style="{StaticResource MutedTextStyle}" Margin="0,8,0,0" />
                   </StackPanel>
                 </Grid>

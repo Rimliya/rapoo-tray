@@ -48,6 +48,13 @@ dotnet run --project settings-ui/RapooTray.Settings.csproj -- --demo
 
 首次启动跟随系统主题。右上角可切换浅色/深色，选择保存在 `HKCU\Software\rapoo-tray\Settings\UiTheme`（1=浅色，2=深色）。
 
+## v1.16.3 应用图标
+
+- 新增简化版应用图标，用于标题栏、侧栏、任务栏和窗口图标。
+- `app.ico` 扩展到 10 个尺寸帧，小尺寸不绘制外框，避免任务栏中发糊。
+- 关于页继续展示完整八角框 Logo，设置中心其余位置使用简化图标。
+- 安装程序、DPI 窗口、`rapoo-tray.exe` 和快捷方式复用同一份 ICO 资源。
+
 ## v1.16.2 界面文案补丁
 
 - 统一导航、设置页、托盘菜单、状态 OSD、快速面板和提醒窗口的术语。
