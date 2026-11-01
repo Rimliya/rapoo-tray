@@ -673,7 +673,7 @@ void ShowDeviceUpdate(const Device::State& state) {
     } else if (g_config.displayFields & OsdConfig::FIELD_POLLING) {
         StringCchPrintfW(line2, ARRAYSIZE(line2), L"回报率 %d Hz", state.pollingHz);
     } else {
-        StringCchCopyW(line2, ARRAYSIZE(line2), L"设备状态已更新");
+        StringCchCopyW(line2, ARRAYSIZE(line2), L"状态已更新");
     }
 
     std::wstring detail;
@@ -728,7 +728,7 @@ bool SetConfig(const OsdConfig::Config& config) {
 void ShowStyleOsd(int style) {
     const WCHAR* names[] = {L"样式一：经典电池", L"样式二：环形进度", L"样式三：大号数字"};
     const int index = std::clamp(style, 0, 2);
-    Show(L"电池图标样式", names[index], L"双击托盘图标可循环切换");
+    Show(L"托盘图标样式", names[index], L"双击托盘图标切换");
 }
 
 } // namespace Osd

@@ -70,7 +70,7 @@ namespace RapooTray.Settings
                 state.ActiveProfileId = package.DefaultProfileIndex + 1;
                 state.CreatedProfileId = 0;
                 state.StatusGood = true;
-                state.StatusText = "已导入 " + package.Profiles.Count + " 个配置；点击“应用”后写入鼠标";
+                state.StatusText = "已导入 " + package.Profiles.Count + " 个配置；点“应用”后写入鼠标";
                 return state;
             }
 
@@ -201,7 +201,7 @@ namespace RapooTray.Settings
                         _demoState.QuickPanelItems = Int(Field(parts, 6));
                         _demoState.HotkeyRegistered = true;
                         _demoState.StatusGood = true;
-                        _demoState.StatusText = "OSD 与快速面板设置已保存";
+                        _demoState.StatusText = "OSD 与快捷键已保存";
                         break;
                     case "SET_BATTERY_CONFIG":
                         _demoState.BatteryAlertsEnabled = Field(parts, 1) == "1";
@@ -351,7 +351,7 @@ namespace RapooTray.Settings
         {
             var state = new AppState { Version = "1.16.1", DeviceName = "雷柏 VT3 V2", DeviceMode = "2.4G 无线", DeviceProductId = "pid_4662", Connected = true,
                 Battery = 87, DeviceDpiX = 1600, DeviceDpiY = 1600, AutoSwitch = true, OsdEnabled = true, AutoRun = true,
-                RfAvailable = true, RfFull = true, ActiveProfileId = 1, StatusText = "已读取设备状态，修改后点击“应用”写入鼠标", StatusGood = true,
+                RfAvailable = true, RfFull = true, ActiveProfileId = 1, StatusText = "已读取设备状态；保存后点“应用”写入鼠标", StatusGood = true,
                 QuickPanelEnabled = true, HotkeyModifiers = 3, HotkeyVirtualKey = 77, HotkeyRegistered = true,
                 OsdDisplayFields = 127, QuickPanelItems = 63, BatteryAlertsEnabled = true,
                 BatteryWarningThreshold = 20, BatteryCriticalThreshold = 10, ChargingReminderEnabled = true, ChargingReminderMinutes = 30 };

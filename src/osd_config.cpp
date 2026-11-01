@@ -106,7 +106,7 @@ bool AreHotkeysUnique(const Config& config, std::wstring* error) {
     const Binding bindings[] = {
         {L"快速面板", config.hotkeyModifiers, config.hotkeyVirtualKey, config.quickPanelEnabled},
         {L"切换配置", config.profileCycleHotkeyModifiers, config.profileCycleHotkeyVirtualKey, true},
-        {L"切换 DPI", config.dpiCycleHotkeyModifiers, config.dpiCycleHotkeyVirtualKey, true},
+        {L"切换 DPI 档位", config.dpiCycleHotkeyModifiers, config.dpiCycleHotkeyVirtualKey, true},
         {L"循环性能模式", config.performanceCycleHotkeyModifiers, config.performanceCycleHotkeyVirtualKey, true},
         {L"开关状态 OSD", config.toggleOsdHotkeyModifiers, config.toggleOsdHotkeyVirtualKey, true},
     };

@@ -423,10 +423,10 @@ void SyncControls() {
 
     WCHAR detail[180] = {0};
     int active = ActiveIndex();
-    StringCchPrintfW(detail, ARRAYSIZE(detail), L"正在编辑第 %d 档 · 鼠标当前第 %d 档使用 %d DPI",
+    StringCchPrintfW(detail, ARRAYSIZE(detail), L"正在编辑第 %d 档 · 鼠标当前第 %d 档（%d DPI）",
         index + 1, active + 1, g_gears[(size_t)active].x);
     if (!g_connected) {
-        StringCchPrintfW(detail, ARRAYSIZE(detail), L"正在编辑第 %d 档 · 鼠标当前未连接", index + 1);
+        StringCchPrintfW(detail, ARRAYSIZE(detail), L"正在编辑第 %d 档 · 鼠标未连接", index + 1);
     }
     SetWindowTextW(g_hDetail, detail);
 }
@@ -448,12 +448,12 @@ bool CommitControls(bool showErrors) {
     if (index < 0) return false;
     int x = 0, y = 0;
     if (!ReadControlInt(g_hX, x)) {
-        if (showErrors) MessageBoxW(g_hwnd, L"请输入有效的 DPI 数值。", L"DPI 设置", MB_OK | MB_ICONWARNING);
+        if (showErrors) MessageBoxW(g_hwnd, L"横向 DPI 数值无效，请检查后重试。", L"DPI 设置", MB_OK | MB_ICONWARNING);
         return false;
     }
     if (g_independent) {
         if (!ReadControlInt(g_hY, y)) {
-            if (showErrors) MessageBoxW(g_hwnd, L"请输入有效的纵向 DPI 数值。", L"DPI 设置", MB_OK | MB_ICONWARNING);
+            if (showErrors) MessageBoxW(g_hwnd, L"纵向 DPI 数值无效，请检查后重试。", L"DPI 设置", MB_OK | MB_ICONWARNING);
             return false;
         }
     } else {
@@ -514,7 +514,7 @@ void LoadConfig() {
     if (g_hSubtitle) {
         WCHAR subtitle[220] = {0};
         StringCchPrintfW(subtitle, ARRAYSIZE(subtitle),
-            L"%s · 按型号限制 DPI 范围，档位可自由增删并按数值升序排列",
+            L"%s · DPI 范围由型号决定；档位可增删，保存时按数值升序排列",
             g_modelLabel.empty() ? L"通用" : g_modelLabel.c_str());
         SetWindowTextW(g_hSubtitle, subtitle);
     }
@@ -563,11 +563,11 @@ void LoadConfig() {
     RebuildSlots();
 
     if (g_connected && g_readFromDevice) {
-        SetStatus(L"已读取鼠标当前 DPI 档位；修改后点击“应用并切换”写入鼠标", true);
+        SetStatus(L"已读取鼠标 DPI 档位。修改后点“应用并切换”写入鼠标。", true);
     } else if (g_connected) {
-        SetStatus(L"未能读取当前配置，已载入本机缓存；应用前请确认数值", false);
+        SetStatus(L"读数失败，已载入本机缓存。应用前请确认数值。", false);
     } else {
-        SetStatus(L"鼠标未连接：可编辑并保存本机缓存，连接后再应用", false);
+        SetStatus(L"鼠标未连接。可以编辑并保存到本机，连接后再应用。", false);
     }
 }
 
@@ -584,7 +584,7 @@ void AddGear() {
     if (!CommitControls(true)) return;
     int limit = std::min(g_spec.maxSlots, Device::MAX_DPI_SLOTS);
     if ((int)g_gears.size() >= limit) {
-        MessageBoxW(g_hwnd, L"当前型号已达到最大 DPI 档位数量。", L"DPI 设置", MB_OK | MB_ICONINFORMATION);
+        MessageBoxW(g_hwnd, L"当前型号的 DPI 档位已满。", L"DPI 设置", MB_OK | MB_ICONINFORMATION);
         return;
     }
     const int candidates[] = {400, 800, 1200, 1600, 2400, 3200, 6400, 12800, 30000, 60000};
@@ -612,12 +612,12 @@ void AddGear() {
     g_dirty = true;
     SortGears();
     RebuildSlots();
-    SetStatus(L"已添加档位，可修改数值后应用", true);
+    SetStatus(L"已添加档位。修改数值后再应用。", true);
 }
 
 void DeleteGear() {
     if (g_gears.size() <= 1) {
-        MessageBoxW(g_hwnd, L"至少需要保留一个 DPI 档位。", L"DPI 设置", MB_OK | MB_ICONINFORMATION);
+        MessageBoxW(g_hwnd, L"至少保留一个 DPI 档位。", L"DPI 设置", MB_OK | MB_ICONINFORMATION);
         return;
     }
     CommitControls(false);
@@ -630,7 +630,7 @@ void DeleteGear() {
     if (deletingActive) g_activeId = g_selectedId;
     g_dirty = true;
     RebuildSlots();
-    SetStatus(L"已删除档位，应用后写入鼠标", true);
+    SetStatus(L"档位已删除，应用后写入鼠标。", true);
 }
 
 void AdjustValue(int delta) {
@@ -665,14 +665,14 @@ void ApplyConfig() {
         SaveCache(config.currentIndex);
         g_dirty = false;
         RebuildSlots();
-        SetStatus(L"已保存到本机缓存；请连接鼠标后再次点击“应用并切换”", false);
+        SetStatus(L"已保存到本机；连接鼠标后再点“应用并切换”。", false);
         return;
     }
 
     if (!Device::WriteDpiConfig(config)) {
         g_activeId = previousActiveId;
-        SetStatus(L"写入失败，请唤醒鼠标后重试；本机配置未丢失", false);
-        MessageBoxW(g_hwnd, L"DPI 写入失败。请移动鼠标唤醒设备，或检查是否有其他雷柏软件正在占用设备。",
+        SetStatus(L"写入失败，唤醒鼠标后再试；本机配置未丢失。", false);
+        MessageBoxW(g_hwnd, L"DPI 写入失败。移动鼠标唤醒设备，或检查是否有其他雷柏软件占用设备。",
             L"DPI 设置", MB_OK | MB_ICONERROR);
         return;
     }
@@ -681,7 +681,7 @@ void ApplyConfig() {
     SaveCache(config.currentIndex);
     g_dirty = false;
     RebuildSlots();
-    SetStatus(L"已写入鼠标，并切换到所选 DPI 档位", true);
+    SetStatus(L"已写入鼠标，并切换到所选 DPI 档位。", true);
 }
 
 void PaintWindow(HWND hWnd) {
@@ -702,11 +702,11 @@ void PaintWindow(HWND hWnd) {
             g_spec.minDpi, g_spec.maxDpi, g_spec.step,
             std::min(g_spec.maxSlots, Device::MAX_DPI_SLOTS));
         DrawLabel(dc, range, 16, 38, 268, 22, g_fontSmall, ColorMuted());
-        DrawLabel(dc, L"每个档位都可以单独设置 X/Y 数值", 16, 356, 268, 22,
+        DrawLabel(dc, L"每个档位都可以单独设置 X/Y", 16, 356, 268, 22,
             g_fontSmall, ColorMuted());
-        DrawLabel(dc, L"档位按 DPI 从小到大自动排序", 16, 380, 268, 22,
+        DrawLabel(dc, L"档位按 DPI 从小到大排列", 16, 380, 268, 22,
             g_fontSmall, ColorMuted());
-        DrawLabel(dc, L"蓝点表示鼠标当前正在使用的档位", 16, 404, 268, 22,
+        DrawLabel(dc, L"蓝点是鼠标当前使用的档位", 16, 404, 268, 22,
             g_fontSmall, ColorMuted());
 
         RECT xField = { S(444), S(68), S(614), S(102) };
@@ -715,15 +715,15 @@ void PaintWindow(HWND hWnd) {
         FillRounded(dc, yField, ColorField(), ColorBorder(), S(7));
         DrawLabel(dc, L"横向 X", 346, 78, 84, 24, g_fontNormal, ColorText());
         DrawLabel(dc, L"纵向 Y", 346, 122, 84, 24, g_fontNormal, ColorText());
-        DrawLabel(dc, L"拖动滑块可连续调整；端点对应当前型号允许的最小与最大 DPI。", 346, 242, 572, 22,
+        DrawLabel(dc, L"拖动滑块调整；两端对应当前型号的最小和最大 DPI。", 346, 242, 572, 22,
             g_fontSmall, ColorMuted());
 
         RECT note = { S(346), S(290), S(918), S(386) };
         FillRounded(dc, note, ColorField(), ColorBorder(), S(10));
-        DrawLabel(dc, L"编辑不会立即修改鼠标", 362, 302, 330, 22, g_fontBold, ColorText());
-        DrawLabel(dc, L"点击“应用并切换”后才会写入设备并切换档位。", 362, 326, 520, 22,
+        DrawLabel(dc, L"修改不会立即写入鼠标", 362, 302, 330, 22, g_fontBold, ColorText());
+        DrawLabel(dc, L"点“应用并切换”才会写入鼠标并切换档位。", 362, 326, 520, 22,
             g_fontSmall, ColorMuted());
-        DrawLabel(dc, L"设备未连接时，可以先把档位保存到本机缓存。", 362, 350, 520, 22,
+        DrawLabel(dc, L"鼠标未连接时，可以先把档位保存到本机。", 362, 350, 520, 22,
             g_fontSmall, ColorMuted());
 
         EndPaint(hWnd, &ps);
@@ -740,9 +740,9 @@ void PaintWindow(HWND hWnd) {
     DrawLabel(dc, range, 40, 112, 228, 22, g_fontSmall, ColorMuted());
     DrawLabel(dc, L"横向 X", 330, 143, 100, 28, g_fontNormal, ColorText());
     DrawLabel(dc, L"纵向 Y", 330, 183, 100, 28, g_fontNormal, ColorText());
-    DrawLabel(dc, L"拖动滑块可连续调整；档位会按 DPI 从小到大排列。", 330, 306, 430, 22,
+    DrawLabel(dc, L"拖动滑块调整；档位会按 DPI 从小到大排列。", 330, 306, 430, 22,
         g_fontSmall, ColorMuted());
-    DrawLabel(dc, L"修改 DPI 不会重置鼠标，只有点击应用后才会写入设备。", 330, 332, 430, 22,
+    DrawLabel(dc, L"修改 DPI 不会立即重置鼠标；点击应用后才会写入。", 330, 332, 430, 22,
         g_fontSmall, ColorMuted());
 
     HPEN border = CreatePen(PS_SOLID, 1, ColorBorder());

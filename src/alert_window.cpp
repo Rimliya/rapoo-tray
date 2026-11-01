@@ -273,11 +273,11 @@ static LRESULT CALLBACK AlertWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 
             WCHAR szTitle[64];
             if (s_kind == AlertKind::Critical) {
-                StringCchPrintfW(szTitle, ARRAYSIZE(szTitle), L"严重低电量警告  ·  %d%%", s_battery);
+                StringCchPrintfW(szTitle, ARRAYSIZE(szTitle), L"电量严重不足  ·  %d%%", s_battery);
             } else if (s_kind == AlertKind::ChargingReminder) {
-                StringCchPrintfW(szTitle, ARRAYSIZE(szTitle), L"该给鼠标充电了  ·  %d%%", s_battery);
+                StringCchPrintfW(szTitle, ARRAYSIZE(szTitle), L"充电提醒  ·  %d%%", s_battery);
             } else {
-                StringCchPrintfW(szTitle, ARRAYSIZE(szTitle), L"电量不足  ·  %d%%", s_battery);
+                StringCchPrintfW(szTitle, ARRAYSIZE(szTitle), L"电量偏低  ·  %d%%", s_battery);
             }
             RECT rTitle = { S(18), S(12), rc.right - S(40), S(34) };
             DrawTextW(memDC, szTitle, -1, &rTitle, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
@@ -315,14 +315,14 @@ static LRESULT CALLBACK AlertWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
             SetTextColor(memDC, s_kind == AlertKind::Critical ? (isDark ? RGB(252, 165, 165) : RGB(220, 38, 38)) : textSub);
 
             const WCHAR* szAdvice = s_kind == AlertKind::Critical
-                ? L"鼠标即将耗尽电量自动关机，请立即连接充电器！"
+                ? L"电量即将耗尽并关机，建议立即接入 USB 线充电。"
                 : (s_kind == AlertKind::ChargingReminder
-                    ? L"已到充电提醒时间，连接 USB 线缆可避免游戏中突然断电"
-                    : L"剩余电量较低，建议适时连接 USB 线缆充电");
+                    ? L"已达循环提醒时间，接入 USB 线充电可避免断连。"
+                    : L"剩余电量低于警告阈值，建议接入 USB 线充电。");
             RECT rAdvice = { S(18), S(58), rc.right - S(18), S(78) };
             DrawTextW(memDC, szAdvice, -1, &rAdvice, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 
-            // 3. Confirm Button [ 我知道了 ]
+            // 3. Confirm Button [ 知道了 ]
             HBRUSH hBtnBg;
             HPEN hBtnPen;
             COLORREF cBtnText;
@@ -345,7 +345,7 @@ static LRESULT CALLBACK AlertWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
 
             SelectObject(memDC, hFontBody);
             SetTextColor(memDC, cBtnText);
-            DrawTextW(memDC, L"我知道了", -1, &rConfirm, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+            DrawTextW(memDC, L"知道了", -1, &rConfirm, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
 
             // Clean fonts
             SelectObject(memDC, oF);

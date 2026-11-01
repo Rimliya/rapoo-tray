@@ -381,7 +381,7 @@ std::string HandleMainCommand(const std::string& command) {
             SetStatus(L"无法新增配置，最多可创建 16 个配置", false);
         } else {
             g_createdProfileId = id;
-            SetStatus(L"已新增配置，请修改名称和参数");
+            SetStatus(L"配置已创建，修改名称和参数后保存");
         }
         return BuildStateResponse();
     }
@@ -403,7 +403,7 @@ std::string HandleMainCommand(const std::string& command) {
         const int id = ToInt(At(fields, 1));
         Profiles::Definition profile;
         if (id == 0 || !Profiles::Find(id, profile)) {
-            SetStatus(L"请选择一个配置后再保存", false);
+            SetStatus(L"先选择一个配置再保存", false);
             return BuildStateResponse();
         }
 
@@ -432,11 +432,11 @@ std::string HandleMainCommand(const std::string& command) {
 
         if (setDefault) {
             Profiles::SetDefault(profile.id);
-            SetStatus(L"配置已保存；点击“应用”后写入鼠标");
+            SetStatus(L"配置已保存；点“应用”后写入鼠标");
         } else if (profile.id == Profiles::DefaultId()) {
             SetStatus(L"已保存；请在另一个配置中勾选“设为默认”来更改回退项");
         } else {
-            SetStatus(L"配置已保存；点击“应用”后写入鼠标");
+            SetStatus(L"配置已保存；点“应用”后写入鼠标");
         }
         return BuildStateResponse();
     }
@@ -468,7 +468,7 @@ std::string HandleMainCommand(const std::string& command) {
 
         std::wstring error;
         if (Profiles::ReplaceAll(imported, defaultIndex, autoSwitch, error)) {
-            SetStatus(L"已导入 " + std::to_wstring(count) + L" 个配置；点击“应用”后写入鼠标", true);
+            SetStatus(L"已导入 " + std::to_wstring(count) + L" 个配置；点“应用”后写入鼠标", true);
         } else {
             SetStatus(error.empty() ? L"配置导入失败" : error, false);
         }
@@ -488,7 +488,7 @@ std::string HandleMainCommand(const std::string& command) {
         config.enabled = enabled;
         Osd::SetConfig(config);
         QuickPanel::ReloadConfig();
-        SetStatus(enabled ? L"悬浮窗提示已开启" : L"悬浮窗提示已关闭");
+        SetStatus(enabled ? L"状态 OSD 已开启" : L"状态 OSD 已关闭");
         return BuildStateResponse();
     }
 
@@ -521,7 +521,7 @@ std::string HandleMainCommand(const std::string& command) {
             return BuildStateResponse();
         }
         if (!Osd::SetConfig(config)) {
-            SetStatus(L"OSD 设置保存失败，请检查快捷键是否重复", false);
+            SetStatus(L"OSD 设置保存失败，请检查快捷键冲突", false);
             return BuildStateResponse();
         }
         QuickPanel::ReloadConfig();
@@ -535,17 +535,17 @@ std::string HandleMainCommand(const std::string& command) {
         if ((registered & expected) != expected) {
             SetStatus(L"设置已保存，但至少一个全局快捷键被其他程序占用；请更换组合键", false);
         } else {
-            SetStatus(L"OSD、外观与全局快捷键设置已保存");
+            SetStatus(L"OSD 与快捷键已保存");
         }
         return BuildStateResponse();
     }
 
     if (verb == "PREVIEW_OSD") {
         if (!Osd::IsEnabled()) {
-            SetStatus(L"请先开启状态悬浮提示，再预览 OSD", false);
+            SetStatus(L"请先开启状态 OSD，再预览", false);
         } else {
             Osd::ShowDeviceUpdate(Device::GetCurrentState());
-            SetStatus(L"已按当前 OSD 外观设置显示预览");
+            SetStatus(L"已按当前外观显示预览");
         }
         return BuildStateResponse();
     }
@@ -572,7 +572,7 @@ std::string HandleMainCommand(const std::string& command) {
 
     if (verb == "SHOW_QUICK_PANEL") {
         QuickPanel::Show(true);
-        SetStatus(L"已打开 OSD 快速面板");
+        SetStatus(L"已打开快速面板");
         return BuildStateResponse();
     }
 
@@ -587,7 +587,7 @@ std::string HandleMainCommand(const std::string& command) {
     if (verb == "SET_RF_FULL") {
         const bool full = At(fields, 1) == "1";
         if (!Device::SetRfFull(full)) {
-            SetStatus(L"射频策略写入失败，请唤醒鼠标后重试", false);
+            SetStatus(L"射频策略写入失败，鼠标休眠或未响应，唤醒后重试", false);
         } else {
             SetStatus(full ? L"已切换为满格射频" : L"已切换为智能调节");
         }
@@ -625,13 +625,13 @@ std::string HandleHeavyCommand(const std::string& command) {
     if (verb == "APPLY_PROFILE") {
         const int id = ToInt(At(fields, 1));
         const bool ok = id != 0 && Profiles::Select(id, false);
-        SetStatus(ok ? L"配置已应用到鼠标" : L"应用失败，请唤醒鼠标后重试", ok);
+        SetStatus(ok ? L"配置已写入鼠标" : L"应用失败，鼠标休眠或未响应，唤醒后重试", ok);
         return RequestMainState();
     }
 
     if (verb == "REFRESH_RF") {
         const bool ok = Device::RefreshRfState();
-        SetStatus(ok ? L"已读取射频策略" : L"暂时无法读取射频策略，请唤醒鼠标后重试", ok);
+        SetStatus(ok ? L"已读取射频策略" : L"暂时无法读取射频策略，鼠标休眠或未响应，唤醒后重试", ok);
         return RequestMainState();
     }
 
@@ -660,7 +660,7 @@ std::string HandleHeavyCommand(const std::string& command) {
             SetStatus(state.isConnected ? L"已写入鼠标，并切换到所选 DPI 档位"
                                         : L"已保存到本机缓存；连接鼠标后再次点击“应用并切换”", true);
         } else {
-            SetStatus(L"DPI 写入失败，请唤醒鼠标后重试；本机配置未丢失", false);
+            SetStatus(L"DPI 写入失败，鼠标休眠或未响应，唤醒后重试；本机配置未丢失", false);
         }
         return BuildDpiResponse();
     }

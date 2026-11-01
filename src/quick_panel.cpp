@@ -96,7 +96,7 @@ int g_focusValue = 0;
 int g_profileScroll = 0;
 int g_width = 672;
 int g_height = 432;
-std::wstring g_message = L"当前项已标记；点击或按 Enter 切换";
+std::wstring g_message = L"当前项已选中。点击或按 Enter 切换。";
 
 int Scale(int value, UINT dpi) {
     return MulDiv(value, (int)dpi, 96);
@@ -488,9 +488,9 @@ void ApplyProfile(int index) {
     if (index < 0 || index >= (int)g_profiles.size()) return;
     const int id = g_profiles[(size_t)index].id;
     const bool ok = Profiles::Select(id, false);
-    g_message = ok ? L"配置已切换并写入鼠标"
-        : (Profiles::ActiveId() == id ? L"配置已选中；设备离线，连接后应用"
-                                      : L"配置切换失败；请唤醒鼠标后重试");
+    g_message = ok ? L"配置已切换，参数已写入鼠标"
+        : (Profiles::ActiveId() == id ? L"配置已选中；鼠标离线，参数未写入"
+                                      : L"配置切换失败；鼠标休眠或未响应，唤醒后重试");
 }
 
 void ApplyDpi(int index) {
@@ -498,14 +498,14 @@ void ApplyDpi(int index) {
     const DpiWindow::QuickSlot slot = g_dpi.slots[(size_t)index];
     const bool selected = DpiWindow::SelectQuickSlot(index);
     const bool saved = selected && Profiles::SetCurrentDpi(slot.x, slot.y);
-    g_message = saved ? L"DPI 档位已切换并保存到当前配置"
-        : (selected ? L"DPI 已切换；当前配置同步失败" : L"DPI 切换失败；请唤醒鼠标后重试");
+    g_message = saved ? L"DPI 档位已写入鼠标，并保存到当前配置"
+        : (selected ? L"DPI 档位已写入鼠标；同步到当前配置失败" : L"DPI 档位切换失败；鼠标休眠或未响应，唤醒后重试");
 }
 
 void ApplyPerformance(int mode) {
     if (!Rapoo::IsValidPerfMode(mode) || !ItemEnabled(TargetKind::Performance, mode)) return;
     const bool ok = Profiles::SetCurrentPerformanceMode(mode);
-    g_message = ok ? L"性能模式已切换并保存到当前配置" : L"性能模式切换失败；请唤醒鼠标后重试";
+    g_message = ok ? L"性能模式已写入鼠标，并保存到当前配置" : L"性能模式切换失败；鼠标休眠或未响应，唤醒后重试";
 }
 
 void ApplyFocused() {
@@ -723,7 +723,7 @@ void Paint(HWND window) {
     const int itemTop = S(HEADER_HEIGHT + SECTION_TITLE_HEIGHT);
     columnX = S(OUTER_PADDING);
     if (g_config.panelItems & OsdConfig::PANEL_PROFILES) {
-        drawSectionHeader(TargetKind::Profile, L"// PROFILE", L"配置档案");
+        drawSectionHeader(TargetKind::Profile, L"// PROFILE", L"配置");
         const int count = std::min(MAX_VISIBLE_PROFILES, SectionCount(TargetKind::Profile));
         for (int i = 0; i < count; ++i) {
             const int value = g_profileScroll + i;
@@ -735,7 +735,7 @@ void Paint(HWND window) {
         }
         if (count == 0) {
             RECT empty = {columnX, itemTop, columnX + S(COLUMN_WIDTH), itemTop + S(ROW_HEIGHT)};
-            DrawTextLine(buffer, L"尚未创建配置档案。", empty, p.ink2, smallFont);
+            DrawTextLine(buffer, L"还没有配置。", empty, p.ink2, smallFont);
         }
         columnX += S(COLUMN_WIDTH + COLUMN_GAP);
     }
@@ -993,7 +993,7 @@ void ToggleOsdEnabled() {
     Osd::SetEnabled(enable);
     g_config = Osd::GetConfig();
     if (enable) {
-        Osd::Show(L"状态提示已开启", L"设备更新将显示悬浮提示", L"可在设置中心调整 OSD 外观");
+        Osd::Show(L"状态 OSD 已开启", L"设备状态变化时会显示提示", L"外观可在设置中心调整");
     }
 }
 

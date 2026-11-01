@@ -112,7 +112,7 @@ namespace RapooTray.Settings
             }
             if (Profiles == null)
             {
-                error = "快照缺少配置档案";
+                error = "快照缺少配置";
                 return false;
             }
             if (!Profiles.NormalizeAndValidate(out error)) return false;

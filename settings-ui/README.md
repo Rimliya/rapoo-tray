@@ -30,7 +30,7 @@ dotnet run --project settings-ui/RapooTray.Settings.csproj -- --demo
 
 ## 配置包
 
-配置页支持导入和导出 `.rapoo` 文件。配置包包含配置档案、默认配置索引与自动切换开关；格式字段为 `format=rapoo-tray-profiles`、`schemaVersion=1`。
+配置页支持导入和导出 `.rapoo` 文件。配置包包含配置、默认配置索引与自动切换开关；格式字段为 `format=rapoo-tray-profiles`、`schemaVersion=1`。
 
 - 导入前自动备份到 `%APPDATA%\rapoo-tray\backups`。
 - 文件大小上限为 2 MB，最多 16 个配置，名称、回报率和性能模式会在替换前校验。
@@ -51,7 +51,7 @@ dotnet run --project settings-ui/RapooTray.Settings.csproj -- --demo
 ## v1.16.1 稳定性补丁
 
 - OSD 外观参数与预览：位置、显示器、缩放、透明度、停留时间、X/Y 偏移。
-- 五组全局快捷键：快速面板、配置切换、DPI 切换、性能循环、状态 OSD 开关。
+- 五组全局快捷键：快速面板、切换配置、切换 DPI 档位、循环性能模式、状态 OSD 开关。
 - 完整设置快照：关键配置操作前自动备份配置、OSD/快捷键、电量提醒、自启动和型号设置；兼容旧版 `.rapoo` 快照。
 - 诊断页：按当前雷柏 VID/PID 过滤 Raw Input，统计目标鼠标频率、抖动和最大间隔。
 - 应用内更新：下载安装包并强制校验 SHA256；失败支持打开 Release、清理缓存、重新下载和重新安装；未签名包会提示 SmartScreen 风险。

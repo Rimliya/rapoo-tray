@@ -306,7 +306,7 @@ namespace RapooTray.Settings
         private void ApplyLiveState(AppState state)
         {
             _state = state;
-            SetReadout(HeaderConnectionText, state.Connected ? "已连接 │ " + state.Battery + "%" : "等待设备");
+            SetReadout(HeaderConnectionText, state.Connected ? "已连接 │ " + state.Battery + "%" : "未连接");
             SetReadout(HeaderModeText, state.DeviceMode);
             SetReadout(HeaderDpiText, state.DeviceDpiX + " DPI");
             HeaderStatusDot.Fill = (Brush)FindResource(state.Connected ? "AppSignalBrush" : "AppSecondaryTextBrush");
@@ -345,12 +345,12 @@ namespace RapooTray.Settings
             BatteryPagePercentText.Text = state.Battery + "%";
             BatteryPageModeText.Text = !state.Connected ? "设备未连接"
                 : state.BatteryAlertsEnabled && state.Battery <= state.BatteryWarningThreshold
-                    ? "低电量 · 建议充电"
+                    ? "电量偏低，建议充电"
                     : state.DeviceMode;
             RfFullToggle.IsEnabled = state.RfAvailable && !_busy;
             RfStateText.Text = state.RfAvailable
                 ? (state.RfFull ? "满格射频" : "智能调节（推荐）")
-                : (state.Connected ? "等待读取" : "设备未连接");
+                : (state.Connected ? "待读取" : "未连接");
             RefreshRfButton.Visibility = state.RfAvailable ? Visibility.Collapsed : Visibility.Visible;
             RefreshRfButton.IsEnabled = state.Connected && !_rfRefreshInFlight;
             string modelSignature = string.Join("|", state.Models.Select(x => x.Key));
@@ -428,41 +428,41 @@ namespace RapooTray.Settings
             if (page == 0)
             {
                 PageEyebrow.Text = "// PROFILES";
-                PageTitle.Text = "配置档案";
-                PageSubtitle.Text = "为不同应用保存回报率、性能模式、DPI 与启动规则";
+                PageTitle.Text = "配置";
+                PageSubtitle.Text = "为不同程序保存回报率、性能模式与 DPI 设置";
             }
             else if (page == 1)
             {
                 PageEyebrow.Text = "// AUTOMATION";
                 PageTitle.Text = "自动化";
-                PageSubtitle.Text = "管理前台联动、射频策略与设备续航估算";
+                PageSubtitle.Text = "管理前台自动切换、射频策略与续航估算";
                 if (_state != null && _state.Connected) { var ignored = RefreshRfStateAsync(); }
             }
             else if (page == 2)
             {
                 PageEyebrow.Text = "// OSD";
-                PageTitle.Text = "OSD 快速面板";
-                PageSubtitle.Text = "配置全局快捷键、状态提示字段与快速切换项目";
+                PageTitle.Text = "OSD 与快捷键";
+                PageSubtitle.Text = "设置状态 OSD、快速面板与全局快捷键";
             }
             else if (page == 3)
             {
                 PageEyebrow.Text = "// BATTERY";
-                PageTitle.Text = "电量历史与提醒";
-                PageSubtitle.Text = "查看电量曲线，配置低电量通知与循环充电提醒";
+                PageTitle.Text = "电量";
+                PageSubtitle.Text = "查看电量曲线，设置低电量通知与循环充电提醒";
                 var ignored = LoadBatteryHistoryAsync(true);
             }
             else if (page == 4)
             {
                 PageEyebrow.Text = "// DPI";
                 PageTitle.Text = "DPI 档位";
-                PageSubtitle.Text = "编辑鼠标内建 DPI 档位并安全写入设备";
+                PageSubtitle.Text = "编辑鼠标板载 DPI 档位，应用后写入鼠标";
                 if (!_dpiLoaded) { var ignored = LoadDpiAsync(); }
             }
             else if (page == 5)
             {
                 PageEyebrow.Text = "// DIAGNOSTICS";
-                PageTitle.Text = "设备诊断";
-                PageSubtitle.Text = "验证实际回报率、检查连接状态并导出诊断摘要";
+                PageTitle.Text = "诊断";
+                PageSubtitle.Text = "实测回报率、查看连接状态，导出诊断报告";
                 UpdateDiagnostics();
                 if (!_dpiLoaded) { var ignored = LoadDpiAsync(); }
             }
@@ -501,7 +501,7 @@ namespace RapooTray.Settings
 
             if (_profileDirty)
             {
-                var result = MessageBox.Show("当前配置有未保存修改。放弃修改并切换配置？", "rapoo-tray", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                var result = MessageBox.Show("当前配置还没保存。放弃修改并切换吗？", "rapoo-tray", MessageBoxButton.YesNo, MessageBoxImage.Question);
                 if (result != MessageBoxResult.Yes)
                 {
                     _loading = true;
@@ -513,7 +513,7 @@ namespace RapooTray.Settings
 
             _selectedProfileId = row.Id;
             LoadProfileEditor(row);
-            SetStatus("已选择配置；保存只写入本机配置，点击“应用”才会下发到鼠标", true);
+            SetStatus("已选中配置。保存仅修改本机；应用后写入鼠标。", true);
         }
 
         private void LoadProfileEditor(ProfileRow row)
@@ -571,7 +571,7 @@ namespace RapooTray.Settings
             if (_loading || _busy) return;
             _profileDirty = true;
             UpdateDirtyVisuals();
-            SetStatus("有未保存的更改", true);
+            SetStatus("更改尚未保存", true);
         }
 
         private void UpdateDirtyVisuals()
@@ -637,7 +637,7 @@ namespace RapooTray.Settings
                 item.IsEnabled = available;
                 if (available) count++;
             }
-            PerfAvailableText.Text = "当前回报率可用 " + count + " 档";
+            PerfAvailableText.Text = "当前回报率支持 " + count + " 档";
         }
 
         private void SetPerfMode(int mode)
@@ -685,7 +685,7 @@ namespace RapooTray.Settings
             {
                 var state = await _bridge.SaveProfileAsync(row, row.IsDefault);
                 ApplyState(state, true);
-                SetStatus(string.IsNullOrWhiteSpace(state.StatusText) ? "配置已保存；点击“应用”后写入鼠标" : state.StatusText, state.StatusGood);
+                SetStatus(string.IsNullOrWhiteSpace(state.StatusText) ? "配置已保存。点“应用”才会写入鼠标。" : state.StatusText, state.StatusGood);
             }
             catch (Exception ex) { SetStatus(ex.Message, false); }
             finally { SetBusy(false); }
@@ -694,14 +694,14 @@ namespace RapooTray.Settings
         private async void AddProfile_Click(object sender, RoutedEventArgs e)
         {
             if (_busy) return;
-            if (_profileDirty && System.Windows.MessageBox.Show("当前配置有未保存修改。放弃修改并新建配置？", "rapoo-tray", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+            if (_profileDirty && System.Windows.MessageBox.Show("当前配置还没保存。放弃修改并新建配置吗？", "rapoo-tray", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
             CaptureSnapshot("新增前");
             SetBusy(true, "正在新增配置…");
             try
             {
                 var state = await _bridge.AddProfileAsync();
                 ApplyState(state, true);
-                SetStatus(string.IsNullOrWhiteSpace(state.StatusText) ? "已新增配置，请修改名称和参数" : state.StatusText, state.StatusGood);
+                SetStatus(string.IsNullOrWhiteSpace(state.StatusText) ? "配置已创建，接下来修改名称和参数。" : state.StatusText, state.StatusGood);
             }
             catch (Exception ex) { SetStatus(ex.Message, false); }
             finally { SetBusy(false); }
@@ -730,8 +730,8 @@ namespace RapooTray.Settings
             if (_busy || _state == null) return;
             if (_profileDirty)
             {
-                SetStatus("请先保存当前配置，再导出配置包", false);
-                MessageBox.Show(this, "当前配置有未保存修改，请先保存后再导出。", "导出配置", MessageBoxButton.OK, MessageBoxImage.Information);
+                SetStatus("先保存当前配置，再导出配置包", false);
+                MessageBox.Show(this, "当前配置还没保存，先保存再导出。", "导出配置", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
@@ -763,7 +763,7 @@ namespace RapooTray.Settings
         private async void ImportProfiles_Click(object sender, RoutedEventArgs e)
         {
             if (_busy) return;
-            if (_profileDirty && MessageBox.Show(this, "当前配置有未保存修改。导入会替换当前配置，是否继续？", "导入配置", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+            if (_profileDirty && MessageBox.Show(this, "当前配置还没保存。导入会替换当前配置，继续吗？", "导入配置", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
             {
                 return;
             }
@@ -826,7 +826,7 @@ namespace RapooTray.Settings
                     SetStatus("已导入 " + package.Profiles.Count + " 个配置；备份：" + Path.GetFileName(backupPath), true);
                     MessageBox.Show(this, "已导入 " + package.Profiles.Count + " 个配置。" + Environment.NewLine + Environment.NewLine +
                         "导入前备份：" + Environment.NewLine + backupPath + Environment.NewLine + Environment.NewLine +
-                        "配置尚未写入鼠标，请选择配置后点击“应用”。", "导入完成", MessageBoxButton.OK, MessageBoxImage.Information);
+                        "配置尚未写入鼠标。选择配置后点“应用”。", "导入完成", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
             }
             catch (Exception ex)
@@ -857,16 +857,16 @@ namespace RapooTray.Settings
             if (_busy || _selectedProfileId == 0) return;
             if (_profileDirty)
             {
-                SetStatus("请先保存修改，再应用配置", false);
+                SetStatus("先保存修改，再应用配置", false);
                 return;
             }
             CaptureSnapshot("应用前");
-            SetBusy(true, "正在应用配置到鼠标…");
+            SetBusy(true, "正在写入鼠标到鼠标…");
             try
             {
                 var state = await _bridge.ApplyProfileAsync(_selectedProfileId);
                 ApplyState(state, true);
-                SetStatus(string.IsNullOrWhiteSpace(state.StatusText) ? "配置已应用到鼠标" : state.StatusText, state.StatusGood);
+                SetStatus(string.IsNullOrWhiteSpace(state.StatusText) ? "配置已写入鼠标" : state.StatusText, state.StatusGood);
             }
             catch (Exception ex) { SetStatus(ex.Message, false); }
             finally { SetBusy(false); }
@@ -876,7 +876,7 @@ namespace RapooTray.Settings
         {
             var dialog = new Microsoft.Win32.OpenFileDialog
             {
-                Title = "选择需要自动切换配置的程序",
+                Title = "选择要关联的程序",
                 Filter = "可执行程序 (*.exe)|*.exe|所有文件 (*.*)|*.*",
                 CheckFileExists = true
             };
@@ -1128,10 +1128,10 @@ namespace RapooTray.Settings
             binding.Modifiers = modifiers & 15;
             binding.VirtualKey = virtualKey;
             binding.ValueText.Text = FormatHotkey(binding.Modifiers, binding.VirtualKey);
-            binding.StatusText.Text = "已录制；保存后重新注册";
+            binding.StatusText.Text = "已录制，保存后生效";
             binding.StatusText.Foreground = (Brush)FindResource("AppSignalBrush");
             _osdDirty = true;
-            OsdConfigStatusText.Text = "有未保存的 OSD 设置";
+            OsdConfigStatusText.Text = "OSD 设置尚未保存";
         }
 
         private void ClearActionHotkey_Click(object sender, RoutedEventArgs e)
@@ -1142,12 +1142,12 @@ namespace RapooTray.Settings
             binding.Modifiers = 0;
             binding.VirtualKey = 0;
             binding.ValueText.Text = "未设置";
-            binding.StatusText.Text = "已禁用；保存后生效";
+            binding.StatusText.Text = "已禁用，保存后生效";
             binding.StatusText.Foreground = (Brush)FindResource("AppSecondaryTextBrush");
             _capturingHotkey = false;
             _capturingHotkeyKind = null;
             _osdDirty = true;
-            OsdConfigStatusText.Text = "有未保存的 OSD 设置";
+            OsdConfigStatusText.Text = "OSD 设置尚未保存";
         }
 
         private void ResetAllHotkeys_Click(object sender, RoutedEventArgs e)
@@ -1157,20 +1157,20 @@ namespace RapooTray.Settings
                 binding.Modifiers = binding.DefaultModifiers;
                 binding.VirtualKey = binding.DefaultVirtualKey;
                 binding.ValueText.Text = FormatHotkey(binding.Modifiers, binding.VirtualKey);
-                binding.StatusText.Text = "已恢复默认；保存后重新注册";
+                binding.StatusText.Text = "已恢复默认，保存后生效";
                 binding.StatusText.Foreground = (Brush)FindResource("AppSecondaryTextBrush");
             }
             _capturingHotkey = false;
             _capturingHotkeyKind = null;
             _osdDirty = true;
-            OsdConfigStatusText.Text = "有未保存的 OSD 设置";
+            OsdConfigStatusText.Text = "OSD 设置尚未保存";
         }
 
         private void OsdOption_Changed(object sender, RoutedEventArgs e)
         {
             if (_loading || !_initialized) return;
             _osdDirty = true;
-            OsdConfigStatusText.Text = "有未保存的 OSD 设置";
+            OsdConfigStatusText.Text = "OSD 设置尚未保存";
         }
 
         private OsdSettings ReadOsdSettings()
@@ -1212,18 +1212,18 @@ namespace RapooTray.Settings
         {
             if (_loading || !_initialized) return;
             _osdDirty = true;
-            OsdConfigStatusText.Text = "有未保存的 OSD 设置";
+            OsdConfigStatusText.Text = "OSD 设置尚未保存";
         }
         private async Task<bool> SaveOsdSettingsAsync()
         {
             if (_busy) return false;
-            SetBusy(true, "正在保存 OSD 外观并重新注册快捷键…");
+            SetBusy(true, "正在保存 OSD 与快捷键…");
             try
             {
                 AppState state = await _bridge.SetOsdConfigAsync(ReadOsdSettings());
                 _osdDirty = !state.StatusGood;
                 ApplyState(state, false);
-                OsdConfigStatusText.Text = state.StatusGood ? "OSD、外观与快捷键设置已保存" : state.StatusText;
+                OsdConfigStatusText.Text = state.StatusGood ? "OSD 与快捷键已保存" : state.StatusText;
                 SetStatus(state.StatusText, state.StatusGood);
                 return state.StatusGood;
             }
@@ -1244,7 +1244,7 @@ namespace RapooTray.Settings
         {
             if (OsdToggle.IsChecked != true)
             {
-                SetStatus("请先开启“状态悬浮提示”再预览 OSD", false);
+                SetStatus("请先开启“状态 OSD”再预览 OSD", false);
                 return;
             }
             if (_osdDirty && !await SaveOsdSettingsAsync()) return;
@@ -1266,7 +1266,7 @@ namespace RapooTray.Settings
             OsdOffsetXBox.Value = 0;
             OsdOffsetYBox.Value = 0;
             _osdDirty = true;
-            OsdConfigStatusText.Text = "已恢复默认外观；保存后生效";
+            OsdConfigStatusText.Text = "已恢复默认外观，保存后生效";
         }
 
         private async void PreviewQuickPanel_Click(object sender, RoutedEventArgs e)
@@ -1275,7 +1275,7 @@ namespace RapooTray.Settings
             try
             {
                 AppState state = await _bridge.ShowQuickPanelAsync();
-                SetStatus("已打开快速面板；点击项目即可切换，Esc 关闭", state.StatusGood);
+                SetStatus("快速面板已打开。点击项目切换，Esc 关闭。", state.StatusGood);
             }
             catch (Exception ex) { SetStatus(ex.Message, false); }
         }
@@ -1294,14 +1294,14 @@ namespace RapooTray.Settings
         {
             if (_loading || !_initialized) return;
             _batteryDirty = true;
-            BatteryConfigStatusText.Text = "有未保存的提醒设置";
+            BatteryConfigStatusText.Text = "提醒设置尚未保存";
         }
 
         private void BatteryNumber_Changed(object sender, NumberBoxValueChangedEventArgs e)
         {
             if (_loading || !_initialized) return;
             _batteryDirty = true;
-            BatteryConfigStatusText.Text = "有未保存的提醒设置";
+            BatteryConfigStatusText.Text = "提醒设置尚未保存";
         }
 
         private async Task LoadBatteryHistoryAsync(bool force)
@@ -1352,7 +1352,7 @@ namespace RapooTray.Settings
             ReminderMinutesBox.Value = minutes;
             _loading = oldLoading;
 
-            SetBusy(true, "正在保存电量提醒设置…");
+            SetBusy(true, "正在保存提醒设置…");
             try
             {
                 AppState state = await _bridge.SetBatteryConfigAsync(BatteryAlertToggle.IsChecked == true,
@@ -1411,7 +1411,7 @@ namespace RapooTray.Settings
                 if (_state != null)
                 {
                     RefreshRfButton.IsEnabled = _state.Connected;
-                    if (!_state.RfAvailable && _state.Connected) RfStateText.Text = "等待读取";
+                    if (!_state.RfAvailable && _state.Connected) RfStateText.Text = "待读取";
                 }
             }
         }
@@ -1499,7 +1499,7 @@ namespace RapooTray.Settings
                 DpiIndependentCheck.IsChecked = slot.X != slot.Y;
                 DpiYBox.IsEnabled = slot.X != slot.Y;
                 DpiPageTitle.Text = "第 " + (_selectedDpiIndex + 1) + " 档";
-                DpiPageSubtitle.Text = (_dpi.FromDevice ? "鼠标当前第 " : "当前视图第 ") + (_selectedDpiIndex + 1) + " 档使用 " + (slot.X == slot.Y ? slot.X.ToString() : slot.X + " × " + slot.Y) + " DPI";
+                DpiPageSubtitle.Text = (slot.X == slot.Y ? slot.X.ToString() : slot.X + " × " + slot.Y) + " DPI" + (_dpi.FromDevice ? " · 来自鼠标" : " · 本机缓存");
                 DpiRangeText.Text = _dpi.Min + "–" + _dpi.Max + " DPI │ 步进 " + _dpi.Step + " │ 最多 " + Math.Min(7, _dpi.MaxSlots) + " 档";
                 DpiCountText.Text = _dpi.Slots.Count + " / " + Math.Min(7, _dpi.MaxSlots);
             }
@@ -1513,7 +1513,7 @@ namespace RapooTray.Settings
             AddDpiButton.IsEnabled = !_busy && _dpi.Slots.Count < Math.Min(7, _dpi.MaxSlots);
             DeleteDpiButton.IsEnabled = !_busy && _dpi.Slots.Count > 1;
             ApplyDpiButton.IsEnabled = !_busy && _dpiDirty;
-            DpiStatusText.Text = _dpiDirty ? "DPI 修改尚未写入鼠标" : "当前档位与设备同步";
+            DpiStatusText.Text = _dpiDirty ? "DPI 修改尚未写入鼠标" : "已与鼠标同步";
         }
 
         private int SnapDpi(double raw)
@@ -1682,7 +1682,7 @@ namespace RapooTray.Settings
                 SetStatus("请选择要恢复的快照", false);
                 return;
             }
-            if (MessageBox.Show(this, "恢复会替换当前配置档案，并尽量恢复 OSD、快捷键、电量提醒、自启动与型号设置。当前状态会先自动备份，是否继续？",
+            if (MessageBox.Show(this, "恢复会替换当前配置，并尽量恢复 OSD、快捷键、电量提醒、自启动与型号设置。当前状态会先自动备份，是否继续？",
                 "恢复配置快照", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
             CaptureSnapshot("恢复前");
             SetBusy(true, "正在恢复完整设置快照…");
@@ -1937,7 +1937,7 @@ namespace RapooTray.Settings
                 }
                 catch (Exception ex)
                 {
-                    UpdateStatusText.Text = "自动更新失败：" + ex.Message + "；可打开 Release 或清理缓存后重试。";
+                    UpdateStatusText.Text = "自动更新失败：" + ex.Message + "；可查看 Releases 或清理缓存后重试。";
                     CheckUpdateButton.Content = "重试下载";
                     _verifiedUpdate = null;
                     SetUpdateRecoveryButtons(true, true);
@@ -1953,7 +1953,7 @@ namespace RapooTray.Settings
 
             CheckUpdateButton.IsEnabled = false;
             CheckUpdateButton.Content = "检查中…";
-            UpdateStatusText.Text = "正在检查 GitHub 最新发行版…";
+            UpdateStatusText.Text = "正在检查 GitHub 最新版本…";
             _verifiedUpdate = null;
             _latestRelease = null;
             SetUpdateRecoveryButtons(false, false);
@@ -1972,7 +1972,7 @@ namespace RapooTray.Settings
                 else if (versionComparison < 0)
                 {
                     _updateAvailable = false;
-                    UpdateStatusText.Text = "当前测试版 " + _state.Version + "；GitHub 最新发行版为 " + latest;
+                    UpdateStatusText.Text = "当前版本 " + _state.Version + "；GitHub 最新正式版为 " + latest;
                     CheckUpdateButton.Content = "再次检查";
                     SetUpdateRecoveryButtons(false, false);
                 }
@@ -1987,7 +1987,7 @@ namespace RapooTray.Settings
             catch (Exception ex)
             {
                 _updateAvailable = false;
-                UpdateStatusText.Text = "检查失败：" + ex.Message + "；可打开 Release 页面或稍后重试。";
+                UpdateStatusText.Text = "检查失败：" + ex.Message + "；可查看 Releases 页面或稍后重试。";
                 CheckUpdateButton.Content = "重新检查";
                 SetUpdateRecoveryButtons(true, true);
             }

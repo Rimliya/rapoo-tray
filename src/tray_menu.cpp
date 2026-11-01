@@ -297,7 +297,7 @@ static LRESULT CALLBACK AcrylicSubWndProc(HWND hWnd, UINT msg, WPARAM wParam, LP
                 Device::State st = Device::GetCurrentState();
                 WCHAR l1[64], l2[64], l3[64];
                 StringCchPrintfW(l1, ARRAYSIZE(l1), L"休眠时间: %d 分钟", g_sliderVal);
-                StringCchPrintfW(l2, ARRAYSIZE(l2), L"设置已即时生效并已保存");
+                StringCchPrintfW(l2, ARRAYSIZE(l2), L"已生效并保存");
                 const WCHAR* modeStr = st.isWired ? L"USB" : L"2.4G";
                 const WCHAR* batIcon = st.isCharging ? L"⚡" : L"🔋";
                 StringCchPrintfW(l3, ARRAYSIZE(l3), L"%s  |  第 %d 档  |  %s %d%%  |  %d Hz",
@@ -348,7 +348,7 @@ static LRESULT CALLBACK AcrylicSubWndProc(HWND hWnd, UINT msg, WPARAM wParam, LP
                             Device::State st = Device::GetCurrentState();
                             WCHAR l1[64], l2[64], l3[64];
                             StringCchPrintfW(l1, ARRAYSIZE(l1), L"休眠时间: %d 分钟", g_sliderVal);
-                            StringCchPrintfW(l2, ARRAYSIZE(l2), L"设置已即时生效并已保存");
+                            StringCchPrintfW(l2, ARRAYSIZE(l2), L"已生效并保存");
                             const WCHAR* modeStr = st.isWired ? L"USB" : L"2.4G";
                             const WCHAR* batIcon = st.isCharging ? L"⚡" : L"🔋";
                             StringCchPrintfW(l3, ARRAYSIZE(l3), L"%s  |  第 %d 档  |  %s %d%%  |  %d Hz",
@@ -424,7 +424,7 @@ static LRESULT CALLBACK AcrylicSubWndProc(HWND hWnd, UINT msg, WPARAM wParam, LP
                 Device::State st = Device::GetCurrentState();
                 WCHAR l1[64], l2[64], l3[64];
                 StringCchPrintfW(l1, ARRAYSIZE(l1), L"休眠时间: %d 分钟", g_sliderVal);
-                StringCchPrintfW(l2, ARRAYSIZE(l2), L"设置已即时生效并已保存");
+                StringCchPrintfW(l2, ARRAYSIZE(l2), L"已生效并保存");
                 const WCHAR* modeStr = st.isWired ? L"USB" : L"2.4G";
                 const WCHAR* batIcon = st.isCharging ? L"⚡" : L"🔋";
                 StringCchPrintfW(l3, ARRAYSIZE(l3), L"%s  |  第 %d 档  |  %s %d%%  |  %d Hz",
@@ -445,7 +445,7 @@ static LRESULT CALLBACK AcrylicSubWndProc(HWND hWnd, UINT msg, WPARAM wParam, LP
                 Device::State st = Device::GetCurrentState();
                 WCHAR l1[64], l2[64], l3[64];
                 StringCchPrintfW(l1, ARRAYSIZE(l1), L"回报率: %d Hz", hz);
-                StringCchPrintfW(l2, ARRAYSIZE(l2), L"设置已即时生效");
+                StringCchPrintfW(l2, ARRAYSIZE(l2), L"已生效");
                 const WCHAR* modeStr = st.isWired ? L"USB" : L"2.4G";
                 const WCHAR* batIcon = st.isCharging ? L"⚡" : L"🔋";
                 StringCchPrintfW(l3, ARRAYSIZE(l3), L"%s  |  第 %d 档  |  %s %d%%  |  %d Hz",
@@ -463,10 +463,10 @@ static LRESULT CALLBACK AcrylicSubWndProc(HWND hWnd, UINT msg, WPARAM wParam, LP
                 WCHAR l1[64], l2[96], l3[128];
                 if (ok) {
                     StringCchPrintfW(l1, ARRAYSIZE(l1), L"性能模式: %s", Rapoo::PerfModeName(mode));
-                    StringCchCopyW(l2, ARRAYSIZE(l2), L"设置已即时生效并保存到当前配置");
+                    StringCchCopyW(l2, ARRAYSIZE(l2), L"已生效并保存到当前配置");
                 } else {
                     StringCchCopyW(l1, ARRAYSIZE(l1), L"性能模式切换失败");
-                    StringCchCopyW(l2, ARRAYSIZE(l2), L"当前回报率不支持或设备未响应");
+                    StringCchCopyW(l2, ARRAYSIZE(l2), L"当前回报率不支持此模式，或鼠标未响应");
                 }
                 const WCHAR* link = st.isWired ? L"USB" : L"2.4G";
                 const WCHAR* batIcon = st.isCharging ? L"⚡" : L"🔋";
@@ -495,8 +495,8 @@ static LRESULT CALLBACK AcrylicSubWndProc(HWND hWnd, UINT msg, WPARAM wParam, LP
                     }
                     StringCchPrintfW(l2, ARRAYSIZE(l2), L"已切换到第 %d 档", index + 1);
                 } else {
-                    StringCchCopyW(l1, ARRAYSIZE(l1), L"DPI 切换失败");
-                    StringCchCopyW(l2, ARRAYSIZE(l2), L"请唤醒鼠标后重试");
+                    StringCchCopyW(l1, ARRAYSIZE(l1), L"DPI 档位切换失败");
+                    StringCchCopyW(l2, ARRAYSIZE(l2), L"鼠标休眠或未响应，唤醒后重试");
                 }
                 const WCHAR* modeStr = st.isWired ? L"USB" : L"2.4G";
                 const WCHAR* batIcon = st.isCharging ? L"⚡" : L"🔋";
@@ -512,8 +512,8 @@ static LRESULT CALLBACK AcrylicSubWndProc(HWND hWnd, UINT msg, WPARAM wParam, LP
                     int profileId = profiles[g_subHover].id;
                     std::wstring profileName = profiles[g_subHover].name;
                     DismissAllMenus();
-                    Osd::Show(L"正在应用配置", profileName.c_str(),
-                              L"回报率、性能模式与 DPI 正在后台切换");
+                    Osd::Show(L"正在写入鼠标", profileName.c_str(),
+                              L"后台切换回报率、性能模式与 DPI 档位");
                     // Apply profile operations can take hundreds of milliseconds
                     // on wireless receivers. Keep the Win32 menu loop responsive.
                     std::thread([profileId] { Profiles::Select(profileId, true); }).detach();
@@ -1005,7 +1005,7 @@ static LRESULT CALLBACK AcrylicMainWndProc(HWND hWnd, UINT msg, WPARAM wParam, L
                     bool enabled = !Osd::IsEnabled();
                     Osd::SetEnabled(enabled);
                     if (enabled) {
-                        Osd::Show(L"悬浮窗提示已开启", L"设备状态与配置切换会显示在右下角", L"可随时在托盘菜单中关闭");
+                        Osd::Show(L"状态 OSD 已开启", L"设备状态或配置切换时会显示 OSD", L"可在托盘菜单中关闭");
                     }
                 } else if (cmd == 1005) { // Foreground app switching
                     Profiles::SetAutoSwitchEnabled(!Profiles::AutoSwitchEnabled());
@@ -1175,7 +1175,7 @@ void ShowMenu(HWND hWndOwner) {
     if (st.isConnected) {
         StringCchCopyW(itemHeader.value, 32, st.isWired ? L"● USB 有线连接 · 已连接" : L"● 2.4G 无线连接 · 已连接");
     } else {
-        StringCchCopyW(itemHeader.value, 32, L"● 设备休眠 / 未连接");
+        StringCchCopyW(itemHeader.value, 32, L"● 鼠标休眠或未连接");
     }
     g_mainItems.push_back(itemHeader);
 
@@ -1190,7 +1190,7 @@ void ShowMenu(HWND hWndOwner) {
     g_mainItems.push_back(itemProfile);
 
     MenuItemData itemBat = { 0 };
-    itemBat.label = L"电池电量";
+    itemBat.label = L"电量";
     itemBat.isDisabled = !st.isConnected;
     if (st.isConnected) {
         if (st.isCharging) {
@@ -1221,7 +1221,7 @@ void ShowMenu(HWND hWndOwner) {
     g_mainItems.push_back(itemDpi);
 
     MenuItemData itemPoll = { 0 };
-    itemPoll.label = L"回报率设置";
+    itemPoll.label = L"回报率";
     itemPoll.isInteractive = true;
     itemPoll.isDisabled = !st.isConnected;
     itemPoll.submenuType = 1;
@@ -1247,7 +1247,7 @@ void ShowMenu(HWND hWndOwner) {
     g_mainItems.push_back(itemPerf);
 
     MenuItemData itemSleep = { 0 };
-    itemSleep.label = L"休眠时间设置";
+    itemSleep.label = L"休眠时间";
     itemSleep.isInteractive = true;
     itemSleep.isDisabled = !st.isConnected;
     itemSleep.submenuType = 2; // Slider submenu
@@ -1269,13 +1269,13 @@ void ShowMenu(HWND hWndOwner) {
     g_mainItems.push_back(itemAppAuto);
 
     MenuItemData itemOsd = { 1004 };
-    itemOsd.label = L"悬浮窗提示";
+    itemOsd.label = L"状态 OSD";
     itemOsd.isInteractive = true;
     StringCchCopyW(itemOsd.value, ARRAYSIZE(itemOsd.value), Osd::IsEnabled() ? L"✓ 已开启" : L"未开启");
     g_mainItems.push_back(itemOsd);
 
     MenuItemData itemQuickPanel = { 1007 };
-    itemQuickPanel.label = L"打开 OSD 快速面板…";
+    itemQuickPanel.label = L"打开快速面板…";
     itemQuickPanel.isInteractive = true;
     const OsdConfig::Config quickConfig = Osd::GetConfig();
     std::wstring quickHotkey = OsdConfig::FormatHotkey(quickConfig.hotkeyModifiers, quickConfig.hotkeyVirtualKey);
@@ -1283,7 +1283,7 @@ void ShowMenu(HWND hWndOwner) {
     g_mainItems.push_back(itemQuickPanel);
 
     MenuItemData itemSettings = { 1003 };
-    itemSettings.label = L"配置中心…";
+    itemSettings.label = L"设置中心…";
     itemSettings.isInteractive = true;
     g_mainItems.push_back(itemSettings);
 
@@ -1810,7 +1810,7 @@ void UpdateTooltip(NOTIFYICONDATAW& nid, const Device::State& state) {
         StringCchPrintfW(
             nid.szTip,
             ARRAYSIZE(nid.szTip),
-            L"%s\n设备休眠 / 未连接",
+            L"%s\n鼠标休眠或未连接",
             state.modelName[0] ? state.modelName : L"通用"
         );
     }

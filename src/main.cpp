@@ -119,7 +119,7 @@ static LRESULT CALLBACK MainWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM l
                     Osd::ShowDeviceUpdate(st);
                 } else {
                     const WCHAR* mName = st.modelName[0] ? st.modelName : L"通用";
-                    Osd::Show(mName, L"设备休眠 / 未连接", L"请移动鼠标唤醒或插上 USB 线");
+                    Osd::Show(mName, L"设备休眠或未连接", L"移动鼠标唤醒，或接入 USB 线");
                 }
                 RefreshTrayUI(st);
             } else if (lParam == WM_RBUTTONUP) {
@@ -269,7 +269,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     g_nid.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP;
     g_nid.uCallbackMessage = WM_APP_TRAYMSG;
     g_nid.hIcon = LoadIconW(hInstance, MAKEINTRESOURCEW(1));
-    StringCchCopyW(g_nid.szTip, ARRAYSIZE(g_nid.szTip), L"雷柏游戏鼠标 (正在连接...)");
+    StringCchCopyW(g_nid.szTip, ARRAYSIZE(g_nid.szTip), L"雷柏鼠标（正在连接…）");
     Shell_NotifyIconW(NIM_ADD, &g_nid);
 
     // Load persistent profile rules and start polling the foreground app.
