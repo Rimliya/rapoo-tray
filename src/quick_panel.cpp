@@ -3,6 +3,7 @@
 #include "device_manager.h"
 #include "dpi_window.h"
 #include "osd_config.h"
+#include "osd_window.h"
 #include "profile_manager.h"
 #include "rapoo_protocol.h"
 
@@ -76,7 +77,11 @@ HWND g_window = NULL;
 HWND g_mainWindow = NULL;
 HINSTANCE g_instance = NULL;
 bool g_initialized = false;
-bool g_hotkeyRegistered = false;
+bool g_panelHotkeyRegistered = false;
+bool g_profileHotkeyRegistered = false;
+bool g_dpiHotkeyRegistered = false;
+bool g_performanceHotkeyRegistered = false;
+bool g_toggleOsdHotkeyRegistered = false;
 bool g_visible = false;
 OsdConfig::Config g_config;
 Device::State g_state;
@@ -905,20 +910,90 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
     return DefWindowProcW(window, message, wParam, lParam);
 }
 
-void RegisterConfiguredHotkey() {
-    if (g_hotkeyRegistered && g_mainWindow) {
-        UnregisterHotKey(g_mainWindow, HOTKEY_ID);
-        g_hotkeyRegistered = false;
+bool RegisterOneHotkey(UINT id, UINT modifiers, UINT virtualKey) {
+    if (!g_mainWindow || !OsdConfig::IsHotkeyValid(modifiers, virtualKey)) return false;
+    if (RegisterHotKey(g_mainWindow, id, modifiers | MOD_NOREPEAT, virtualKey)) return true;
+    return RegisterHotKey(g_mainWindow, id, modifiers, virtualKey) != FALSE;
+}
+
+void UnregisterConfiguredHotkeys() {
+    if (!g_mainWindow) return;
+    const UINT ids[] = {
+        HOTKEY_ID, HOTKEY_PROFILE_ID, HOTKEY_DPI_ID,
+        HOTKEY_PERFORMANCE_ID, HOTKEY_TOGGLE_OSD_ID
+    };
+    for (UINT id : ids) UnregisterHotKey(g_mainWindow, id);
+    g_panelHotkeyRegistered = false;
+    g_profileHotkeyRegistered = false;
+    g_dpiHotkeyRegistered = false;
+    g_performanceHotkeyRegistered = false;
+    g_toggleOsdHotkeyRegistered = false;
+}
+
+void RegisterConfiguredHotkeys() {
+    UnregisterConfiguredHotkeys();
+    if (!g_mainWindow) return;
+
+    g_panelHotkeyRegistered = g_config.quickPanelEnabled &&
+        RegisterOneHotkey(HOTKEY_ID, g_config.hotkeyModifiers, g_config.hotkeyVirtualKey);
+    g_profileHotkeyRegistered = OsdConfig::IsHotkeyAssigned(
+        g_config.profileCycleHotkeyModifiers, g_config.profileCycleHotkeyVirtualKey) &&
+        RegisterOneHotkey(HOTKEY_PROFILE_ID, g_config.profileCycleHotkeyModifiers,
+                          g_config.profileCycleHotkeyVirtualKey);
+    g_dpiHotkeyRegistered = OsdConfig::IsHotkeyAssigned(
+        g_config.dpiCycleHotkeyModifiers, g_config.dpiCycleHotkeyVirtualKey) &&
+        RegisterOneHotkey(HOTKEY_DPI_ID, g_config.dpiCycleHotkeyModifiers,
+                          g_config.dpiCycleHotkeyVirtualKey);
+    g_performanceHotkeyRegistered = OsdConfig::IsHotkeyAssigned(
+        g_config.performanceCycleHotkeyModifiers, g_config.performanceCycleHotkeyVirtualKey) &&
+        RegisterOneHotkey(HOTKEY_PERFORMANCE_ID, g_config.performanceCycleHotkeyModifiers,
+                          g_config.performanceCycleHotkeyVirtualKey);
+    g_toggleOsdHotkeyRegistered = OsdConfig::IsHotkeyAssigned(
+        g_config.toggleOsdHotkeyModifiers, g_config.toggleOsdHotkeyVirtualKey) &&
+        RegisterOneHotkey(HOTKEY_TOGGLE_OSD_ID, g_config.toggleOsdHotkeyModifiers,
+                          g_config.toggleOsdHotkeyVirtualKey);
+}
+
+bool CycleProfile() {
+    const std::vector<Profiles::Definition> profiles = Profiles::GetAll();
+    if (profiles.empty()) return false;
+    const int activeId = Profiles::ActiveId();
+    size_t next = 0;
+    for (size_t i = 0; i < profiles.size(); ++i) {
+        if (profiles[i].id == activeId) {
+            next = (i + 1) % profiles.size();
+            break;
+        }
     }
-    if (!g_config.quickPanelEnabled || !g_mainWindow) return;
-    if (RegisterHotKey(g_mainWindow, HOTKEY_ID,
-            g_config.hotkeyModifiers | MOD_NOREPEAT, g_config.hotkeyVirtualKey)) {
-        g_hotkeyRegistered = true;
-        return;
+    return Profiles::Select(profiles[next].id, true);
+}
+
+bool CycleDpi() {
+    DpiWindow::QuickSlotList slots;
+    if (!DpiWindow::GetQuickSlots(slots) || slots.slots.empty()) return false;
+    const int next = (slots.activeIndex + 1) % (int)slots.slots.size();
+    return DpiWindow::SelectQuickSlot(next);
+}
+
+bool CyclePerformance() {
+    const Device::State state = Device::GetCurrentState();
+    const int start = state.perfModeKnown && Rapoo::IsValidPerfMode(state.perfMode)
+        ? state.perfMode : Rapoo::PERF_FURY_GAMING;
+    for (int step = 1; step <= 6; ++step) {
+        const int mode = (start + step) % 6;
+        if (Rapoo::IsPerfModeAllowed(mode, state.pollingHz)) {
+            return Profiles::SetCurrentPerformanceMode(mode);
+        }
     }
-    if (RegisterHotKey(g_mainWindow, HOTKEY_ID,
-            g_config.hotkeyModifiers, g_config.hotkeyVirtualKey)) {
-        g_hotkeyRegistered = true;
+    return false;
+}
+
+void ToggleOsdEnabled() {
+    const bool enable = !Osd::IsEnabled();
+    Osd::SetEnabled(enable);
+    g_config = Osd::GetConfig();
+    if (enable) {
+        Osd::Show(L"状态提示已开启", L"设备更新将显示悬浮提示", L"可在设置中心调整 OSD 外观");
     }
 }
 
@@ -958,13 +1033,12 @@ bool Init(HINSTANCE hInstance, HWND mainWindow) {
     DwmSetWindowAttribute(g_window, 20, &dark, sizeof(dark));
 
     g_initialized = true;
-    RegisterConfiguredHotkey();
+    RegisterConfiguredHotkeys();
     return true;
 }
 
 void Cleanup() {
-    if (g_hotkeyRegistered && g_mainWindow) UnregisterHotKey(g_mainWindow, HOTKEY_ID);
-    g_hotkeyRegistered = false;
+    UnregisterConfiguredHotkeys();
     if (g_window && IsWindow(g_window)) DestroyWindow(g_window);
     g_window = NULL;
     g_initialized = false;
@@ -974,13 +1048,13 @@ void Cleanup() {
 
 bool ReloadConfig() {
     g_config = OsdConfig::Load();
-    RegisterConfiguredHotkey();
+    RegisterConfiguredHotkeys();
     if (!g_config.quickPanelEnabled && g_visible) Hide();
     if (g_window) {
         BuildLayout(g_window);
         InvalidateRect(g_window, NULL, FALSE);
     }
-    return g_hotkeyRegistered || !g_config.quickPanelEnabled;
+    return g_panelHotkeyRegistered || !g_config.quickPanelEnabled;
 }
 
 void Toggle() {
@@ -1014,7 +1088,39 @@ bool IsVisible() {
 }
 
 bool HotkeyRegistered() {
-    return g_hotkeyRegistered;
+    return g_panelHotkeyRegistered;
+}
+
+DWORD HotkeyRegistrationMask() {
+    DWORD mask = 0;
+    if (g_panelHotkeyRegistered) mask |= 1u << 0;
+    if (g_profileHotkeyRegistered) mask |= 1u << 1;
+    if (g_dpiHotkeyRegistered) mask |= 1u << 2;
+    if (g_performanceHotkeyRegistered) mask |= 1u << 3;
+    if (g_toggleOsdHotkeyRegistered) mask |= 1u << 4;
+    return mask;
+}
+
+bool HandleHotkey(UINT hotkeyId) {
+    switch (hotkeyId) {
+        case HOTKEY_ID:
+            Toggle();
+            return true;
+        case HOTKEY_PROFILE_ID:
+            CycleProfile();
+            return true;
+        case HOTKEY_DPI_ID:
+            CycleDpi();
+            return true;
+        case HOTKEY_PERFORMANCE_ID:
+            CyclePerformance();
+            return true;
+        case HOTKEY_TOGGLE_OSD_ID:
+            ToggleOsdEnabled();
+            return true;
+        default:
+            return false;
+    }
 }
 
 HWND GetWindowHandle() {

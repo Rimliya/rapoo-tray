@@ -34,6 +34,18 @@ void TestHotkeyConfiguration() {
     Check(OsdConfig::NormalizeDisplayMask(0xFFFFFFFFu) == OsdConfig::FIELD_ALL, "display mask should strip unknown bits");
     Check(OsdConfig::NormalizeDisplayMask(0) == 0, "empty display mask is configurable");
     Check(OsdConfig::NormalizePanelMask(0xFFFFFFFFu) == OsdConfig::PANEL_ALL, "panel mask should strip unknown bits");
+    Check(!OsdConfig::IsHotkeyAssigned(0, 0), "zero hotkey pair should mean disabled");
+    Check(OsdConfig::FormatHotkey(0, 0) == L"未设置", "disabled hotkey should render as unassigned");
+    OsdConfig::Config config;
+    Check(OsdConfig::AreHotkeysUnique(config), "default hotkey suite should be unique");
+    config.dpiCycleHotkeyModifiers = config.profileCycleHotkeyModifiers;
+    config.dpiCycleHotkeyVirtualKey = config.profileCycleHotkeyVirtualKey;
+    std::wstring conflict;
+    Check(!OsdConfig::AreHotkeysUnique(config, &conflict), "duplicate action hotkeys should be rejected");
+    Check(!conflict.empty(), "duplicate hotkey should produce a user-facing conflict");
+    config.dpiCycleHotkeyModifiers = 0;
+    config.dpiCycleHotkeyVirtualKey = 0;
+    Check(OsdConfig::AreHotkeysUnique(config), "disabled optional hotkey should not conflict");
 }
 
 void TestBatteryAlertPolicy() {

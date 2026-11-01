@@ -65,6 +65,24 @@ UINT GetCurrentWindowDpi(HWND hWnd) {
     }
     return 96;
 }
+UINT GetMonitorDpi(HMONITOR monitor, HWND fallbackWindow) {
+    HMODULE shcore = LoadLibraryW(L"shcore.dll");
+    if (shcore) {
+        typedef HRESULT (WINAPI* GetDpiForMonitorFn)(HMONITOR, int, UINT*, UINT*);
+        auto getDpiForMonitor = reinterpret_cast<GetDpiForMonitorFn>(
+            GetProcAddress(shcore, "GetDpiForMonitor"));
+        if (getDpiForMonitor && monitor) {
+            UINT dpiX = 0;
+            UINT dpiY = 0;
+            if (SUCCEEDED(getDpiForMonitor(monitor, 0, &dpiX, &dpiY)) && dpiX > 0) {
+                FreeLibrary(shcore);
+                return dpiX;
+            }
+        }
+        FreeLibrary(shcore);
+    }
+    return GetCurrentWindowDpi(fallbackWindow);
+}
 
 bool IsSystemDark() {
     HKEY key = NULL;
@@ -259,8 +277,9 @@ void Paint(HWND hWnd) {
     HBITMAP bitmap = CreateCompatibleBitmap(target, width, height);
     HGDIOBJ oldBitmap = SelectObject(memory, bitmap);
 
-    const UINT dpi = GetCurrentWindowDpi(hWnd);
-    auto S = [dpi](int value) { return ScaleDpi(value, dpi); };
+    const UINT dpi = GetMonitorDpi(MonitorFromWindow(hWnd, MONITOR_DEFAULTTONEAREST), hWnd);
+    const int scale = std::clamp(g_config.osdScalePercent, 75, 150);
+    auto S = [dpi, scale](int value) { return MulDiv(ScaleDpi(value, dpi), scale, 100); };
     g_highContrast = IsHighContrast();
     const Palette palette = MakePalette(IsSystemDark());
 
@@ -472,13 +491,16 @@ void Show(const WCHAR* line1, const WCHAR* line2, const WCHAR* line3) {
 
     POINT cursor = {0};
     GetCursorPos(&cursor);
-    HMONITOR monitor = MonitorFromPoint(cursor, MONITOR_DEFAULTTONEAREST);
+    HMONITOR monitor = g_config.osdMonitor == OsdConfig::OSD_MONITOR_PRIMARY
+        ? MonitorFromPoint(POINT{0, 0}, MONITOR_DEFAULTTOPRIMARY)
+        : MonitorFromPoint(cursor, MONITOR_DEFAULTTONEAREST);
     MONITORINFO info = {sizeof(info)};
     GetMonitorInfoW(monitor, &info);
     RECT work = info.rcWork;
 
-    const UINT dpi = GetCurrentWindowDpi(g_window);
-    auto S = [dpi](int value) { return ScaleDpi(value, dpi); };
+    const UINT dpi = GetMonitorDpi(monitor, g_window);
+    const int scale = std::clamp(g_config.osdScalePercent, 75, 150);
+    auto S = [dpi, scale](int value) { return MulDiv(ScaleDpi(value, dpi), scale, 100); };
 
     auto bodyProbe = MakeFont(S(17), true, !HasNonAscii(g_textLine1));
     auto subProbe = MakeFont(S(12), false, !HasNonAscii(g_textLine2));
@@ -495,20 +517,42 @@ void Show(const WCHAR* line1, const WCHAR* line2, const WCHAR* line3) {
     targetWidth = std::min(targetWidth, S(MAX_WIDTH_DIP));
     const int targetHeight = hasLine3 ? S(124) : S(94);
 
-    const int x = work.left + ((work.right - work.left) - targetWidth) / 2;
-    const int y = work.bottom - targetHeight - S(70);
+    int x = work.left + ((work.right - work.left) - targetWidth) / 2;
+    int y = work.bottom - targetHeight - S(48);
+    switch (g_config.osdPosition) {
+        case OsdConfig::OSD_POSITION_BOTTOM_RIGHT:
+            x = work.right - targetWidth - S(32);
+            y = work.bottom - targetHeight - S(48);
+            break;
+        case OsdConfig::OSD_POSITION_TOP_RIGHT:
+            x = work.right - targetWidth - S(32);
+            y = work.top + S(32);
+            break;
+        case OsdConfig::OSD_POSITION_TOP_LEFT:
+            x = work.left + S(32);
+            y = work.top + S(32);
+            break;
+        case OsdConfig::OSD_POSITION_BOTTOM_CENTER:
+        default:
+            break;
+    }
+    x += S(g_config.osdOffsetX);
+    y += S(g_config.osdOffsetY);
+    x = std::clamp(x, (int)work.left, std::max((int)work.left, (int)work.right - targetWidth));
+    y = std::clamp(y, (int)work.top, std::max((int)work.top, (int)work.bottom - targetHeight));
 
     KillTimer(g_window, TIMER_OSD_HIDE);
     KillTimer(g_window, TIMER_OSD_FADE);
 
-    g_osdAlpha = 255;
+    const int opacity = std::clamp(g_config.osdOpacityPercent, 40, 100);
+    g_osdAlpha = static_cast<BYTE>(std::clamp((255 * opacity) / 100, 1, 255));
     SetLayeredWindowAttributes(g_window, 0, g_osdAlpha, LWA_ALPHA);
     SetWindowPos(g_window, HWND_TOPMOST, x, y, targetWidth, targetHeight,
                  SWP_NOACTIVATE | SWP_NOOWNERZORDER);
     InvalidateRect(g_window, NULL, FALSE);
     ShowWindow(g_window, SW_SHOWNOACTIVATE);
     UpdateWindow(g_window);
-    SetTimer(g_window, TIMER_OSD_HIDE, HIDE_DELAY_MS, NULL);
+    SetTimer(g_window, TIMER_OSD_HIDE, (UINT)std::clamp(g_config.osdDurationMs, 800, 8000), NULL);
 }
 
 void ShowDeviceUpdate(const Device::State& state) {

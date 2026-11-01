@@ -234,7 +234,23 @@ std::string BuildStateResponse() {
         << "|" << osd.hotkeyVirtualKey
         << "|" << (QuickPanel::HotkeyRegistered() ? 1 : 0)
         << "|" << osd.displayFields
-        << "|" << osd.panelItems << "\n";
+        << "|" << osd.panelItems
+        << "|" << osd.osdPosition
+        << "|" << osd.osdMonitor
+        << "|" << osd.osdOffsetX
+        << "|" << osd.osdOffsetY
+        << "|" << osd.osdScalePercent
+        << "|" << osd.osdOpacityPercent
+        << "|" << osd.osdDurationMs
+        << "|" << osd.profileCycleHotkeyModifiers
+        << "|" << osd.profileCycleHotkeyVirtualKey
+        << "|" << osd.dpiCycleHotkeyModifiers
+        << "|" << osd.dpiCycleHotkeyVirtualKey
+        << "|" << osd.performanceCycleHotkeyModifiers
+        << "|" << osd.performanceCycleHotkeyVirtualKey
+        << "|" << osd.toggleOsdHotkeyModifiers
+        << "|" << osd.toggleOsdHotkeyVirtualKey
+        << "|" << QuickPanel::HotkeyRegistrationMask() << "\n";
     const BatteryAlert::Settings batterySettings = BatteryHistory::GetAlertSettings();
     out << "BATTERY_SETTINGS|" << (batterySettings.enabled ? 1 : 0)
         << "|" << batterySettings.warningThreshold
@@ -483,15 +499,52 @@ std::string HandleMainCommand(const std::string& command) {
         config.hotkeyVirtualKey = (UINT)ToInt(At(fields, 4), (int)config.hotkeyVirtualKey);
         config.displayFields = (DWORD)ToInt(At(fields, 5), (int)config.displayFields);
         config.panelItems = (DWORD)ToInt(At(fields, 6), (int)config.panelItems);
+        config.osdPosition = (DWORD)ToInt(At(fields, 7), (int)config.osdPosition);
+        config.osdMonitor = (DWORD)ToInt(At(fields, 8), (int)config.osdMonitor);
+        config.osdOffsetX = ToInt(At(fields, 9), config.osdOffsetX);
+        config.osdOffsetY = ToInt(At(fields, 10), config.osdOffsetY);
+        config.osdScalePercent = ToInt(At(fields, 11), config.osdScalePercent);
+        config.osdOpacityPercent = ToInt(At(fields, 12), config.osdOpacityPercent);
+        config.osdDurationMs = ToInt(At(fields, 13), config.osdDurationMs);
+        config.profileCycleHotkeyModifiers = (UINT)ToInt(At(fields, 14), (int)config.profileCycleHotkeyModifiers);
+        config.profileCycleHotkeyVirtualKey = (UINT)ToInt(At(fields, 15), (int)config.profileCycleHotkeyVirtualKey);
+        config.dpiCycleHotkeyModifiers = (UINT)ToInt(At(fields, 16), (int)config.dpiCycleHotkeyModifiers);
+        config.dpiCycleHotkeyVirtualKey = (UINT)ToInt(At(fields, 17), (int)config.dpiCycleHotkeyVirtualKey);
+        config.performanceCycleHotkeyModifiers = (UINT)ToInt(At(fields, 18), (int)config.performanceCycleHotkeyModifiers);
+        config.performanceCycleHotkeyVirtualKey = (UINT)ToInt(At(fields, 19), (int)config.performanceCycleHotkeyVirtualKey);
+        config.toggleOsdHotkeyModifiers = (UINT)ToInt(At(fields, 20), (int)config.toggleOsdHotkeyModifiers);
+        config.toggleOsdHotkeyVirtualKey = (UINT)ToInt(At(fields, 21), (int)config.toggleOsdHotkeyVirtualKey);
+        std::wstring hotkeyError;
+        if (!OsdConfig::AreHotkeysUnique(config, &hotkeyError)) {
+            SetStatus(hotkeyError, false);
+            return BuildStateResponse();
+        }
         if (!Osd::SetConfig(config)) {
-            SetStatus(L"OSD 设置保存失败", false);
+            SetStatus(L"OSD 设置保存失败，请检查快捷键是否重复", false);
             return BuildStateResponse();
         }
         QuickPanel::ReloadConfig();
-        if (config.quickPanelEnabled && !QuickPanel::HotkeyRegistered()) {
-            SetStatus(L"设置已保存，但快捷键被其他程序占用；请更换组合键或关闭快速面板", false);
+        const DWORD registered = QuickPanel::HotkeyRegistrationMask();
+        DWORD expected = 0;
+        if (config.quickPanelEnabled) expected |= 1u << 0;
+        if (OsdConfig::IsHotkeyAssigned(config.profileCycleHotkeyModifiers, config.profileCycleHotkeyVirtualKey)) expected |= 1u << 1;
+        if (OsdConfig::IsHotkeyAssigned(config.dpiCycleHotkeyModifiers, config.dpiCycleHotkeyVirtualKey)) expected |= 1u << 2;
+        if (OsdConfig::IsHotkeyAssigned(config.performanceCycleHotkeyModifiers, config.performanceCycleHotkeyVirtualKey)) expected |= 1u << 3;
+        if (OsdConfig::IsHotkeyAssigned(config.toggleOsdHotkeyModifiers, config.toggleOsdHotkeyVirtualKey)) expected |= 1u << 4;
+        if ((registered & expected) != expected) {
+            SetStatus(L"设置已保存，但至少一个全局快捷键被其他程序占用；请更换组合键", false);
         } else {
-            SetStatus(L"OSD 与快速面板设置已保存");
+            SetStatus(L"OSD、外观与全局快捷键设置已保存");
+        }
+        return BuildStateResponse();
+    }
+
+    if (verb == "PREVIEW_OSD") {
+        if (!Osd::IsEnabled()) {
+            SetStatus(L"请先开启状态悬浮提示，再预览 OSD", false);
+        } else {
+            Osd::ShowDeviceUpdate(Device::GetCurrentState());
+            SetStatus(L"已按当前 OSD 外观设置显示预览");
         }
         return BuildStateResponse();
     }

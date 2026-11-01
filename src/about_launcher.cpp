@@ -4,7 +4,7 @@
 namespace About {
 
 void Show(HWND owner) {
-    Settings::ShowPage(owner, 3);
+    Settings::ShowPage(owner, 6);
 }
 
 void Cleanup() {

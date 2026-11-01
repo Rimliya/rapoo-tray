@@ -74,7 +74,7 @@ jobs:
           g++ -shared -O3 -std=c++17 -mwindows -municode -s -static rapoo_plugin.cpp plugin.o -lsetupapi -lhid -luser32 -lgdi32 -lshell32 -ladvapi32 -o ../bin/rapoo-plugin.dll
           rm -f plugin.o
 
-      - name: Create portable bundle
+      - name: Create portable bundle and update checksums
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -95,6 +95,10 @@ jobs:
             'licenses/harmonyos-sans-LICENSE.txt'
           )
           Compress-Archive -Path $files -DestinationPath 'dist/rapoo-tray-portable.zip' -Force
+          $setupHash = (Get-FileHash 'dist/rapoo-tray-setup.exe' -Algorithm SHA256).Hash.ToLowerInvariant()
+          $portableHash = (Get-FileHash 'dist/rapoo-tray-portable.zip' -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$setupHash  rapoo-tray-setup.exe" | Set-Content 'dist/rapoo-tray-setup.exe.sha256' -Encoding ascii
+          "$portableHash  rapoo-tray-portable.zip" | Set-Content 'dist/rapoo-tray-portable.zip.sha256' -Encoding ascii
 
       - name: Prepare release notes
         if: startsWith(github.ref, 'refs/tags/')
@@ -124,7 +128,9 @@ jobs:
             bin/System.Numerics.Vectors.dll
             bin/System.Runtime.CompilerServices.Unsafe.dll
             dist/rapoo-tray-portable.zip
+            dist/rapoo-tray-portable.zip.sha256
             dist/rapoo-tray-setup.exe
+            dist/rapoo-tray-setup.exe.sha256
             bin/rapoo-plugin.dll
             licenses/wpf-ui-LICENSE.md
             licenses/wpf-ui-THIRDPARTY.txt

@@ -102,17 +102,33 @@ namespace RapooTray.Settings
         public Task<AppState> RefreshRfAsync() => SendStateCommandAsync("REFRESH_RF");
         public Task<AppState> SetModelAsync(int index) => SendStateCommandAsync("SET_MODEL|" + index);
         public Task<AppState> ShowQuickPanelAsync() => SendStateCommandAsync("SHOW_QUICK_PANEL");
+        public Task<AppState> PreviewOsdAsync() => SendStateCommandAsync("PREVIEW_OSD");
 
-        public Task<AppState> SetOsdConfigAsync(bool enabled, bool quickPanelEnabled,
-            int hotkeyModifiers, int hotkeyVirtualKey, int displayFields, int panelItems)
+        public Task<AppState> SetOsdConfigAsync(OsdSettings settings)
         {
+            if (settings == null) throw new ArgumentNullException(nameof(settings));
             string command = string.Join("|", new[]
             {
-                "SET_OSD_CONFIG", enabled ? "1" : "0", quickPanelEnabled ? "1" : "0",
-                hotkeyModifiers.ToString(CultureInfo.InvariantCulture),
-                hotkeyVirtualKey.ToString(CultureInfo.InvariantCulture),
-                displayFields.ToString(CultureInfo.InvariantCulture),
-                panelItems.ToString(CultureInfo.InvariantCulture)
+                "SET_OSD_CONFIG", settings.Enabled ? "1" : "0", settings.QuickPanelEnabled ? "1" : "0",
+                settings.HotkeyModifiers.ToString(CultureInfo.InvariantCulture),
+                settings.HotkeyVirtualKey.ToString(CultureInfo.InvariantCulture),
+                settings.DisplayFields.ToString(CultureInfo.InvariantCulture),
+                settings.PanelItems.ToString(CultureInfo.InvariantCulture),
+                settings.Position.ToString(CultureInfo.InvariantCulture),
+                settings.Monitor.ToString(CultureInfo.InvariantCulture),
+                settings.OffsetX.ToString(CultureInfo.InvariantCulture),
+                settings.OffsetY.ToString(CultureInfo.InvariantCulture),
+                settings.ScalePercent.ToString(CultureInfo.InvariantCulture),
+                settings.OpacityPercent.ToString(CultureInfo.InvariantCulture),
+                settings.DurationMs.ToString(CultureInfo.InvariantCulture),
+                settings.ProfileHotkeyModifiers.ToString(CultureInfo.InvariantCulture),
+                settings.ProfileHotkeyVirtualKey.ToString(CultureInfo.InvariantCulture),
+                settings.DpiHotkeyModifiers.ToString(CultureInfo.InvariantCulture),
+                settings.DpiHotkeyVirtualKey.ToString(CultureInfo.InvariantCulture),
+                settings.PerformanceHotkeyModifiers.ToString(CultureInfo.InvariantCulture),
+                settings.PerformanceHotkeyVirtualKey.ToString(CultureInfo.InvariantCulture),
+                settings.ToggleOsdHotkeyModifiers.ToString(CultureInfo.InvariantCulture),
+                settings.ToggleOsdHotkeyVirtualKey.ToString(CultureInfo.InvariantCulture)
             });
             return SendStateCommandAsync(command);
         }
@@ -333,7 +349,7 @@ namespace RapooTray.Settings
 
         private static AppState DemoState()
         {
-            var state = new AppState { Version = "1.15.0", DeviceName = "雷柏 VT3 V2", DeviceMode = "2.4G 无线", Connected = true,
+            var state = new AppState { Version = "1.16.0", DeviceName = "雷柏 VT3 V2", DeviceMode = "2.4G 无线", Connected = true,
                 Battery = 87, DeviceDpiX = 1600, DeviceDpiY = 1600, AutoSwitch = true, OsdEnabled = true, AutoRun = true,
                 RfAvailable = true, RfFull = true, ActiveProfileId = 1, StatusText = "已读取设备状态，修改后点击“应用”写入鼠标", StatusGood = true,
                 QuickPanelEnabled = true, HotkeyModifiers = 3, HotkeyVirtualKey = 77, HotkeyRegistered = true,

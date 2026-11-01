@@ -41,3 +41,14 @@ dotnet run --project settings-ui/RapooTray.Settings.csproj -- --demo
 ## 主题
 
 首次启动跟随系统主题。右上角可切换浅色/深色，选择保存在 `HKCU\Software\rapoo-tray\Settings\UiTheme`（1=浅色，2=深色）。
+
+## v1.16.0 新增
+
+- OSD 外观参数与预览：位置、显示器、缩放、透明度、停留时间、X/Y 偏移。
+- 五组全局快捷键：快速面板、配置切换、DPI 切换、性能循环、状态 OSD 开关。
+- 配置快照：关键配置操作前自动备份，最多保留 20 份，可从关于页恢复。
+- 诊断页：Raw Input 回报率验证、抖动/最大间隔统计和诊断报告导出。
+- 应用内更新：下载安装包并强制校验 SHA256；若文件带 Authenticode 签名则额外验证，未签名包会提示 SmartScreen 风险。
+- 导航页索引：配置 0、自动化 1、OSD 2、电量 3、DPI 4、诊断 5、关于 6。
+
+签名与发布配置见仓库根目录 `docs/signing.md`，未完成项见 `docs/roadmap.md`。

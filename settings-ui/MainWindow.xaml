@@ -525,8 +525,10 @@
             <local:CutRadioButton x:Name="NavDpi" Style="{StaticResource NavRadioStyle}" GroupName="Nav" Checked="Nav_Checked" Tag="4">
               <StackPanel Margin="18,0,12,0"><TextBlock Text="05  // DPI" FontFamily="{StaticResource AppSairaFont}" FontSize="11" FontWeight="SemiBold" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=local:CutRadioButton}}" Opacity="0.78" /><TextBlock Text="DPI 档位" FontSize="14" FontWeight="Bold" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=local:CutRadioButton}}" Margin="0,3,0,0" /></StackPanel>
             </local:CutRadioButton>
-            <local:CutRadioButton x:Name="NavAbout" Style="{StaticResource NavRadioStyle}" GroupName="Nav" Checked="Nav_Checked" Tag="5">
-              <StackPanel Margin="18,0,12,0"><TextBlock Text="06  // ABOUT" FontFamily="{StaticResource AppSairaFont}" FontSize="11" FontWeight="SemiBold" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=local:CutRadioButton}}" Opacity="0.78" /><TextBlock Text="关于" FontSize="14" FontWeight="Bold" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=local:CutRadioButton}}" Margin="0,3,0,0" /></StackPanel>
+                        <local:CutRadioButton x:Name="NavDiagnostics" Style="{StaticResource NavRadioStyle}" GroupName="Nav" Checked="Nav_Checked" Tag="5">
+              <StackPanel Margin="18,0,12,0"><TextBlock Text="06  // DIAGNOSTICS" FontFamily="{StaticResource AppSairaFont}" FontSize="11" FontWeight="SemiBold" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=local:CutRadioButton}}" Opacity="0.78" /><TextBlock Text="诊断" FontSize="14" FontWeight="Bold" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=local:CutRadioButton}}" Margin="0,3,0,0" /></StackPanel>
+            </local:CutRadioButton><local:CutRadioButton x:Name="NavAbout" Style="{StaticResource NavRadioStyle}" GroupName="Nav" Checked="Nav_Checked" Tag="6">
+              <StackPanel Margin="18,0,12,0"><TextBlock Text="07  // ABOUT" FontFamily="{StaticResource AppSairaFont}" FontSize="11" FontWeight="SemiBold" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=local:CutRadioButton}}" Opacity="0.78" /><TextBlock Text="关于" FontSize="14" FontWeight="Bold" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=local:CutRadioButton}}" Margin="0,3,0,0" /></StackPanel>
             </local:CutRadioButton>
           </StackPanel>
           <Border DockPanel.Dock="Bottom" Margin="10,0,10,14" Padding="10,9" BorderBrush="{DynamicResource AppRuleBrush}" BorderThickness="1,1,0,0">
@@ -737,43 +739,109 @@
           </ScrollViewer>
           <ScrollViewer x:Name="OsdPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
             <StackPanel>
-              <Border Style="{StaticResource CardStyle}">
+                            <Border Style="{StaticResource CardStyle}">
                 <StackPanel>
                   <Grid Margin="22,18,22,14">
-                    <StackPanel><TextBlock Text="// OSD &amp; QUICK PANEL" Style="{StaticResource EyebrowStyle}" /><TextBlock Text="悬浮提示与快速面板" Style="{StaticResource SectionTitleStyle}" Margin="0,4,0,0" /></StackPanel>
-                    <TextBlock Text="快捷键可全局呼出" HorizontalAlignment="Right" VerticalAlignment="Bottom" FontSize="11" Foreground="{DynamicResource AppSecondaryTextBrush}" />
+                    <StackPanel><TextBlock Text="// OSD &amp; HOTKEYS" Style="{StaticResource EyebrowStyle}" /><TextBlock Text="悬浮提示、快速面板与全局快捷键" Style="{StaticResource SectionTitleStyle}" Margin="0,4,0,0" /></StackPanel>
+                    <TextBlock Text="动作快捷键无需打开设置中心即可生效" HorizontalAlignment="Right" VerticalAlignment="Bottom" FontSize="11" Foreground="{DynamicResource AppSecondaryTextBrush}" />
                   </Grid>
                   <Border Height="1" Background="{DynamicResource AppRuleBrush}" />
-                  <Grid MinHeight="72" Margin="22,0">
+                  <Grid MinHeight="66" Margin="22,0">
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                     <StackPanel VerticalAlignment="Center"><TextBlock Text="状态悬浮提示" FontSize="14" FontWeight="Bold" /><TextBlock Text="在连接、切换 DPI、配置或性能模式时显示轻量通知。" Style="{StaticResource MutedTextStyle}" Margin="0,4,0,0" /></StackPanel>
                     <CheckBox x:Name="OsdToggle" AutomationProperties.Name="状态悬浮提示" Grid.Column="1" Style="{StaticResource SquareSwitchStyle}" VerticalAlignment="Center" Checked="OsdOption_Changed" Unchecked="OsdOption_Changed" />
                   </Grid>
                   <Border Height="1" Background="{DynamicResource AppRuleBrush}" Margin="22,0" />
-                  <Grid MinHeight="72" Margin="22,0">
+                  <Grid MinHeight="66" Margin="22,0">
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                     <StackPanel VerticalAlignment="Center"><TextBlock Text="OSD 快速面板" FontSize="14" FontWeight="Bold" /><TextBlock Text="用快捷键呼出，直接切换配置、DPI 档位和性能模式。" Style="{StaticResource MutedTextStyle}" Margin="0,4,0,0" /></StackPanel>
                     <CheckBox x:Name="QuickPanelToggle" AutomationProperties.Name="OSD 快速面板" Grid.Column="1" Style="{StaticResource SquareSwitchStyle}" VerticalAlignment="Center" Checked="OsdOption_Changed" Unchecked="OsdOption_Changed" />
                   </Grid>
                   <Border Height="1" Background="{DynamicResource AppRuleBrush}" Margin="22,0" />
-                  <Grid Margin="22,16,22,18">
-                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                    <StackPanel VerticalAlignment="Center">
-                      <TextBlock Text="全局快捷键" Style="{StaticResource FieldLabelStyle}" />
-                      <TextBlock x:Name="HotkeyValueText" Text="Ctrl + Alt + M" FontFamily="{StaticResource AppSairaFont}" FontSize="20" FontWeight="Bold" Margin="0,5,0,0" />
-                      <TextBlock x:Name="HotkeyStatusText" Text="点击“录制”后按下包含 Ctrl / Alt / Shift / Win 的组合键" Style="{StaticResource MutedTextStyle}" Margin="0,4,0,0" />
+                  <Grid Margin="22,16,22,10">
+                    <StackPanel><TextBlock Text="// GLOBAL HOTKEYS" Style="{StaticResource EyebrowStyle}" /><TextBlock Text="全局动作快捷键" Style="{StaticResource SectionTitleStyle}" Margin="0,4,0,0" /></StackPanel>
+                    <TextBlock Text="重复组合键会被拒绝" HorizontalAlignment="Right" VerticalAlignment="Bottom" FontSize="11" Foreground="{DynamicResource AppSecondaryTextBrush}" />
+                  </Grid>
+
+                  <Grid Margin="22,8,22,8">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="160" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center"><TextBlock Text="呼出快速面板" FontSize="13" FontWeight="Medium" /><TextBlock x:Name="HotkeyStatusText" Text="已注册" Style="{StaticResource MutedTextStyle}" FontSize="11" Margin="0,2,0,0" /></StackPanel>
+                    <TextBlock x:Name="HotkeyValueText" Grid.Column="1" Text="Ctrl + Alt + M" FontFamily="{StaticResource AppSairaFont}" FontSize="14" FontWeight="SemiBold" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="14,0,0,0">
+                      <local:CutButton x:Name="QuickPanelPreviewButton" Content="测试" Tag="panel" Style="{StaticResource SmallButtonStyle}" Height="30" Padding="10,0,14,0" Margin="0,0,6,0" Click="PreviewQuickPanel_Click" />
+                      <local:CutButton x:Name="HotkeyCaptureButton" Content="录制" Tag="panel" Style="{StaticResource SmallButtonStyle}" Height="30" Padding="10,0,14,0" Margin="0,0,6,0" Click="CaptureHotkey_Click" />
+
                     </StackPanel>
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                      <local:CutButton x:Name="QuickPanelPreviewButton" Content="测试呼出" Style="{StaticResource SmallButtonStyle}" Margin="0,0,8,0" Click="PreviewQuickPanel_Click" />
-                      <local:CutButton x:Name="HotkeyResetButton" Content="恢复默认" Style="{StaticResource SmallButtonStyle}" Margin="0,0,8,0" Click="ResetHotkey_Click" />
-                      <local:CutButton x:Name="HotkeyCaptureButton" Content="录制快捷键" Style="{StaticResource SecondaryButtonStyle}" Click="CaptureHotkey_Click" />
-                    </StackPanel>
+                  </Grid>
+                  <Border Height="1" Background="{DynamicResource AppRuleBrush}" Margin="22,0" />
+
+                  <Grid Margin="22,8,22,8">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="160" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center"><TextBlock Text="切换下一个配置" FontSize="13" FontWeight="Medium" /><TextBlock x:Name="ProfileHotkeyStatusText" Text="已注册" Style="{StaticResource MutedTextStyle}" FontSize="11" Margin="0,2,0,0" /></StackPanel>
+                    <TextBlock x:Name="ProfileHotkeyValueText" Grid.Column="1" Text="Ctrl + Alt + P" FontFamily="{StaticResource AppSairaFont}" FontSize="14" FontWeight="SemiBold" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="14,0,0,0"><local:CutButton Content="录制" Tag="profile" Style="{StaticResource SmallButtonStyle}" Height="30" Padding="10,0,14,0" Margin="0,0,6,0" Click="CaptureHotkey_Click" /><local:CutButton Content="禁用" Tag="profile" Style="{StaticResource SmallButtonStyle}" Height="30" Padding="10,0,14,0" Click="ClearActionHotkey_Click" /></StackPanel>
+                  </Grid>
+                  <Border Height="1" Background="{DynamicResource AppRuleBrush}" Margin="22,0" />
+
+                  <Grid Margin="22,8,22,8">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="160" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center"><TextBlock Text="切换下一个 DPI 档位" FontSize="13" FontWeight="Medium" /><TextBlock x:Name="DpiHotkeyStatusText" Text="已注册" Style="{StaticResource MutedTextStyle}" FontSize="11" Margin="0,2,0,0" /></StackPanel>
+                    <TextBlock x:Name="DpiHotkeyValueText" Grid.Column="1" Text="Ctrl + Alt + G" FontFamily="{StaticResource AppSairaFont}" FontSize="14" FontWeight="SemiBold" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="14,0,0,0"><local:CutButton Content="录制" Tag="dpi" Style="{StaticResource SmallButtonStyle}" Height="30" Padding="10,0,14,0" Margin="0,0,6,0" Click="CaptureHotkey_Click" /><local:CutButton Content="禁用" Tag="dpi" Style="{StaticResource SmallButtonStyle}" Height="30" Padding="10,0,14,0" Click="ClearActionHotkey_Click" /></StackPanel>
+                  </Grid>
+                  <Border Height="1" Background="{DynamicResource AppRuleBrush}" Margin="22,0" />
+
+                  <Grid Margin="22,8,22,8">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="160" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center"><TextBlock Text="循环性能模式" FontSize="13" FontWeight="Medium" /><TextBlock x:Name="PerformanceHotkeyStatusText" Text="已注册" Style="{StaticResource MutedTextStyle}" FontSize="11" Margin="0,2,0,0" /></StackPanel>
+                    <TextBlock x:Name="PerformanceHotkeyValueText" Grid.Column="1" Text="Ctrl + Alt + F" FontFamily="{StaticResource AppSairaFont}" FontSize="14" FontWeight="SemiBold" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="14,0,0,0"><local:CutButton Content="录制" Tag="performance" Style="{StaticResource SmallButtonStyle}" Height="30" Padding="10,0,14,0" Margin="0,0,6,0" Click="CaptureHotkey_Click" /><local:CutButton Content="禁用" Tag="performance" Style="{StaticResource SmallButtonStyle}" Height="30" Padding="10,0,14,0" Click="ClearActionHotkey_Click" /></StackPanel>
+                  </Grid>
+                  <Border Height="1" Background="{DynamicResource AppRuleBrush}" Margin="22,0" />
+
+                  <Grid Margin="22,8,22,8">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="160" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <StackPanel VerticalAlignment="Center"><TextBlock Text="开关状态 OSD" FontSize="13" FontWeight="Medium" /><TextBlock x:Name="ToggleOsdHotkeyStatusText" Text="已注册" Style="{StaticResource MutedTextStyle}" FontSize="11" Margin="0,2,0,0" /></StackPanel>
+                    <TextBlock x:Name="ToggleOsdHotkeyValueText" Grid.Column="1" Text="Ctrl + Alt + O" FontFamily="{StaticResource AppSairaFont}" FontSize="14" FontWeight="SemiBold" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="14,0,0,0"><local:CutButton Content="录制" Tag="toggleOsd" Style="{StaticResource SmallButtonStyle}" Height="30" Padding="10,0,14,0" Margin="0,0,6,0" Click="CaptureHotkey_Click" /><local:CutButton Content="禁用" Tag="toggleOsd" Style="{StaticResource SmallButtonStyle}" Height="30" Padding="10,0,14,0" Click="ClearActionHotkey_Click" /></StackPanel>
+                  </Grid>
+                  <Grid Margin="22,10,22,16">
+                    <TextBlock Text="快捷键冲突时保存会被拒绝；F1–F24 可单独使用。" Style="{StaticResource MutedTextStyle}" VerticalAlignment="Center" />
+                    <local:CutButton x:Name="HotkeyResetButton" Content="恢复默认快捷键" Style="{StaticResource SecondaryButtonStyle}" HorizontalAlignment="Right" Click="ResetAllHotkeys_Click" />
                   </Grid>
                   <Border Height="18" Background="{DynamicResource AppHatchBrush}" Margin="22,0" Opacity="0.5" />
                 </StackPanel>
               </Border>
 
               <Border Style="{StaticResource CardStyle}" Margin="0,14,0,0">
+                <StackPanel>
+                  <Grid Margin="22,18,22,12">
+                    <StackPanel><TextBlock Text="// STATUS OSD APPEARANCE" Style="{StaticResource EyebrowStyle}" /><TextBlock Text="状态 OSD 外观" Style="{StaticResource SectionTitleStyle}" Margin="0,4,0,0" /></StackPanel>
+                    <TextBlock Text="位置、尺寸、透明度与停留时间" HorizontalAlignment="Right" VerticalAlignment="Bottom" FontSize="11" Foreground="{DynamicResource AppSecondaryTextBrush}" />
+                  </Grid>
+                  <Border Height="1" Background="{DynamicResource AppRuleBrush}" />
+                  <Grid Margin="22,16,22,16">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="18" /><ColumnDefinition Width="*" /><ColumnDefinition Width="18" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <StackPanel><TextBlock Text="屏幕位置" Style="{StaticResource FieldLabelStyle}" /><local:FieldFrame Style="{StaticResource FieldFrameStyle}"><ComboBox x:Name="OsdPositionCombo" Style="{StaticResource EfComboBoxStyle}" SelectionChanged="OsdOption_Changed"><ComboBoxItem Content="底部居中" Tag="0" /><ComboBoxItem Content="右下角" Tag="1" /><ComboBoxItem Content="右上角" Tag="2" /><ComboBoxItem Content="左上角" Tag="3" /></ComboBox></local:FieldFrame></StackPanel>
+                    <StackPanel Grid.Column="2"><TextBlock Text="显示器" Style="{StaticResource FieldLabelStyle}" /><local:FieldFrame Style="{StaticResource FieldFrameStyle}"><ComboBox x:Name="OsdMonitorCombo" Style="{StaticResource EfComboBoxStyle}" SelectionChanged="OsdOption_Changed"><ComboBoxItem Content="跟随鼠标" Tag="0" /><ComboBoxItem Content="主显示器" Tag="1" /></ComboBox></local:FieldFrame></StackPanel>
+                    <StackPanel Grid.Column="4"><TextBlock Text="缩放" Style="{StaticResource FieldLabelStyle}" /><local:FieldFrame Style="{StaticResource FieldFrameStyle}"><ComboBox x:Name="OsdScaleCombo" Style="{StaticResource EfComboBoxStyle}" SelectionChanged="OsdOption_Changed"><ComboBoxItem Content="75%" Tag="75" /><ComboBoxItem Content="90%" Tag="90" /><ComboBoxItem Content="100%" Tag="100" /><ComboBoxItem Content="110%" Tag="110" /><ComboBoxItem Content="125%" Tag="125" /><ComboBoxItem Content="150%" Tag="150" /></ComboBox></local:FieldFrame></StackPanel>
+                  </Grid>
+                  <Grid Margin="22,0,22,16">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="18" /><ColumnDefinition Width="*" /><ColumnDefinition Width="18" /><ColumnDefinition Width="*" /><ColumnDefinition Width="18" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <StackPanel><TextBlock Text="不透明度" Style="{StaticResource FieldLabelStyle}" /><local:FieldFrame Style="{StaticResource FieldFrameStyle}"><ComboBox x:Name="OsdOpacityCombo" Style="{StaticResource EfComboBoxStyle}" SelectionChanged="OsdOption_Changed"><ComboBoxItem Content="60%" Tag="60" /><ComboBoxItem Content="75%" Tag="75" /><ComboBoxItem Content="85%" Tag="85" /><ComboBoxItem Content="94%" Tag="94" /><ComboBoxItem Content="100%" Tag="100" /></ComboBox></local:FieldFrame></StackPanel>
+                    <StackPanel Grid.Column="2"><TextBlock Text="停留时间（毫秒）" Style="{StaticResource FieldLabelStyle}" /><local:FieldFrame Style="{StaticResource FieldFrameStyle}"><ui:NumberBox x:Name="OsdDurationBox" Style="{StaticResource EfNumberBoxStyle}" Minimum="800" Maximum="8000" SmallChange="200" MaxDecimalPlaces="0" ValueChanged="OsdNumber_Changed" /></local:FieldFrame></StackPanel>
+                    <StackPanel Grid.Column="4"><TextBlock Text="水平偏移" Style="{StaticResource FieldLabelStyle}" /><local:FieldFrame Style="{StaticResource FieldFrameStyle}"><ui:NumberBox x:Name="OsdOffsetXBox" Style="{StaticResource EfNumberBoxStyle}" Minimum="-1000" Maximum="1000" SmallChange="10" MaxDecimalPlaces="0" ValueChanged="OsdNumber_Changed" /></local:FieldFrame></StackPanel>
+                    <StackPanel Grid.Column="6"><TextBlock Text="垂直偏移" Style="{StaticResource FieldLabelStyle}" /><local:FieldFrame Style="{StaticResource FieldFrameStyle}"><ui:NumberBox x:Name="OsdOffsetYBox" Style="{StaticResource EfNumberBoxStyle}" Minimum="-1000" Maximum="1000" SmallChange="10" MaxDecimalPlaces="0" ValueChanged="OsdNumber_Changed" /></local:FieldFrame></StackPanel>
+                  </Grid>
+                  <Border BorderBrush="{DynamicResource AppRuleBrush}" BorderThickness="0,1,0,0" Padding="0,12,0,14" Margin="22,0">
+                    <Grid>
+                      <TextBlock Text="偏移量单位为基础 DIP；有未保存修改时，预览会先保存当前外观。" Style="{StaticResource MutedTextStyle}" VerticalAlignment="Center" />
+                      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"><local:CutButton x:Name="PreviewOsdButton" Content="预览状态 OSD" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,8,0" Click="PreviewOsd_Click" /><local:CutButton Content="恢复默认外观" Style="{StaticResource SmallButtonStyle}" Click="ResetOsdAppearance_Click" /></StackPanel>
+                    </Grid>
+                  </Border>
+                </StackPanel>
+              </Border>
+<Border Style="{StaticResource CardStyle}" Margin="0,14,0,0">
                 <StackPanel>
                   <Grid Margin="22,18,22,12">
                     <StackPanel><TextBlock Text="// STATUS OSD FIELDS" Style="{StaticResource EyebrowStyle}" /><TextBlock Text="状态提示显示项目" Style="{StaticResource SectionTitleStyle}" Margin="0,4,0,0" /></StackPanel>
@@ -954,6 +1022,60 @@
               </Grid>
             </Border>
           </Grid>
+          <ScrollViewer x:Name="DiagnosticsPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+              <Border Style="{StaticResource CardStyle}">
+                <StackPanel>
+                  <Grid Margin="22,18,22,14">
+                    <StackPanel><TextBlock Text="// POLLING VERIFY" Style="{StaticResource EyebrowStyle}" /><TextBlock Text="回报率验证" Style="{StaticResource SectionTitleStyle}" Margin="0,4,0,0" /></StackPanel>
+                    <TextBlock Text="移动鼠标开始采样；这是系统收到的原始输入频率，不等同于 HID 抓包" HorizontalAlignment="Right" VerticalAlignment="Bottom" FontSize="11" Foreground="{DynamicResource AppSecondaryTextBrush}" />
+                  </Grid>
+                  <Border Height="1" Background="{DynamicResource AppRuleBrush}" />
+                  <Grid Margin="22,18,22,12">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <StackPanel><TextBlock Text="实测回报率" Style="{StaticResource FieldLabelStyle}" /><TextBlock x:Name="PollingMeasuredText" Text="-- Hz" FontFamily="{StaticResource AppSairaFont}" FontSize="28" FontWeight="ExtraBold" /></StackPanel>
+                    <StackPanel Grid.Column="1"><TextBlock Text="间隔抖动" Style="{StaticResource FieldLabelStyle}" /><TextBlock x:Name="PollingJitterText" Text="-- ms" FontFamily="{StaticResource AppSairaFont}" FontSize="28" FontWeight="ExtraBold" /></StackPanel>
+                    <StackPanel Grid.Column="2"><TextBlock Text="最大间隔" Style="{StaticResource FieldLabelStyle}" /><TextBlock x:Name="PollingMaxGapText" Text="-- ms" FontFamily="{StaticResource AppSairaFont}" FontSize="28" FontWeight="ExtraBold" /></StackPanel>
+                    <StackPanel Grid.Column="3"><TextBlock Text="有效间隔" Style="{StaticResource FieldLabelStyle}" /><TextBlock x:Name="PollingSamplesText" Text="0" FontFamily="{StaticResource AppSairaFont}" FontSize="28" FontWeight="ExtraBold" /></StackPanel>
+                  </Grid>
+                  <Grid Margin="22,0,22,18">
+                    <TextBlock x:Name="PollingStatusText" Text="尚未开始采样" Style="{StaticResource MutedTextStyle}" VerticalAlignment="Center" />
+                    <local:CutButton x:Name="PollingStartButton" Content="开始采样" Style="{StaticResource PrimaryButtonStyle}" HorizontalAlignment="Right" Click="TogglePollingProbe_Click" />
+                  </Grid>
+                </StackPanel>
+              </Border>
+
+              <Border Style="{StaticResource CardStyle}" Margin="0,14,0,0">
+                <StackPanel>
+                  <Grid Margin="22,18,22,14">
+                    <StackPanel><TextBlock Text="// DEVICE REPORT" Style="{StaticResource EyebrowStyle}" /><TextBlock Text="设备诊断摘要" Style="{StaticResource SectionTitleStyle}" Margin="0,4,0,0" /></StackPanel>
+                    <TextBlock Text="用于反馈问题，不包含原始 HID 数据" HorizontalAlignment="Right" VerticalAlignment="Bottom" FontSize="11" Foreground="{DynamicResource AppSecondaryTextBrush}" />
+                  </Grid>
+                  <Border Height="1" Background="{DynamicResource AppRuleBrush}" />
+                  <Grid Margin="22,16,22,16">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <StackPanel><TextBlock Text="型号" Style="{StaticResource FieldLabelStyle}" /><TextBlock x:Name="DiagModelText" Text="--" Style="{StaticResource FieldValueStyle}" /></StackPanel>
+                    <StackPanel Grid.Column="1"><TextBlock Text="连接" Style="{StaticResource FieldLabelStyle}" /><TextBlock x:Name="DiagModeText" Text="--" Style="{StaticResource FieldValueStyle}" /></StackPanel>
+                    <StackPanel Grid.Column="2"><TextBlock Text="电量" Style="{StaticResource FieldLabelStyle}" /><TextBlock x:Name="DiagBatteryText" Text="--" Style="{StaticResource FieldValueStyle}" /></StackPanel>
+                    <StackPanel Grid.Column="3"><TextBlock Text="当前回报率" Style="{StaticResource FieldLabelStyle}" /><TextBlock x:Name="DiagPollingText" Text="--" Style="{StaticResource FieldValueStyle}" /></StackPanel>
+                  </Grid>
+                  <Border Height="1" Background="{DynamicResource AppRuleBrush}" Margin="22,0" />
+                  <Grid Margin="22,16,22,16">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <StackPanel><TextBlock Text="当前 DPI" Style="{StaticResource FieldLabelStyle}" /><TextBlock x:Name="DiagDpiText" Text="--" Style="{StaticResource FieldValueStyle}" /></StackPanel>
+                    <StackPanel Grid.Column="1"><TextBlock Text="DPI 范围" Style="{StaticResource FieldLabelStyle}" /><TextBlock x:Name="DiagDpiRangeText" Text="--" Style="{StaticResource FieldValueStyle}" /></StackPanel>
+                    <StackPanel Grid.Column="2"><TextBlock Text="性能模式" Style="{StaticResource FieldLabelStyle}" /><TextBlock x:Name="DiagPerfText" Text="--" Style="{StaticResource FieldValueStyle}" /></StackPanel>
+                  </Grid>
+                  <Border BorderBrush="{DynamicResource AppRuleBrush}" BorderThickness="0,1,0,0" Padding="0,12,0,14" Margin="22,0">
+                    <Grid>
+                      <TextBlock Text="诊断摘要会标记版本、时间、设备状态和配置能力，便于排查兼容问题。" Style="{StaticResource MutedTextStyle}" VerticalAlignment="Center" />
+                      <local:CutButton x:Name="ExportDiagnosticsButton" Content="导出诊断报告" Style="{StaticResource SecondaryButtonStyle}" HorizontalAlignment="Right" Click="ExportDiagnostics_Click" />
+                    </Grid>
+                  </Border>
+                </StackPanel>
+              </Border>
+            </StackPanel>
+          </ScrollViewer>
           <ScrollViewer x:Name="AboutPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
             <Border Style="{StaticResource CardStyle}">
               <StackPanel>
@@ -963,7 +1085,7 @@
                   <StackPanel Grid.Column="2" VerticalAlignment="Center">
                     <TextBlock Text="// ABOUT" Style="{StaticResource EyebrowStyle}" />
                     <TextBlock Text="rapoo-tray" FontFamily="{StaticResource AppSairaFont}" FontSize="28" FontWeight="ExtraBold" Margin="0,4,0,0" />
-                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0"><Border Background="{DynamicResource AppSignalBrush}" Padding="7,3" Margin="0,0,10,0"><TextBlock x:Name="AboutVersionText" Text="版本 1.13.0" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource AppOnSignalBrush}" /></Border><TextBlock Text="WPF 原生  /  开源" Style="{StaticResource MutedTextStyle}" VerticalAlignment="Center" /></StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0"><Border Background="{DynamicResource AppSignalBrush}" Padding="7,3" Margin="0,0,10,0"><TextBlock x:Name="AboutVersionText" Text="版本 1.16.0" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource AppOnSignalBrush}" /></Border><TextBlock Text="WPF 原生  /  开源" Style="{StaticResource MutedTextStyle}" VerticalAlignment="Center" /></StackPanel>
                     <TextBlock Text="雷柏 VT 系列游戏鼠标托盘工具" Style="{StaticResource MutedTextStyle}" Margin="0,8,0,0" />
                   </StackPanel>
                 </Grid>
@@ -979,7 +1101,23 @@
                   <StackPanel VerticalAlignment="Center"><TextBlock Text="// UPDATE" Style="{StaticResource EyebrowStyle}" /><TextBlock Text="软件更新" FontSize="14" FontWeight="Bold" Margin="0,4,0,0" /><TextBlock x:Name="UpdateStatusText" Text="检查 GitHub Releases 上是否有新版本" Style="{StaticResource MutedTextStyle}" Margin="0,4,0,0" /></StackPanel>
                   <local:CutButton x:Name="CheckUpdateButton" Grid.Column="1" Content="检查更新" Style="{StaticResource PrimaryButtonStyle}" VerticalAlignment="Center" Click="CheckUpdate_Click" />
                 </Grid>
-                <Border Height="1" Background="{DynamicResource AppRuleBrush}" Margin="22,0" />
+                                <Border Height="1" Background="{DynamicResource AppRuleBrush}" Margin="22,0" />
+                <Grid Margin="22,16,22,16">
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="260" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                  <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="// SNAPSHOTS" Style="{StaticResource EyebrowStyle}" />
+                    <TextBlock Text="配置快照" FontSize="14" FontWeight="Bold" Margin="0,4,0,0" />
+                    <TextBlock x:Name="SnapshotStatusText" Text="保存、删除、应用或导入前自动备份，最多保留 20 份" Style="{StaticResource MutedTextStyle}" Margin="0,4,0,0" />
+                  </StackPanel>
+                  <local:FieldFrame Grid.Column="1" Style="{StaticResource FieldFrameStyle}" Margin="18,0,10,0" VerticalAlignment="Center">
+                    <ComboBox x:Name="SnapshotCombo" Style="{StaticResource EfComboBoxStyle}" DisplayMemberPath="DisplayName" />
+                  </local:FieldFrame>
+                  <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <local:CutButton Content="立即备份" Style="{StaticResource SmallButtonStyle}" Margin="0,0,6,0" Click="CreateSnapshot_Click" />
+                    <local:CutButton Content="刷新" Style="{StaticResource SmallButtonStyle}" Margin="0,0,6,0" Click="RefreshSnapshots_Click" />
+                    <local:CutButton Content="恢复" Style="{StaticResource SecondaryButtonStyle}" Click="RestoreSnapshot_Click" />
+                  </StackPanel>
+                </Grid><Border Height="1" Background="{DynamicResource AppRuleBrush}" Margin="22,0" />
                 <Grid MinHeight="78" Margin="22,0">
                   <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                   <StackPanel VerticalAlignment="Center">
