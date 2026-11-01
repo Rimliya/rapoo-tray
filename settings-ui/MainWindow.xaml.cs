@@ -47,6 +47,7 @@ namespace RapooTray.Settings
             }
         }
         private readonly TrayBridge _bridge;
+        private readonly bool _demo;
         private readonly int _initialPage;
         private readonly DispatcherTimer _liveTimer;
         private readonly PollingProbe _pollingProbe;
@@ -106,6 +107,7 @@ namespace RapooTray.Settings
             ApplicationThemeManager.Changed += OnApplicationThemeChanged;
             UpdateThemeToggle();
             _initialPage = Math.Max(0, Math.Min(6, page));
+            _demo = demo;
             _bridge = new TrayBridge(demo);
             _pollingProbe = new PollingProbe();
             _pollingProbe.Updated += OnPollingProbeUpdated;
@@ -190,7 +192,7 @@ namespace RapooTray.Settings
         private static HttpClient CreateHttpClient()
         {
             var client = new HttpClient { Timeout = TimeSpan.FromSeconds(12) };
-            client.DefaultRequestHeaders.UserAgent.ParseAdd("rapoo-tray-settings/1.16.0");
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("rapoo-tray-settings/1.16.1");
             return client;
         }
 
@@ -1636,7 +1638,7 @@ namespace RapooTray.Settings
                 SnapshotCombo.ItemsSource = snapshots;
                 SnapshotCombo.SelectedIndex = snapshots.Count > 0 ? 0 : -1;
                 SnapshotStatusText.Text = snapshots.Count == 0
-                    ? "暂无快照；保存、删除、应用或导入前会自动备份"
+                    ? "暂无快照；完整设置和关键配置操作会自动备份"
                     : "共 " + snapshots.Count + " 份快照，最多保留 20 份";
             }
             catch (Exception ex)
@@ -1662,8 +1664,8 @@ namespace RapooTray.Settings
                 ProfileSnapshot snapshot = SnapshotService.Create(_state, "手动");
                 RefreshSnapshots();
                 SnapshotCombo.SelectedItem = snapshot;
-                SnapshotStatusText.Text = "已创建手动快照：" + Path.GetFileName(snapshot.Path);
-                SetStatus("已创建配置快照", true);
+                SnapshotStatusText.Text = "已创建完整设置快照：" + Path.GetFileName(snapshot.Path);
+                SetStatus("已创建完整设置快照", true);
             }
             catch (Exception ex)
             {
@@ -1680,19 +1682,51 @@ namespace RapooTray.Settings
                 SetStatus("请选择要恢复的快照", false);
                 return;
             }
-            if (MessageBox.Show(this, "恢复会替换当前配置档案。当前配置会先自动备份，是否继续？",
+            if (MessageBox.Show(this, "恢复会替换当前配置档案，并尽量恢复 OSD、快捷键、电量提醒、自启动与型号设置。当前状态会先自动备份，是否继续？",
                 "恢复配置快照", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
             CaptureSnapshot("恢复前");
-            SetBusy(true, "正在恢复配置快照…");
+            SetBusy(true, "正在恢复完整设置快照…");
             try
             {
-                ProfilePackage package = SnapshotService.Load(snapshot);
-                AppState state = await _bridge.ImportProfilesAsync(package);
+                SettingsSnapshotPackage package = SnapshotService.Load(snapshot);
+                var restoreErrors = new List<string>();
+                void RememberRestore(AppState candidate)
+                {
+                    if (candidate != null && !candidate.StatusGood && !restoreErrors.Contains(candidate.StatusText))
+                        restoreErrors.Add(candidate.StatusText);
+                }
+
+                AppState state = await _bridge.ImportProfilesAsync(package.Profiles);
+                RememberRestore(state);
+                bool fullSettings = package.Osd != null || package.Battery != null;
+                if (package.Osd != null)
+                {
+                    state = await _bridge.SetOsdConfigAsync(package.Osd.ToOsdSettings());
+                    RememberRestore(state);
+                }
+                if (package.Battery != null)
+                {
+                    state = await _bridge.SetBatteryConfigAsync(package.Battery.Enabled,
+                        package.Battery.WarningThreshold, package.Battery.CriticalThreshold,
+                        package.Battery.ChargingReminderEnabled, package.Battery.ReminderMinutes);
+                    RememberRestore(state);
+                }
+                if (fullSettings)
+                {
+                    state = await _bridge.SetModelAsync(package.ModelIndex);
+                    RememberRestore(state);
+                    state = await _bridge.SetAutoRunAsync(package.AutoRun);
+                    RememberRestore(state);
+                }
+                state = await _bridge.GetStateAsync();
                 _profileDirty = false;
                 _selectedProfileId = 0;
                 ApplyState(state, true);
                 RefreshSnapshots();
-                SetStatus(state.StatusGood ? "配置快照已恢复；应用后写入鼠标" : state.StatusText, state.StatusGood);
+                if (restoreErrors.Count > 0)
+                    SetStatus("快照部分恢复失败：" + string.Join("；", restoreErrors), false);
+                else
+                    SetStatus(fullSettings ? "完整设置快照已恢复；应用后写入鼠标" : "旧版配置快照已恢复；应用后写入鼠标", true);
             }
             catch (Exception ex)
             {
@@ -1708,6 +1742,7 @@ namespace RapooTray.Settings
                 Dispatcher.BeginInvoke(new Action(() => OnPollingProbeUpdated(sender, snapshot)));
                 return;
             }
+            if (!string.IsNullOrWhiteSpace(snapshot.FilterLabel)) PollingTargetText.Text = "目标设备：" + snapshot.FilterLabel;
             PollingMeasuredText.Text = Math.Round(snapshot.MeasuredHz).ToString(CultureInfo.InvariantCulture) + " Hz";
             PollingJitterText.Text = snapshot.JitterMs.ToString("0.00", CultureInfo.InvariantCulture) + " ms";
             PollingMaxGapText.Text = snapshot.MaxGapMs.ToString("0.00", CultureInfo.InvariantCulture) + " ms";
@@ -1727,7 +1762,8 @@ namespace RapooTray.Settings
                     _pollingProbe.Stop();
                     return;
                 }
-                _pollingProbe.Start(this);
+                if (_state == null || !_state.Connected) throw new InvalidOperationException("设备未连接，无法开始目标设备采样。");
+                _pollingProbe.Start(this, _demo ? "" : _state.DeviceProductId);
                 PollingStartButton.Content = "停止采样";
                 PollingStatusText.Text = "请持续移动鼠标以采集原始输入间隔";
             }
@@ -1741,6 +1777,9 @@ namespace RapooTray.Settings
         {
             if (_state == null) return;
             DiagModelText.Text = _state.DeviceName;
+            PollingTargetText.Text = string.IsNullOrWhiteSpace(_state.DeviceProductId)
+                ? "目标设备：VID_24AE / 等待 PID"
+                : "目标设备：VID_24AE / " + _state.DeviceProductId.ToUpperInvariant();
             DiagModeText.Text = _state.DeviceMode;
             DiagBatteryText.Text = _state.Battery + "%";
             ProfileRow active = _state.Profiles.FirstOrDefault(x => x.Id == _state.ActiveProfileId);
@@ -1823,6 +1862,39 @@ namespace RapooTray.Settings
             }
         }
 
+        private void SetUpdateRecoveryButtons(bool showOpen, bool showClear)
+        {
+            OpenReleasePageButton.Visibility = showOpen ? Visibility.Visible : Visibility.Collapsed;
+            ClearUpdateCacheButton.Visibility = showClear ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private void OpenReleasePage_Click(object sender, RoutedEventArgs e)
+        {
+            OpenUrl(_latestRelease != null && !string.IsNullOrWhiteSpace(_latestRelease.HtmlUrl)
+                ? _latestRelease.HtmlUrl
+                : "https://github.com/Rimliya/rapoo-tray/releases/latest");
+        }
+
+        private void ClearUpdateCache_Click(object sender, RoutedEventArgs e)
+        {
+            if (_updateDownloading) return;
+            try
+            {
+                int removed = UpdateService.ClearCache();
+                _verifiedUpdate = null;
+                ClearUpdateCacheButton.Visibility = Visibility.Collapsed;
+                CheckUpdateButton.Content = _updateAvailable && _latestRelease != null ? "重新下载" : "检查更新";
+                UpdateStatusText.Text = removed > 0
+                    ? "已清理 " + removed + " 个更新缓存文件，可重新下载"
+                    : "更新缓存已经为空";
+            }
+            catch (Exception ex)
+            {
+                UpdateStatusText.Text = "清理更新缓存失败：" + ex.Message;
+                SetStatus(ex.Message, false);
+            }
+        }
+
         private async void CheckUpdate_Click(object sender, RoutedEventArgs e)
         {
             if (_updateDownloading) return;
@@ -1839,16 +1911,19 @@ namespace RapooTray.Settings
                 }
                 catch (Exception ex)
                 {
-                    UpdateStatusText.Text = "无法启动安装器：" + ex.Message;
+                    UpdateStatusText.Text = "无法启动安装器：" + ex.Message + "；可清理缓存后重新下载。";
+                    SetUpdateRecoveryButtons(true, true);
                     SetStatus(ex.Message, false);
                 }
                 return;
             }
+
             if (_updateAvailable && _latestRelease != null)
             {
                 CheckUpdateButton.IsEnabled = false;
                 CheckUpdateButton.Content = "下载中…";
                 _updateDownloading = true;
+                SetUpdateRecoveryButtons(true, true);
                 UpdateStatusText.Text = "正在下载更新…";
                 try
                 {
@@ -1858,11 +1933,14 @@ namespace RapooTray.Settings
                         ? "更新包已通过 SHA256 和数字签名验证：" + _verifiedUpdate.Publisher
                         : "更新包已通过 SHA256 校验（未签名）；SmartScreen 可能提示未知发布者";
                     CheckUpdateButton.Content = "安装更新";
+                    SetUpdateRecoveryButtons(true, true);
                 }
                 catch (Exception ex)
                 {
-                    UpdateStatusText.Text = "自动更新失败：" + ex.Message + "；可前往 GitHub 手动下载。";
+                    UpdateStatusText.Text = "自动更新失败：" + ex.Message + "；可打开 Release 或清理缓存后重试。";
                     CheckUpdateButton.Content = "重试下载";
+                    _verifiedUpdate = null;
+                    SetUpdateRecoveryButtons(true, true);
                     SetStatus(ex.Message, false);
                 }
                 finally
@@ -1878,6 +1956,7 @@ namespace RapooTray.Settings
             UpdateStatusText.Text = "正在检查 GitHub 最新发行版…";
             _verifiedUpdate = null;
             _latestRelease = null;
+            SetUpdateRecoveryButtons(false, false);
             try
             {
                 _latestRelease = await UpdateService.GetLatestReleaseAsync(Http);
@@ -1888,28 +1967,33 @@ namespace RapooTray.Settings
                     _updateAvailable = true;
                     UpdateStatusText.Text = "发现新版本 " + latest + "，可直接下载、校验并安装";
                     CheckUpdateButton.Content = "下载更新";
+                    SetUpdateRecoveryButtons(true, false);
                 }
                 else if (versionComparison < 0)
                 {
                     _updateAvailable = false;
                     UpdateStatusText.Text = "当前测试版 " + _state.Version + "；GitHub 最新发行版为 " + latest;
                     CheckUpdateButton.Content = "再次检查";
+                    SetUpdateRecoveryButtons(false, false);
                 }
                 else
                 {
                     _updateAvailable = false;
                     UpdateStatusText.Text = "已是最新版本 " + latest;
                     CheckUpdateButton.Content = "再次检查";
+                    SetUpdateRecoveryButtons(false, false);
                 }
             }
             catch (Exception ex)
             {
                 _updateAvailable = false;
-                UpdateStatusText.Text = "检查失败：" + ex.Message;
+                UpdateStatusText.Text = "检查失败：" + ex.Message + "；可打开 Release 页面或稍后重试。";
                 CheckUpdateButton.Content = "重新检查";
+                SetUpdateRecoveryButtons(true, true);
             }
             finally { CheckUpdateButton.IsEnabled = true; }
         }
+
         private static int CompareVersions(string left, string right)
         {
             int[] a = VersionParts(left), b = VersionParts(right);

@@ -66,8 +66,8 @@ namespace RapooTray.Settings
             Color paper = dark ? Color.FromRgb(18, 21, 22) : Color.FromRgb(239, 242, 243);
             Color panel = dark ? Color.FromRgb(28, 32, 34) : Color.FromRgb(252, 253, 253);
             Color ink = dark ? Color.FromRgb(237, 240, 240) : Color.FromRgb(22, 25, 26);
-            Color muted = dark ? Color.FromRgb(166, 174, 177) : Color.FromRgb(94, 102, 106);
-            Color tertiary = dark ? Color.FromRgb(138, 147, 151) : Color.FromRgb(120, 129, 134);
+            Color muted = dark ? Color.FromRgb(177, 185, 188) : Color.FromRgb(74, 84, 88);
+            Color tertiary = dark ? Color.FromRgb(154, 163, 167) : Color.FromRgb(94, 104, 108);
             Color rule = dark ? Color.FromRgb(49, 56, 59) : Color.FromRgb(213, 220, 222);
             Color chip = dark ? Color.FromRgb(41, 47, 50) : Color.FromRgb(229, 234, 236);
             Color signal = Color.FromRgb(125, 230, 255);
@@ -157,7 +157,7 @@ namespace RapooTray.Settings
 
         private static DrawingBrush CreateGridBrush(Color ink)
         {
-            Color gridInk = Color.FromArgb(10, ink.R, ink.G, ink.B);
+            Color gridInk = Color.FromArgb(7, ink.R, ink.G, ink.B);
             var group = new GeometryGroup();
             group.Children.Add(new LineGeometry(new Point(0, 0), new Point(72, 0)));
             group.Children.Add(new LineGeometry(new Point(0, 0), new Point(0, 72)));

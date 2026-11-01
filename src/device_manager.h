@@ -28,6 +28,7 @@ struct State {
     bool rfFull = false;
     bool rfAvailable = false;
     WCHAR modelName[64] = {0};
+    WCHAR productId[32] = {0};
 };
 
 typedef void (*StateCallback)(const State& state, DWORD changeMask);

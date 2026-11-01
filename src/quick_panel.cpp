@@ -580,7 +580,7 @@ void Paint(HWND window) {
     FillSolid(buffer, stripe2, p.signal);
     FillSolid(buffer, stripe3, highContrast ? p.ink : TRI_MINT);
 
-    HFONT titleFont = MakeFont(16, dpi, FW_EXTRABOLD, L"Rapoo Saira");
+    HFONT titleFont = MakeFont(14, dpi, FW_EXTRABOLD, L"Rapoo Saira");
     HFONT eyebrowFont = MakeFont(8, dpi, FW_SEMIBOLD, L"Rapoo Saira");
     HFONT fieldFont = MakeFont(9, dpi, FW_SEMIBOLD, L"Rapoo Saira");
     HFONT figureFont = MakeFont(18, dpi, FW_EXTRABOLD, L"Rapoo Saira");
@@ -590,7 +590,7 @@ void Paint(HWND window) {
     HFONT closeFont = MakeFont(16, dpi, FW_NORMAL, L"Rapoo Saira");
 
     RECT titleRect = {S(OUTER_PADDING), commandTop, client.right - S(190), commandBottom};
-    DrawTextLine(buffer, L"RAPOO // QUICK CONTROL", titleRect, p.commandText, titleFont);
+    DrawTextLine(buffer, L"RAPOO // CONTROL", titleRect, p.commandText, titleFont);
     const std::wstring version = AppVersion();
     RECT versionRect = {client.right - S(148), commandTop, client.right - S(62), commandBottom};
     DrawTextLine(buffer, version, versionRect, p.commandMuted, fieldFont,

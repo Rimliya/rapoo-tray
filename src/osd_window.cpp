@@ -5,6 +5,7 @@
 #include <strsafe.h>
 
 #include <algorithm>
+#include <cwctype>
 #include <memory>
 #include <string>
 #include <vector>
@@ -19,8 +20,8 @@ constexpr int IDR_SAIRA_WIDE_SEMI_BOLD = 201;
 constexpr int IDR_SAIRA_WIDE_EXTRA_BOLD = 202;
 constexpr int IDR_SAIRA_FIELD = 203;
 constexpr int HIDE_DELAY_MS = 2200;
-constexpr int MIN_WIDTH_DIP = 338;
-constexpr int MAX_WIDTH_DIP = 660;
+constexpr int MIN_WIDTH_DIP = 410;
+constexpr int MAX_WIDTH_DIP = 720;
 
 HWND g_window = NULL;
 WCHAR g_textLine1[160] = {0};
@@ -186,6 +187,26 @@ bool HasNonAscii(const WCHAR* text) {
     return false;
 }
 
+std::vector<std::wstring> SplitDetailFields(const WCHAR* text) {
+    std::vector<std::wstring> fields;
+    if (!text || !text[0]) return fields;
+
+    std::wstring raw(text);
+    size_t start = 0;
+    while (start <= raw.size()) {
+        const size_t end = raw.find(L'\t', start);
+        std::wstring field = raw.substr(start, end == std::wstring::npos ? raw.size() - start : end - start);
+        size_t first = 0;
+        while (first < field.size() && iswspace(field[first])) ++first;
+        size_t last = field.size();
+        while (last > first && iswspace(field[last - 1])) --last;
+        if (last > first) fields.push_back(field.substr(first, last - first));
+        if (end == std::wstring::npos) break;
+        start = end + 1;
+    }
+    return fields;
+}
+
 void LoadEmbeddedFonts(HINSTANCE instance) {
     g_privateFonts = new Gdiplus::PrivateFontCollection();
     const int ids[] = {
@@ -247,6 +268,8 @@ void DrawHatch(Gdiplus::Graphics& graphics, const Gdiplus::RectF& rect,
     }
 }
 
+float MeasureTextWidth(const std::wstring& text, Gdiplus::Font* font);
+
 void DrawTextLine(Gdiplus::Graphics& graphics, const std::wstring& text,
                   Gdiplus::Font* font, const Gdiplus::Color& color,
                   const Gdiplus::RectF& rect,
@@ -282,20 +305,23 @@ void Paint(HWND hWnd) {
     auto S = [dpi, scale](int value) { return MulDiv(ScaleDpi(value, dpi), scale, 100); };
     g_highContrast = IsHighContrast();
     const Palette palette = MakePalette(IsSystemDark());
+    const std::vector<std::wstring> detailFields = SplitDetailFields(g_textLine3);
 
     {
         Gdiplus::Graphics graphics(memory);
         graphics.SetSmoothingMode(Gdiplus::SmoothingModeNone);
         graphics.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHalf);
-        graphics.SetTextRenderingHint(Gdiplus::TextRenderingHintClearTypeGridFit);
+        // Grayscale grid-fit avoids the colour fringing ClearType produces on
+        // layered HUD windows while keeping small Chinese text properly hinted.
+        graphics.SetTextRenderingHint(Gdiplus::TextRenderingHintAntiAliasGridFit);
         graphics.SetTextContrast(5);
 
         FillRect(graphics, Gdiplus::RectF(0, 0, float(width), float(height)), palette.paper);
         Gdiplus::Pen framePen(palette.rule, 1.0f);
         graphics.DrawRectangle(&framePen, 0, 0, width - 1, height - 1);
 
-        const int stripeHeight = std::max(1, S(3));
-        const int commandHeight = S(28);
+        const int stripeHeight = std::max(2, S(3));
+        const int commandHeight = S(34);
         const int commandBottom = stripeHeight + commandHeight;
         FillRect(graphics,
             Gdiplus::RectF(0, float(stripeHeight), float(width), float(commandHeight)),
@@ -315,46 +341,104 @@ void Paint(HWND hWnd) {
             FillRect(graphics, Gdiplus::RectF(0, 0, float(width), float(stripeHeight)), palette.ink);
         }
 
-        const Gdiplus::RectF hatchRect(float(width - S(142)), float(stripeHeight + S(5)),
-                                       float(S(110)), float(S(18)));
+        auto headerFont = MakeFont(S(11), true, true);
+        auto liveFont = MakeFont(S(10), true, true);
+        const int liveWidth = S(52);
+        const int liveHeight = S(20);
+        const float liveX = float(width - S(16) - liveWidth);
+        const float liveY = float(stripeHeight + (commandHeight - liveHeight) / 2);
+
+        const Gdiplus::RectF hatchRect(float(std::max(S(196), width - S(158))),
+                                       float(stripeHeight + S(5)),
+                                       float(S(86)), float(S(22)));
         graphics.SetClip(hatchRect);
-        DrawHatch(graphics, hatchRect, Mix(palette.commandMuted, palette.commandBar, 24), float(S(9)));
+        DrawHatch(graphics, hatchRect, Mix(palette.commandMuted, palette.commandBar, 26), float(S(9)));
         graphics.ResetClip();
 
+        DrawTextLine(graphics, L"RAPOO // DEVICE STATUS", headerFont.get(),
+            palette.commandText,
+            Gdiplus::RectF(float(S(16)), float(stripeHeight),
+                           float(width - S(190)), float(commandHeight)));
+
+        FillRect(graphics, Gdiplus::RectF(liveX, liveY, float(liveWidth), float(liveHeight)),
+                 palette.signal);
+        DrawTextLine(graphics, L"LIVE", liveFont.get(), palette.onSignal,
+            Gdiplus::RectF(liveX, liveY, float(liveWidth), float(liveHeight)),
+            Gdiplus::StringAlignmentCenter);
+
+        const int footerHeight = detailFields.empty() ? 0 : S(36);
+        const int bodyTop = commandBottom;
+        const int bodyBottom = height - footerHeight;
         FillRect(graphics,
-            Gdiplus::RectF(0, float(commandBottom), float(width), float(height - commandBottom)),
+            Gdiplus::RectF(0, float(bodyTop), float(width), float(bodyBottom - bodyTop)),
             palette.panel);
         FillRect(graphics,
-            Gdiplus::RectF(0, float(commandBottom), float(S(4)), float(height - commandBottom)),
+            Gdiplus::RectF(0, float(bodyTop), float(S(5)), float(bodyBottom - bodyTop)),
             palette.signal);
 
-        auto eyebrowFont = MakeFont(S(10), true, true);
-        auto bodyFont = MakeFont(S(17), true, !HasNonAscii(g_textLine1));
-        auto subFont = MakeFont(S(12), false, !HasNonAscii(g_textLine2));
-        auto detailFont = MakeFont(S(11), false, !HasNonAscii(g_textLine3));
+        const float contentLeft = float(S(20));
+        const float contentRight = float(width - S(18));
+        const float contentWidth = contentRight - contentLeft;
+        auto deviceLabelFont = MakeFont(S(10), true, true);
+        auto modelFont = MakeFont(S(14), true, false);
 
-        DrawTextLine(graphics, L"RAPOO // DEVICE STATUS", eyebrowFont.get(),
-            palette.commandText,
-            Gdiplus::RectF(float(S(16)), float(stripeHeight), float(width - S(162)), float(commandHeight)));
+        const int primaryDip = std::wstring(g_textLine2).size() <= 14 ? 30 :
+                               (std::wstring(g_textLine2).size() <= 24 ? 24 : 18);
+        auto primaryFont = MakeFont(S(primaryDip), true, !HasNonAscii(g_textLine2));
 
-        const float contentLeft = float(S(18));
-        const float contentRight = float(width - S(16));
-        const float top = float(commandBottom + S(8));
-        DrawTextLine(graphics, g_textLine1, bodyFont.get(), palette.ink,
-            Gdiplus::RectF(contentLeft, top, contentRight - contentLeft, float(S(28))));
-        DrawTextLine(graphics, g_textLine2, subFont.get(), palette.ink2,
-            Gdiplus::RectF(contentLeft, top + S(28), contentRight - contentLeft, float(S(20))));
+        DrawTextLine(graphics, L"// DEVICE", deviceLabelFont.get(), palette.ink2,
+            Gdiplus::RectF(contentLeft, float(bodyTop + S(6)), contentWidth, float(S(12))));
+        DrawTextLine(graphics, g_textLine1, modelFont.get(), palette.ink,
+            Gdiplus::RectF(contentLeft, float(bodyTop + S(18)), contentWidth, float(S(18))));
+        DrawTextLine(graphics, g_textLine2, primaryFont.get(), palette.ink,
+            Gdiplus::RectF(contentLeft, float(bodyTop + S(34)), contentWidth,
+                           float(S(primaryDip + 4))));
 
-        const bool hasLine3 = g_textLine3[0] != 0;
-        if (hasLine3) {
-            const float ruleY = top + S(53);
-            DrawHairline(graphics, contentLeft, ruleY, contentRight, ruleY, palette.rule);
-            FillRect(graphics,
-                Gdiplus::RectF(contentLeft, ruleY + S(8), float(S(5)), float(S(5))),
-                palette.signal);
-            DrawTextLine(graphics, g_textLine3, detailFont.get(), palette.ink,
-                Gdiplus::RectF(contentLeft + S(12), ruleY + S(3),
-                               contentRight - contentLeft - S(12), float(S(20))));
+        if (!detailFields.empty()) {
+            const float footerTop = float(bodyBottom);
+            FillRect(graphics, Gdiplus::RectF(0, footerTop, float(width), float(footerHeight)),
+                     palette.commandBar);
+            DrawHairline(graphics, contentLeft, footerTop, contentRight, footerTop, palette.rule);
+
+            auto detailFont = MakeFont(S(12), false, false);
+            std::vector<float> widths;
+            float natural = 0;
+            for (const auto& field : detailFields) {
+                float w = MeasureTextWidth(field, detailFont.get()) + S(30);
+                widths.push_back(w);
+                natural += w;
+            }
+            const float gap = S(8);
+            natural += gap * float(detailFields.size() - 1);
+            const float available = contentRight - contentLeft;
+            if (natural < available && !detailFields.empty()) {
+                const float extra = (available - natural) / float(detailFields.size());
+                for (float& w : widths) w += extra;
+            } else if (natural > available && natural > 0) {
+                const float totalGaps = gap * float(detailFields.size() - 1);
+                const float widthAvailable = std::max(0.0f, available - totalGaps);
+                const float widthNatural = std::max(1.0f, natural - totalGaps);
+                const float factor = widthAvailable / widthNatural;
+                for (float& w : widths) w *= factor;
+            }
+
+            float x = contentLeft;
+            for (size_t i = 0; i < detailFields.size(); ++i) {
+                if (i > 0) {
+                    DrawHairline(graphics, x - gap * 0.5f, footerTop + S(9),
+                                 x - gap * 0.5f, footerTop + footerHeight - S(9),
+                                 Mix(palette.commandMuted, palette.commandBar, 36));
+                }
+                FillRect(graphics,
+                    Gdiplus::RectF(x, footerTop + (footerHeight - S(5)) * 0.5f,
+                                   float(S(5)), float(S(5))),
+                    palette.signal);
+                DrawTextLine(graphics, detailFields[i], detailFont.get(), palette.commandText,
+                    Gdiplus::RectF(x + S(12), footerTop,
+                                   std::max(float(S(24)), widths[i] - S(14)),
+                                   float(footerHeight)));
+                x += widths[i] + (i + 1 < detailFields.size() ? gap : 0.0f);
+            }
         }
     }
 
@@ -364,7 +448,6 @@ void Paint(HWND hWnd) {
     DeleteDC(memory);
     EndPaint(hWnd, &paint);
 }
-
 LRESULT CALLBACK WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
     switch (message) {
         case WM_ERASEBKGND:
@@ -437,7 +520,7 @@ bool Init(HINSTANCE hInstance) {
         windowClass.lpszClassName,
         L"RapooOSD",
         WS_POPUP,
-        0, 0, 360, 112,
+        0, 0, 420, 142,
         NULL, NULL, hInstance, NULL);
 
     return g_window != NULL;
@@ -502,20 +585,30 @@ void Show(const WCHAR* line1, const WCHAR* line2, const WCHAR* line3) {
     const int scale = std::clamp(g_config.osdScalePercent, 75, 150);
     auto S = [dpi, scale](int value) { return MulDiv(ScaleDpi(value, dpi), scale, 100); };
 
-    auto bodyProbe = MakeFont(S(17), true, !HasNonAscii(g_textLine1));
-    auto subProbe = MakeFont(S(12), false, !HasNonAscii(g_textLine2));
-    auto detailProbe = MakeFont(S(11), false, !HasNonAscii(g_textLine3));
-    const float contentWidth = std::max({
-        MeasureTextWidth(g_textLine1, bodyProbe.get()),
-        MeasureTextWidth(g_textLine2, subProbe.get()),
-        MeasureTextWidth(g_textLine3, detailProbe.get()),
-    });
+    auto modelProbe = MakeFont(S(14), true, false);
+    const int primaryDip = std::wstring(g_textLine2).size() <= 14 ? 30 :
+                           (std::wstring(g_textLine2).size() <= 24 ? 24 : 18);
+    auto primaryProbe = MakeFont(S(primaryDip), true, !HasNonAscii(g_textLine2));
+    auto detailProbe = MakeFont(S(12), false, false);
+    const std::vector<std::wstring> detailFields = SplitDetailFields(g_textLine3);
 
-    const bool hasLine3 = g_textLine3[0] != 0;
-    int targetWidth = static_cast<int>(contentWidth) + S(64);
+    float footerWidth = 0;
+    for (const auto& field : detailFields) {
+        footerWidth += MeasureTextWidth(field, detailProbe.get()) + S(30);
+    }
+    if (detailFields.size() > 1) {
+        footerWidth += S(8) * float(detailFields.size() - 1);
+    }
+
+    const float contentWidth = std::max({
+        MeasureTextWidth(g_textLine1, modelProbe.get()),
+        MeasureTextWidth(g_textLine2, primaryProbe.get()),
+        footerWidth,
+    });
+    int targetWidth = static_cast<int>(contentWidth) + S(38);
     targetWidth = std::max(targetWidth, S(MIN_WIDTH_DIP));
     targetWidth = std::min(targetWidth, S(MAX_WIDTH_DIP));
-    const int targetHeight = hasLine3 ? S(124) : S(94);
+    const int targetHeight = detailFields.empty() ? S(104) : S(142);
 
     int x = work.left + ((work.right - work.left) - targetWidth) / 2;
     int y = work.bottom - targetHeight - S(48);
@@ -586,7 +679,7 @@ void ShowDeviceUpdate(const Device::State& state) {
     std::wstring detail;
     auto append = [&](const std::wstring& part) {
         if (part.empty()) return;
-        if (!detail.empty()) detail += L" · ";
+        if (!detail.empty()) detail += L"\t";
         detail += part;
     };
     if (g_config.displayFields & OsdConfig::FIELD_MODE) {

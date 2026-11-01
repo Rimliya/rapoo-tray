@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Threading;
@@ -15,32 +16,39 @@ namespace RapooTray.Settings
         public double MaxGapMs;
         public int Samples;
         public bool Running;
+        public string FilterLabel;
     }
 
     internal sealed class PollingProbe : IDisposable
     {
         private const int WM_INPUT = 0x00FF;
         private const uint RID_INPUT = 0x10000003;
+        private const uint RIDI_DEVICENAME = 0x20000007;
         private const uint RIDEV_INPUTSINK = 0x00000100;
         private const uint RIDEV_REMOVE = 0x00000001;
-        private const int RIM_TYPEMOUSE = 0;
+        private const uint RIM_TYPEMOUSE = 0;
+        private const uint RIDEV_DEVNOTIFY = 0x00002000;
 
         private HwndSource _source;
         private DispatcherTimer _timer;
         private readonly Queue<long> _samples = new Queue<long>();
         private readonly Queue<double> _intervals = new Queue<double>();
+        private readonly HashSet<IntPtr> _targetDevices = new HashSet<IntPtr>();
         private long _lastTimestamp;
         private bool _running;
+        private string _filterLabel = "";
 
         public event EventHandler<PollingProbeSnapshot> Updated;
 
         public bool IsRunning => _running;
 
-        public void Start(Window owner)
+        public void Start(Window owner, string productId)
         {
             if (_running || owner == null) return;
             IntPtr handle = new WindowInteropHelper(owner).Handle;
             if (handle == IntPtr.Zero) throw new InvalidOperationException("设置窗口句柄尚未创建。");
+
+            ResolveTargetDevices(productId);
 
             RAWINPUTDEVICE[] devices =
             {
@@ -89,6 +97,7 @@ namespace RapooTray.Settings
             }
             catch { }
             _running = false;
+            _targetDevices.Clear();
             Updated?.Invoke(this, GetSnapshot());
         }
 
@@ -121,8 +130,61 @@ namespace RapooTray.Settings
                 JitterMs = jitter,
                 MaxGapMs = maxGap,
                 Samples = _intervals.Count,
-                Running = _running
+                Running = _running,
+                FilterLabel = _filterLabel
             };
+        }
+
+        private void ResolveTargetDevices(string productId)
+        {
+            _targetDevices.Clear();
+            string normalizedProduct = (productId ?? "").Trim().ToLowerInvariant();
+            if (normalizedProduct.Length > 0 && !normalizedProduct.StartsWith("pid_", StringComparison.Ordinal))
+                normalizedProduct = "pid_" + normalizedProduct;
+            _filterLabel = string.IsNullOrEmpty(normalizedProduct)
+                ? "VID_24AE / 任意雷柏鼠标"
+                : "VID_24AE / " + normalizedProduct.ToUpperInvariant();
+
+            uint count = 0;
+            uint structSize = (uint)Marshal.SizeOf(typeof(RAWINPUTDEVICELIST));
+            GetRawInputDeviceList(null, ref count, structSize);
+            if (count == 0) throw new InvalidOperationException("系统没有返回原始输入设备。");
+
+            var list = new RAWINPUTDEVICELIST[count];
+            uint actual = GetRawInputDeviceList(list, ref count, structSize);
+            if (actual == uint.MaxValue) throw new InvalidOperationException("读取原始输入设备列表失败，错误码 " + Marshal.GetLastWin32Error());
+            foreach (RAWINPUTDEVICELIST device in list)
+            {
+                if (device.Type != RIM_TYPEMOUSE) continue;
+                string path = GetDeviceName(device.Device);
+                if (string.IsNullOrEmpty(path)) continue;
+                string lower = path.ToLowerInvariant();
+                if (!lower.Contains("vid_24ae") && !lower.Contains("000024ae")) continue;
+                if (!string.IsNullOrEmpty(normalizedProduct) && !lower.Contains(normalizedProduct)) continue;
+                _targetDevices.Add(device.Device);
+                break;
+            }
+
+            if (_targetDevices.Count == 0 && string.IsNullOrEmpty(normalizedProduct))
+            {
+                foreach (RAWINPUTDEVICELIST device in list)
+                {
+                    if (device.Type == RIM_TYPEMOUSE) _targetDevices.Add(device.Device);
+                }
+                if (_targetDevices.Count > 0) _filterLabel = "SYSTEM MOUSE / TEST MODE";
+            }
+            if (_targetDevices.Count == 0)
+                throw new InvalidOperationException("未找到匹配当前设备的雷柏鼠标 Raw Input 接口：" + _filterLabel);
+        }
+
+        private static string GetDeviceName(IntPtr device)
+        {
+            uint size = 0;
+            GetRawInputDeviceInfo(device, RIDI_DEVICENAME, IntPtr.Zero, ref size);
+            if (size == 0) return null;
+            var builder = new StringBuilder((int)size);
+            uint result = GetRawInputDeviceInfo(device, RIDI_DEVICENAME, builder, ref size);
+            return result == uint.MaxValue ? null : builder.ToString();
         }
 
         private IntPtr WndProc(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -138,7 +200,7 @@ namespace RapooTray.Settings
                 if (GetRawInputData(lParam, RID_INPUT, buffer, ref size, headerSize) == size)
                 {
                     RAWINPUTHEADER header = Marshal.PtrToStructure<RAWINPUTHEADER>(buffer);
-                    if (header.Type == RIM_TYPEMOUSE)
+                    if (header.Type == RIM_TYPEMOUSE && _targetDevices.Contains(header.Device))
                     {
                         long timestamp = Stopwatch.GetTimestamp();
                         if (_lastTimestamp > 0)
@@ -171,6 +233,13 @@ namespace RapooTray.Settings
         }
 
         [StructLayout(LayoutKind.Sequential)]
+        private struct RAWINPUTDEVICELIST
+        {
+            public IntPtr Device;
+            public uint Type;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
         private struct RAWINPUTHEADER
         {
             public uint Type;
@@ -184,5 +253,17 @@ namespace RapooTray.Settings
 
         [DllImport("user32.dll")]
         private static extern uint GetRawInputData(IntPtr rawInput, uint command, IntPtr data, ref uint size, uint headerSize);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern uint GetRawInputDeviceList([Out] RAWINPUTDEVICELIST[] devices, ref uint count, uint size);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern uint GetRawInputDeviceList(IntPtr devices, ref uint count, uint size);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern uint GetRawInputDeviceInfo(IntPtr device, uint command, IntPtr data, ref uint size);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern uint GetRawInputDeviceInfo(IntPtr device, uint command, StringBuilder data, ref uint size);
     }
 }

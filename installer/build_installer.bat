@@ -34,7 +34,7 @@ if not errorlevel 1 (
     set "ZIG_LOCAL_CACHE_DIR=%TEMP%\rapoo-tray-zig-local"
     if not exist "%TEMP%\rapoo-tray-zig-global" mkdir "%TEMP%\rapoo-tray-zig-global"
     if not exist "%TEMP%\rapoo-tray-zig-local" mkdir "%TEMP%\rapoo-tray-zig-local"
-    python "..\.tools\buildtools\bin\windres.py" installer.rc -o installer.o -O coff
+    "..\.tools\ziglang\ziglang\zig.exe" rc /fo installer.o /:output-format coff /:target x64 installer.rc
     if errorlevel 1 exit /b 1
     "..\.tools\ziglang\ziglang\zig.exe" c++ -target x86_64-windows-gnu -std=c++17 -O2 -w -DUNICODE -D_UNICODE -mwindows -municode installer.cpp installer.o -o ..\dist\rapoo-tray-setup.exe -Wl,--subsystem,windows -lole32 -lshell32 -luser32 -lgdi32 -ladvapi32 -lcomctl32 -luuid
     if errorlevel 1 exit /b 1

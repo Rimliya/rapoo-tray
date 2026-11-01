@@ -1,5 +1,9 @@
 # rapoo-tray Settings UI
 
+视觉变体：冷库（ice / cool / tight / grid / standard / calm）
+主视觉：真实鼠标状态读数与配置记录列表
+页面类型：配置页为控制台，其余设置页为阅读页
+
 设置中心使用原生 WPF 与 WPF UI 4.3，目标框架为 .NET Framework 4.8。它只负责呈现和编辑界面；HID、配置持久化、托盘菜单和任务栏图标继续由 `rapoo-tray.exe` 的 C++ 后端负责。
 
 ## 进程结构
@@ -38,17 +42,19 @@ dotnet run --project settings-ui/RapooTray.Settings.csproj -- --demo
 
 输入控件统一使用 40px 高度和 `VerticalContentAlignment=Center`，避免 WPF UI 默认顶部对齐导致文字偏上。
 
+正文使用 Regular 字重和 14px 基准字号，小标签为 12px；窗口使用 `TextFormattingMode=Display`、`TextHintingMode=Fixed` 与 ClearType，避免 Medium 字体叠加伪粗体后出现发糊和彩边。状态 OSD 在分层窗口上使用灰阶 `AntiAliasGridFit`，以得到更稳定的中文边缘。
+
 ## 主题
 
 首次启动跟随系统主题。右上角可切换浅色/深色，选择保存在 `HKCU\Software\rapoo-tray\Settings\UiTheme`（1=浅色，2=深色）。
 
-## v1.16.0 新增
+## v1.16.1 稳定性补丁
 
 - OSD 外观参数与预览：位置、显示器、缩放、透明度、停留时间、X/Y 偏移。
 - 五组全局快捷键：快速面板、配置切换、DPI 切换、性能循环、状态 OSD 开关。
-- 配置快照：关键配置操作前自动备份，最多保留 20 份，可从关于页恢复。
-- 诊断页：Raw Input 回报率验证、抖动/最大间隔统计和诊断报告导出。
-- 应用内更新：下载安装包并强制校验 SHA256；若文件带 Authenticode 签名则额外验证，未签名包会提示 SmartScreen 风险。
+- 完整设置快照：关键配置操作前自动备份配置、OSD/快捷键、电量提醒、自启动和型号设置；兼容旧版 `.rapoo` 快照。
+- 诊断页：按当前雷柏 VID/PID 过滤 Raw Input，统计目标鼠标频率、抖动和最大间隔。
+- 应用内更新：下载安装包并强制校验 SHA256；失败支持打开 Release、清理缓存、重新下载和重新安装；未签名包会提示 SmartScreen 风险。
 - 导航页索引：配置 0、自动化 1、OSD 2、电量 3、DPI 4、诊断 5、关于 6。
 
 签名与发布配置见仓库根目录 `docs/signing.md`，未完成项见 `docs/roadmap.md`。

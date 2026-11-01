@@ -47,7 +47,7 @@ namespace RapooTray.Settings
             using (var request = new HttpRequestMessage(HttpMethod.Get, LatestReleaseApi))
             {
                 request.Headers.Accept.ParseAdd("application/vnd.github+json");
-                request.Headers.UserAgent.ParseAdd("rapoo-tray-settings/1.16.0");
+                request.Headers.UserAgent.ParseAdd("rapoo-tray-settings/1.16.1");
                 using (HttpResponseMessage response = await client.SendAsync(request).ConfigureAwait(false))
                 {
                     response.EnsureSuccessStatusCode();
@@ -82,7 +82,7 @@ namespace RapooTray.Settings
             string hashPath = installerPath + ".sha256";
             string tempPath = installerPath + ".downloading";
             var downloadClient = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
-            downloadClient.DefaultRequestHeaders.UserAgent.ParseAdd("rapoo-tray-settings/1.16.0");
+            downloadClient.DefaultRequestHeaders.UserAgent.ParseAdd("rapoo-tray-settings/1.16.1");
 
             try
             {
@@ -143,6 +143,24 @@ namespace RapooTray.Settings
             }
         }
 
+        public static int ClearCache()
+        {
+            string updateDir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "rapoo-tray", "updates");
+            if (!Directory.Exists(updateDir)) return 0;
+            int removed = 0;
+            foreach (string path in Directory.GetFiles(updateDir))
+            {
+                try
+                {
+                    File.Delete(path);
+                    removed++;
+                }
+                catch { }
+            }
+            return removed;
+        }
         private static GitHubReleaseAsset FindAsset(GitHubReleaseInfo release, string name)
         {
             if (release == null || release.Assets == null) return null;

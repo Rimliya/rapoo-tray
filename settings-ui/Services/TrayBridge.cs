@@ -276,7 +276,7 @@ namespace RapooTray.Settings
                         state.Connected = Field(f, 4) == "1"; state.Battery = Int(Field(f, 5)); state.DeviceDpiX = Int(Field(f, 6)); state.DeviceDpiY = Int(Field(f, 7));
                         state.ModelIndex = Int(Field(f, 8)); state.AutoSwitch = Field(f, 9) == "1"; state.OsdEnabled = Field(f, 10) == "1";
                         state.AutoRun = Field(f, 11) == "1"; state.RfAvailable = Field(f, 12) == "1"; state.RfFull = Field(f, 13) == "1";
-                        state.ActiveProfileId = Int(Field(f, 14)); break;
+                        state.ActiveProfileId = Int(Field(f, 14)); state.DeviceProductId = Decode(Field(f, 15)); break;
                     case "OSD":
                         state.OsdEnabled = Field(f, 1) == "1"; state.QuickPanelEnabled = Field(f, 2) == "1";
                         state.HotkeyModifiers = Int(Field(f, 3)); state.HotkeyVirtualKey = Int(Field(f, 4));
@@ -349,7 +349,7 @@ namespace RapooTray.Settings
 
         private static AppState DemoState()
         {
-            var state = new AppState { Version = "1.16.0", DeviceName = "雷柏 VT3 V2", DeviceMode = "2.4G 无线", Connected = true,
+            var state = new AppState { Version = "1.16.1", DeviceName = "雷柏 VT3 V2", DeviceMode = "2.4G 无线", DeviceProductId = "pid_4662", Connected = true,
                 Battery = 87, DeviceDpiX = 1600, DeviceDpiY = 1600, AutoSwitch = true, OsdEnabled = true, AutoRun = true,
                 RfAvailable = true, RfFull = true, ActiveProfileId = 1, StatusText = "已读取设备状态，修改后点击“应用”写入鼠标", StatusGood = true,
                 QuickPanelEnabled = true, HotkeyModifiers = 3, HotkeyVirtualKey = 77, HotkeyRegistered = true,

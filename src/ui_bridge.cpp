@@ -225,7 +225,8 @@ std::string BuildStateResponse() {
         << "|" << (Tray::IsAutoRunEnabled() ? 1 : 0)
         << "|" << (state.rfAvailable ? 1 : 0)
         << "|" << (state.rfFull ? 1 : 0)
-        << "|" << Profiles::ActiveId() << "\n";
+        << "|" << Profiles::ActiveId()
+        << "|" << Field(state.productId) << "\n";
 
     const OsdConfig::Config osd = Osd::GetConfig();
     out << "OSD|" << (osd.enabled ? 1 : 0)

@@ -4,8 +4,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $zig = Join-Path $root '.tools\ziglang\ziglang\zig.exe'
-$windresWrapper = Join-Path $root '.tools\buildtools\bin\windres.py'
-if (!(Test-Path $zig) -or !(Test-Path $windresWrapper)) {
+if (!(Test-Path $zig)) {
     throw 'Bundled Zig toolchain was not found under .tools.'
 }
 
@@ -16,7 +15,7 @@ New-Item -ItemType Directory -Force -Path $env:ZIG_GLOBAL_CACHE_DIR,$env:ZIG_LOC
 $resource = Join-Path $root '.tools\app-rc-ui.obj'
 Push-Location $root
 try {
-    & python $windresWrapper 'res\app.rc' -o '.tools\app-rc-ui.obj' -O coff
+    & $zig rc /fo '.tools\app-rc-ui.obj' '/:output-format' coff '/:target' x64 'res\app.rc'
     if ($LASTEXITCODE -ne 0) { throw 'Resource compilation failed.' }
 
     $sources = @(

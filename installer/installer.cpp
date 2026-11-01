@@ -38,7 +38,7 @@
 #define IDC_EDT_PATH         2006
 #define IDC_BTN_BROWSE       2007
 
-static const WCHAR* APP_VERSION = L"1.16.0";
+static const WCHAR* APP_VERSION = L"1.16.1";
 
 static HINSTANCE g_hInstance = NULL;
 static HWND g_hMainWnd = NULL;
@@ -1177,7 +1177,7 @@ static void DoInstall() {
     if (RegCreateKeyExW(HKEY_CURRENT_USER, REG_UNINSTALL, 0, NULL, 0, KEY_SET_VALUE, NULL, &hKeyUn, NULL) == ERROR_SUCCESS) {
         const WCHAR* name = L"rapoo-tray";
         const WCHAR* ver = APP_VERSION;
-        const WCHAR* pub = L"Iris";
+        const WCHAR* pub = L"Rimliya";
         WCHAR unCmd[MAX_PATH + 32];
         StringCchPrintfW(unCmd, sizeof(unCmd) / sizeof(WCHAR), L"\"%s\" /uninstall", uninstallerPath);
 

@@ -124,7 +124,7 @@ try {
 
     $osdOriginalArgs = @($osdLine[0], $osdLine[1], $osdLine[2], $osdLine[3], $osdLine[5], $osdLine[6]) + @($osdLine[7..21])
     $script:osdRestoreCommand = "SET_OSD_CONFIG|" + ($osdOriginalArgs -join '|')
-    $osdTestArgs = @('1', '1', $osdLine[2], $osdLine[3], $osdLine[5], $osdLine[6]) + @('1', '0', '0', '0', '110', '94', '1800') + @('7', '117', '7', '118', '7', '119', '7', '120')
+    $osdTestArgs = @('1', '1', $osdLine[2], $osdLine[3], '127', '63') + @('1', '0', '0', '0', '110', '94', '1800') + @('7', '117', '7', '118', '7', '119', '7', '120')
     $osdResponse = Send-RapooCommand ("SET_OSD_CONFIG|" + ($osdTestArgs -join '|'))
     if (!$osdResponse.StartsWith('OK')) { throw 'SET_OSD_CONFIG failed.' }
     $osdTestLine = [regex]::Match($osdResponse, '(?m)^OSD\|([^\r\n]+)').Groups[1].Value.Split('|')

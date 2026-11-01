@@ -255,7 +255,7 @@ static void ResolveRapooModelName(const WCHAR* targetPid, const WCHAR* productNa
     StringCchCopyW(outModel, maxModelLen, L"通用");
 }
 
-static bool FindRapooEndpoints(WCHAR* pathStatus, WCHAR* pathControl, WCHAR* pathFeature, WCHAR* outModel, DWORD maxModelLen, bool* outIsWired) {
+static bool FindRapooEndpoints(WCHAR* pathStatus, WCHAR* pathControl, WCHAR* pathFeature, WCHAR* outModel, DWORD maxModelLen, WCHAR* outProductId, DWORD maxProductIdLen, bool* outIsWired) {
     GUID hidGuid;
     HidD_GetHidGuid(&hidGuid);
 
@@ -435,6 +435,9 @@ static bool FindRapooEndpoints(WCHAR* pathStatus, WCHAR* pathControl, WCHAR* pat
         if (outModel && maxModelLen > 0) {
             ResolveRapooModelName(targetPid, detectedProduct, outModel, maxModelLen);
         }
+        if (outProductId && maxProductIdLen > 0) {
+            StringCchCopyW(outProductId, maxProductIdLen, targetPid);
+        }
         if (outIsWired) {
             *outIsWired = isWired;
         }
@@ -448,6 +451,7 @@ static DWORD WINAPI HidWorkerThread(LPVOID lpParam) {
     WCHAR pathControl[MAX_PATH] = {0};
     WCHAR pathFeature[MAX_PATH] = {0};
     WCHAR modelBuf[64] = {0};
+    WCHAR productIdBuf[32] = {0};
     bool isWired = false;
 
     // Load user's saved sleep timeout from registry (default 10 min)
@@ -457,13 +461,14 @@ static DWORD WINAPI HidWorkerThread(LPVOID lpParam) {
     LeaveCriticalSection(&g_csState);
 
     while (WaitForSingleObject(g_hStopEvent, 200) == WAIT_TIMEOUT) {
-        if (!FindRapooEndpoints(pathStatus, pathControl, pathFeature, modelBuf, 64, &isWired)) {
+        if (!FindRapooEndpoints(pathStatus, pathControl, pathFeature, modelBuf, 64, productIdBuf, ARRAYSIZE(productIdBuf), &isWired)) {
             EnterCriticalSection(&g_csState);
             bool wasConn = g_currentState.isConnected;
             g_currentState.isConnected = false;
             g_currentState.isCharging = false;
             g_currentState.perfModeKnown = false;
             g_currentState.rfAvailable = false;
+            g_currentState.productId[0] = 0;
             g_dpiConfigValid = false;
             State copySt = g_currentState;
             LeaveCriticalSection(&g_csState);
@@ -489,6 +494,7 @@ static DWORD WINAPI HidWorkerThread(LPVOID lpParam) {
             g_currentState.isCharging = false;
             g_currentState.perfModeKnown = false;
             g_currentState.rfAvailable = false;
+            g_currentState.productId[0] = 0;
             g_dpiConfigValid = false;
             State copySt = g_currentState;
             LeaveCriticalSection(&g_csState);
@@ -560,6 +566,7 @@ static DWORD WINAPI HidWorkerThread(LPVOID lpParam) {
 
         EnterCriticalSection(&g_csState);
         StringCchCopyW(g_currentState.modelName, ARRAYSIZE(g_currentState.modelName), modelBuf);
+        StringCchCopyW(g_currentState.productId, ARRAYSIZE(g_currentState.productId), productIdBuf);
         g_currentState.isWired = isWired;
         if (isWired) {
             g_currentState.isCharging = true;

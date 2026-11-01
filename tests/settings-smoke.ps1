@@ -81,7 +81,7 @@ try {
 
     $snapshotDir = Join-Path $env:APPDATA 'rapoo-tray\snapshots'
     $beforeSnapshots = @()
-    if (Test-Path $snapshotDir) { $beforeSnapshots = @(Get-ChildItem $snapshotDir -Filter *.rapoo -File | Select-Object -ExpandProperty FullName) }
+    if (Test-Path $snapshotDir) { $beforeSnapshots = @(Get-ChildItem $snapshotDir -File | Where-Object { $_.Extension -in '.rapoo','.rapoo-snapshot' } | Select-Object -ExpandProperty FullName) }
     $navAbout = Find-ById $window 'NavAbout'
     if ($navAbout -eq $null) { throw 'NavAbout was not found.' }
     $navAbout.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
@@ -91,9 +91,11 @@ try {
     $snapshotButton.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
     Start-Sleep -Milliseconds 700
     $afterSnapshots = @()
-    if (Test-Path $snapshotDir) { $afterSnapshots = @(Get-ChildItem $snapshotDir -Filter *.rapoo -File | Select-Object -ExpandProperty FullName) }
+    if (Test-Path $snapshotDir) { $afterSnapshots = @(Get-ChildItem $snapshotDir -File | Where-Object { $_.Extension -in '.rapoo','.rapoo-snapshot' } | Select-Object -ExpandProperty FullName) }
     $createdSnapshots = @($afterSnapshots | Where-Object { $beforeSnapshots -notcontains $_ })
-    if ($createdSnapshots.Count -lt 1) { throw 'Snapshot backup did not create a .rapoo file.' }
+    if ($createdSnapshots.Count -lt 1) { throw 'Snapshot backup did not create a snapshot file.' }
+    $snapshotText = Get-Content -LiteralPath $createdSnapshots[0] -Raw
+    if ($snapshotText -notmatch 'rapoo-tray-settings-snapshot' -or $snapshotText -notmatch 'osd' -or $snapshotText -notmatch 'battery') { throw 'Snapshot did not include full settings payload.' }
     foreach ($created in $createdSnapshots) { Remove-Item -LiteralPath $created -Force }
 
     Write-Output 'settings UI smoke test passed'
