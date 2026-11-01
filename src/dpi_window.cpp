@@ -120,7 +120,7 @@ UINT GetWindowDpiSafe(HWND hwnd) {
 HFONT MakeFont(int px, int weight) {
     return CreateFontW(-S(px), 0, 0, 0, weight, FALSE, FALSE, FALSE,
         DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Microsoft YaHei UI");
+        CLEARTYPE_NATURAL_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Microsoft YaHei UI");
 }
 
 void RebuildBrushes() {

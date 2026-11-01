@@ -33,7 +33,7 @@ try {
         '-Isrc'
     ) + $sources + @(
         '.tools\app-rc-ui.obj', '-o', '.tools\rapoo-tray-test.exe', '-municode', '-Wl,--subsystem,windows',
-        '-lsetupapi', '-lhid', '-luser32', '-lgdi32', '-lshell32', '-ladvapi32',
+        '-lsetupapi', '-lhid', '-luser32', '-lgdi32', '-lgdiplus', '-lshell32', '-ladvapi32',
         '-luxtheme', '-ldwmapi', '-lcomdlg32', '-lcomctl32', '-lwinhttp', '-lversion'
     )
     & $zig @arguments

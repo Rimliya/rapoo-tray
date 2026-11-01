@@ -4,7 +4,7 @@
   <p><b>雷柏VT系列游戏鼠标轻量化托盘程序</b></p>
 
   <p>
-    <a href="https://github.com/Rimliya/rapoo-tray/releases"><img src="https://img.shields.io/badge/Release-v1.14.1-blue?style=flat-square" alt="Release" /></a>
+    <a href="https://github.com/Rimliya/rapoo-tray/releases"><img src="https://img.shields.io/badge/Release-v1.15.0-blue?style=flat-square" alt="Release" /></a>
     <img src="https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?style=flat-square&logo=windows" alt="Platform" />
     <img src="https://img.shields.io/badge/Language-C%2B%2B20%20%2F%20C%23%20WPF%20%2B%20Win32-00599C?style=flat-square&logo=c%2B%2B" alt="Language" />
     <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License" />
@@ -23,6 +23,7 @@
 
 - **电量历史与提醒**：后台记录最近 30 天电量曲线，设置中心可按 24 小时 / 7 天 / 30 天查看；低电量、严重低电量与循环充电提醒的阈值和间隔均可配置。
 - **OSD 快速面板（Endfield 控制台风格）**：默认按 `Ctrl + Alt + M` 全局呼出，直接切换配置、DPI 档位和性能模式；支持键盘导航、明暗主题与高对比度，快捷键和显示项目均可配置。
+- **状态 OSD（Endfield 冷库控制台）**：切换连接、DPI、配置或性能模式时显示；顶部三色细带、Saira Wide 字标、冷库蓝状态标记与细线分区，宽度随启用字段和文本长度自适应。
 - **六档性能模式**：设置页新增“狂暴竞技 / 竞技超核 / 超核 / 火力 / 均衡 / 办公”六档模式，按回报率自动限制可选组合，并随配置档案一起保存、应用和前台自动切换；托盘右键菜单也可直接切换当前模式。
 - **DPI 档位编辑器与托盘快速切换**：读取鼠标当前 DPI 档位，以 DPI 寄存器配置为权威来源，避免状态广播中的旧 800 DPI 覆盖实际值；支持按型号限制的 DPI 范围、增删档位、自定义 X/Y、升序排列和独立双轴设置。托盘菜单可直接选择当前型号已配置的 DPI 档位，启动/更新不会重置鼠标当前 DPI。
 - **无线射频策略与续航粗估**：设置页可切换“满格射频 / 智能调节”，并按鼠标型号、回报率、射频策略和当前电量估算续航；型号支持自动识别或手动指定。
@@ -31,7 +32,7 @@
 - **明暗双主题**：设置中心右上角可一键切换浅色/深色主题并持久化；首次启动仍跟随 Windows 系统主题。
 - **配置导入导出**：配置中心可生成 `.rapoo` 配置包，携带全部配置、默认项与自动切换开关；导入前自动备份，包内字段经校验后一次性替换，避免半写入。
 - **统一安装体验**：安装器改为与设置中心一致的浅色工业风界面，包含部署步骤、方形选项开关、切角操作按钮和实际安装进度，完成状态在窗口内呈现。
-- **内置 HarmonyOS Sans SC**：设置中心随包嵌入 Regular / Medium / Bold 三个字重，中文、字段标签与输入内容不再依赖系统中文字体；输入框、下拉框和数字框统一垂直居中，并启用 Display 字形布局与像素对齐。
+- **内置 HarmonyOS Sans SC**：设置中心随包嵌入 Regular / Medium / Bold 三个字重，中文、字段标签与输入内容不再依赖系统中文字体；输入框、下拉框和数字框统一垂直居中，并使用整数磅值、`Ideal` 与 ClearType 次像素抗锯齿改善小字号边缘。
 - **射频策略读取修复**：进入自动化页时主动读取鼠标当前射频策略；读取失败显示可重试状态，不再误报“设备不支持”。
 - **工业风 WPF 设置中心**：配置档案、自动化、DPI 档位与关于页使用统一冷灰网格、冰蓝当前位置信号、自绘切角、方形开关和方形滑杆；性能档位改为墨色分段选择，明暗主题与系统主题跟随保持一致。
 - **配置档案与快速切换**：可新建、重命名和删除独立配置，每个配置同时保存回报率、性能模式、DPI X/Y 与休眠时间；设置页将“保存”和“应用”拆开，保存只更新本机配置，应用才写入鼠标。托盘菜单和“配置中心”均可快速切换，硬件应用在后台执行。

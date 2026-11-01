@@ -1,148 +1,368 @@
 #include "osd_window.h"
+
+#include <objidl.h>
+#include <gdiplus.h>
 #include <strsafe.h>
+
 #include <algorithm>
+#include <memory>
 #include <string>
+#include <vector>
 
 namespace Osd {
 
-static HWND g_hOsdWnd = NULL;
-static WCHAR g_textLine1[160] = {0};
-static WCHAR g_textLine2[160] = {0};
-static WCHAR g_textLine3[160] = {0};
-static BYTE g_osdAlpha = 0;
-static OsdConfig::Config g_config;
+namespace {
 
-static const COLORREF OSD_KEY_COLOR = RGB(10, 12, 16);
-static const UINT_PTR TIMER_OSD_HIDE = 101;
-static const UINT_PTR TIMER_OSD_FADE = 102;
+constexpr UINT_PTR TIMER_OSD_HIDE = 101;
+constexpr UINT_PTR TIMER_OSD_FADE = 102;
+constexpr int IDR_SAIRA_WIDE_SEMI_BOLD = 201;
+constexpr int IDR_SAIRA_WIDE_EXTRA_BOLD = 202;
+constexpr int IDR_SAIRA_FIELD = 203;
+constexpr int HIDE_DELAY_MS = 2200;
+constexpr int MIN_WIDTH_DIP = 338;
+constexpr int MAX_WIDTH_DIP = 660;
 
-static inline int ScaleDpi(int val, int dpi) {
-    return MulDiv(val, dpi, 96);
+HWND g_window = NULL;
+WCHAR g_textLine1[160] = {0};
+WCHAR g_textLine2[160] = {0};
+WCHAR g_textLine3[160] = {0};
+BYTE g_osdAlpha = 0;
+OsdConfig::Config g_config;
+
+ULONG_PTR g_gdiplusToken = 0;
+Gdiplus::PrivateFontCollection* g_privateFonts = NULL;
+Gdiplus::FontFamily* g_sairaFamily = NULL;
+bool g_highContrast = false;
+
+struct Palette {
+    Gdiplus::Color paper;
+    Gdiplus::Color panel;
+    Gdiplus::Color ink;
+    Gdiplus::Color ink2;
+    Gdiplus::Color rule;
+    Gdiplus::Color chip;
+    Gdiplus::Color signal;
+    Gdiplus::Color onSignal;
+    Gdiplus::Color commandBar;
+    Gdiplus::Color commandText;
+    Gdiplus::Color commandMuted;
+};
+
+int ScaleDpi(int value, UINT dpi) {
+    return MulDiv(value, static_cast<int>(dpi), 96);
 }
 
-static UINT GetCurrentWindowDpi(HWND hWnd) {
-    HMODULE hUser = GetModuleHandleW(L"user32.dll");
-    if (hUser) {
-        typedef UINT (WINAPI *pfnGetDpiForWindow)(HWND);
-        pfnGetDpiForWindow fnGetDpi = (pfnGetDpiForWindow)GetProcAddress(hUser, "GetDpiForWindow");
-        if (fnGetDpi && hWnd) {
-            UINT d = fnGetDpi(hWnd);
-            if (d > 0) return d;
+UINT GetCurrentWindowDpi(HWND hWnd) {
+    HMODULE user32 = GetModuleHandleW(L"user32.dll");
+    if (user32) {
+        typedef UINT (WINAPI* GetDpiForWindowFn)(HWND);
+        auto getDpiForWindow = reinterpret_cast<GetDpiForWindowFn>(
+            GetProcAddress(user32, "GetDpiForWindow"));
+        if (getDpiForWindow && hWnd) {
+            UINT dpi = getDpiForWindow(hWnd);
+            if (dpi > 0) return dpi;
         }
     }
     return 96;
 }
 
-static LRESULT CALLBACK OsdWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-    switch (msg) {
+bool IsSystemDark() {
+    HKEY key = NULL;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER,
+            L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+            0, KEY_READ, &key) != ERROR_SUCCESS) return true;
+
+    DWORD value = 1;
+    DWORD type = 0;
+    DWORD size = sizeof(value);
+    bool dark = true;
+    if (RegQueryValueExW(key, L"SystemUsesLightTheme", NULL, &type,
+            reinterpret_cast<LPBYTE>(&value), &size) == ERROR_SUCCESS) {
+        dark = value == 0;
+    }
+    RegCloseKey(key);
+    return dark;
+}
+
+bool IsHighContrast() {
+    HIGHCONTRASTW settings = {sizeof(settings)};
+    if (!SystemParametersInfoW(SPI_GETHIGHCONTRAST, sizeof(settings), &settings, 0)) {
+        return false;
+    }
+    return (settings.dwFlags & HCF_HIGHCONTRASTON) != 0;
+}
+
+Palette MakePalette(bool dark) {
+    if (g_highContrast) {
+        return Palette{
+            Gdiplus::Color(255, GetRValue(GetSysColor(COLOR_WINDOW)),
+                GetGValue(GetSysColor(COLOR_WINDOW)), GetBValue(GetSysColor(COLOR_WINDOW))),
+            Gdiplus::Color(255, GetRValue(GetSysColor(COLOR_WINDOW)),
+                GetGValue(GetSysColor(COLOR_WINDOW)), GetBValue(GetSysColor(COLOR_WINDOW))),
+            Gdiplus::Color(255, GetRValue(GetSysColor(COLOR_WINDOWTEXT)),
+                GetGValue(GetSysColor(COLOR_WINDOWTEXT)), GetBValue(GetSysColor(COLOR_WINDOWTEXT))),
+            Gdiplus::Color(255, GetRValue(GetSysColor(COLOR_GRAYTEXT)),
+                GetGValue(GetSysColor(COLOR_GRAYTEXT)), GetBValue(GetSysColor(COLOR_GRAYTEXT))),
+            Gdiplus::Color(255, GetRValue(GetSysColor(COLOR_WINDOWTEXT)),
+                GetGValue(GetSysColor(COLOR_WINDOWTEXT)), GetBValue(GetSysColor(COLOR_WINDOWTEXT))),
+            Gdiplus::Color(255, GetRValue(GetSysColor(COLOR_BTNFACE)),
+                GetGValue(GetSysColor(COLOR_BTNFACE)), GetBValue(GetSysColor(COLOR_BTNFACE))),
+            Gdiplus::Color(255, GetRValue(GetSysColor(COLOR_HIGHLIGHT)),
+                GetGValue(GetSysColor(COLOR_HIGHLIGHT)), GetBValue(GetSysColor(COLOR_HIGHLIGHT))),
+            Gdiplus::Color(255, GetRValue(GetSysColor(COLOR_HIGHLIGHTTEXT)),
+                GetGValue(GetSysColor(COLOR_HIGHLIGHTTEXT)), GetBValue(GetSysColor(COLOR_HIGHLIGHTTEXT))),
+            Gdiplus::Color(255, GetRValue(GetSysColor(COLOR_WINDOWTEXT)),
+                GetGValue(GetSysColor(COLOR_WINDOWTEXT)), GetBValue(GetSysColor(COLOR_WINDOWTEXT))),
+            Gdiplus::Color(255, GetRValue(GetSysColor(COLOR_WINDOW)),
+                GetGValue(GetSysColor(COLOR_WINDOW)), GetBValue(GetSysColor(COLOR_WINDOW))),
+            Gdiplus::Color(255, GetRValue(GetSysColor(COLOR_GRAYTEXT)),
+                GetGValue(GetSysColor(COLOR_GRAYTEXT)), GetBValue(GetSysColor(COLOR_GRAYTEXT))),
+        };
+    }
+
+    if (dark) {
+        return Palette{
+            Gdiplus::Color(255, 0x12, 0x15, 0x16),
+            Gdiplus::Color(255, 0x1C, 0x20, 0x22),
+            Gdiplus::Color(255, 0xED, 0xF0, 0xF0),
+            Gdiplus::Color(255, 0xA6, 0xAE, 0xB1),
+            Gdiplus::Color(255, 0x39, 0x42, 0x47),
+            Gdiplus::Color(255, 0x25, 0x2B, 0x2E),
+            Gdiplus::Color(255, 0x7D, 0xE6, 0xFF),
+            Gdiplus::Color(255, 0x14, 0x17, 0x18),
+            Gdiplus::Color(255, 0x0F, 0x11, 0x12),
+            Gdiplus::Color(255, 0xF1, 0xF3, 0xF3),
+            Gdiplus::Color(255, 0x9E, 0xA8, 0xAD),
+        };
+    }
+
+    return Palette{
+        Gdiplus::Color(255, 0xEF, 0xF2, 0xF3),
+        Gdiplus::Color(255, 0xFC, 0xFD, 0xFD),
+        Gdiplus::Color(255, 0x16, 0x19, 0x1A),
+        Gdiplus::Color(255, 0x5E, 0x66, 0x6A),
+        Gdiplus::Color(255, 0xD5, 0xDC, 0xDE),
+        Gdiplus::Color(255, 0xE5, 0xEA, 0xEC),
+        Gdiplus::Color(255, 0x7D, 0xE6, 0xFF),
+        Gdiplus::Color(255, 0x14, 0x17, 0x18),
+        Gdiplus::Color(255, 0x14, 0x17, 0x18),
+        Gdiplus::Color(255, 0xF1, 0xF3, 0xF3),
+        Gdiplus::Color(255, 0xAA, 0xB2, 0xB5),
+    };
+}
+
+Gdiplus::Color Mix(const Gdiplus::Color& a, const Gdiplus::Color& b, int aWeight) {
+    aWeight = std::clamp(aWeight, 0, 100);
+    const int bWeight = 100 - aWeight;
+    return Gdiplus::Color(255,
+        (a.GetR() * aWeight + b.GetR() * bWeight) / 100,
+        (a.GetG() * aWeight + b.GetG() * bWeight) / 100,
+        (a.GetB() * aWeight + b.GetB() * bWeight) / 100);
+}
+
+bool HasNonAscii(const WCHAR* text) {
+    if (!text) return false;
+    for (const WCHAR* p = text; *p; ++p) {
+        if (*p > 0x7F) return true;
+    }
+    return false;
+}
+
+void LoadEmbeddedFonts(HINSTANCE instance) {
+    g_privateFonts = new Gdiplus::PrivateFontCollection();
+    const int ids[] = {
+        IDR_SAIRA_WIDE_SEMI_BOLD,
+        IDR_SAIRA_WIDE_EXTRA_BOLD,
+        IDR_SAIRA_FIELD,
+    };
+    for (int id : ids) {
+        HRSRC resource = FindResourceW(instance, MAKEINTRESOURCEW(id), RT_RCDATA);
+        if (!resource) continue;
+        HGLOBAL loaded = LoadResource(instance, resource);
+        if (!loaded) continue;
+        const void* data = LockResource(loaded);
+        const DWORD size = SizeofResource(instance, resource);
+        if (!data || !size) continue;
+        g_privateFonts->AddMemoryFont(data, static_cast<INT>(size));
+    }
+
+    g_sairaFamily = new Gdiplus::FontFamily(L"Rapoo Saira", g_privateFonts);
+    if (!g_sairaFamily->IsAvailable()) {
+        delete g_sairaFamily;
+        g_sairaFamily = NULL;
+    }
+}
+
+std::unique_ptr<Gdiplus::Font> MakeFont(int pixels, bool bold, bool latinOnly) {
+    if (latinOnly && g_sairaFamily) {
+        return std::make_unique<Gdiplus::Font>(
+            g_sairaFamily, static_cast<Gdiplus::REAL>(pixels),
+            bold ? Gdiplus::FontStyleBold : Gdiplus::FontStyleRegular,
+            Gdiplus::UnitPixel);
+    }
+
+    Gdiplus::FontFamily family(L"Microsoft YaHei UI");
+    return std::make_unique<Gdiplus::Font>(
+        &family, static_cast<Gdiplus::REAL>(pixels),
+        bold ? Gdiplus::FontStyleBold : Gdiplus::FontStyleRegular,
+        Gdiplus::UnitPixel);
+}
+
+void FillRect(Gdiplus::Graphics& graphics, const Gdiplus::RectF& rect,
+              const Gdiplus::Color& color) {
+    Gdiplus::SolidBrush brush(color);
+    graphics.FillRectangle(&brush, rect);
+}
+
+void DrawHairline(Gdiplus::Graphics& graphics, float x1, float y1, float x2, float y2,
+                  const Gdiplus::Color& color) {
+    Gdiplus::Pen pen(color, 1.0f);
+    graphics.DrawLine(&pen, x1, y1, x2, y2);
+}
+
+void DrawHatch(Gdiplus::Graphics& graphics, const Gdiplus::RectF& rect,
+               const Gdiplus::Color& color, float step) {
+    Gdiplus::Pen pen(color, 1.0f);
+    const float height = rect.Height;
+    for (float x = rect.X - height; x < rect.GetRight(); x += step) {
+        graphics.DrawLine(&pen, x, rect.GetBottom(), x + height, rect.Y);
+    }
+}
+
+void DrawTextLine(Gdiplus::Graphics& graphics, const std::wstring& text,
+                  Gdiplus::Font* font, const Gdiplus::Color& color,
+                  const Gdiplus::RectF& rect,
+                  Gdiplus::StringAlignment alignment = Gdiplus::StringAlignmentNear) {
+    Gdiplus::SolidBrush brush(color);
+    Gdiplus::StringFormat format;
+    format.SetFormatFlags(Gdiplus::StringFormatFlagsNoWrap |
+                          Gdiplus::StringFormatFlagsNoClip);
+    format.SetTrimming(Gdiplus::StringTrimmingEllipsisCharacter);
+    format.SetAlignment(alignment);
+    format.SetLineAlignment(Gdiplus::StringAlignmentCenter);
+    graphics.DrawString(text.c_str(), -1, font, rect, &format, &brush);
+}
+
+void Paint(HWND hWnd) {
+    PAINTSTRUCT paint = {0};
+    HDC target = BeginPaint(hWnd, &paint);
+    RECT client = {0};
+    GetClientRect(hWnd, &client);
+    const int width = client.right;
+    const int height = client.bottom;
+    if (width <= 0 || height <= 0) {
+        EndPaint(hWnd, &paint);
+        return;
+    }
+
+    HDC memory = CreateCompatibleDC(target);
+    HBITMAP bitmap = CreateCompatibleBitmap(target, width, height);
+    HGDIOBJ oldBitmap = SelectObject(memory, bitmap);
+
+    const UINT dpi = GetCurrentWindowDpi(hWnd);
+    auto S = [dpi](int value) { return ScaleDpi(value, dpi); };
+    g_highContrast = IsHighContrast();
+    const Palette palette = MakePalette(IsSystemDark());
+
+    {
+        Gdiplus::Graphics graphics(memory);
+        graphics.SetSmoothingMode(Gdiplus::SmoothingModeNone);
+        graphics.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHalf);
+        graphics.SetTextRenderingHint(Gdiplus::TextRenderingHintClearTypeGridFit);
+        graphics.SetTextContrast(5);
+
+        FillRect(graphics, Gdiplus::RectF(0, 0, float(width), float(height)), palette.paper);
+        Gdiplus::Pen framePen(palette.rule, 1.0f);
+        graphics.DrawRectangle(&framePen, 0, 0, width - 1, height - 1);
+
+        const int stripeHeight = std::max(1, S(3));
+        const int commandHeight = S(28);
+        const int commandBottom = stripeHeight + commandHeight;
+        FillRect(graphics,
+            Gdiplus::RectF(0, float(stripeHeight), float(width), float(commandHeight)),
+            palette.commandBar);
+
+        if (!g_highContrast) {
+            const int third = width / 3;
+            FillRect(graphics, Gdiplus::RectF(0, 0, float(third), float(stripeHeight)),
+                     Gdiplus::Color(255, 0xFF, 0x00, 0xF0));
+            FillRect(graphics,
+                Gdiplus::RectF(float(third), 0, float(third), float(stripeHeight)),
+                palette.signal);
+            FillRect(graphics,
+                Gdiplus::RectF(float(third * 2), 0, float(width - third * 2), float(stripeHeight)),
+                Gdiplus::Color(255, 0x00, 0xFF, 0xA2));
+        } else {
+            FillRect(graphics, Gdiplus::RectF(0, 0, float(width), float(stripeHeight)), palette.ink);
+        }
+
+        const Gdiplus::RectF hatchRect(float(width - S(142)), float(stripeHeight + S(5)),
+                                       float(S(110)), float(S(18)));
+        graphics.SetClip(hatchRect);
+        DrawHatch(graphics, hatchRect, Mix(palette.commandMuted, palette.commandBar, 24), float(S(9)));
+        graphics.ResetClip();
+
+        FillRect(graphics,
+            Gdiplus::RectF(0, float(commandBottom), float(width), float(height - commandBottom)),
+            palette.panel);
+        FillRect(graphics,
+            Gdiplus::RectF(0, float(commandBottom), float(S(4)), float(height - commandBottom)),
+            palette.signal);
+
+        auto eyebrowFont = MakeFont(S(10), true, true);
+        auto bodyFont = MakeFont(S(17), true, !HasNonAscii(g_textLine1));
+        auto subFont = MakeFont(S(12), false, !HasNonAscii(g_textLine2));
+        auto detailFont = MakeFont(S(11), false, !HasNonAscii(g_textLine3));
+
+        DrawTextLine(graphics, L"RAPOO // DEVICE STATUS", eyebrowFont.get(),
+            palette.commandText,
+            Gdiplus::RectF(float(S(16)), float(stripeHeight), float(width - S(162)), float(commandHeight)));
+
+        const float contentLeft = float(S(18));
+        const float contentRight = float(width - S(16));
+        const float top = float(commandBottom + S(8));
+        DrawTextLine(graphics, g_textLine1, bodyFont.get(), palette.ink,
+            Gdiplus::RectF(contentLeft, top, contentRight - contentLeft, float(S(28))));
+        DrawTextLine(graphics, g_textLine2, subFont.get(), palette.ink2,
+            Gdiplus::RectF(contentLeft, top + S(28), contentRight - contentLeft, float(S(20))));
+
+        const bool hasLine3 = g_textLine3[0] != 0;
+        if (hasLine3) {
+            const float ruleY = top + S(53);
+            DrawHairline(graphics, contentLeft, ruleY, contentRight, ruleY, palette.rule);
+            FillRect(graphics,
+                Gdiplus::RectF(contentLeft, ruleY + S(8), float(S(5)), float(S(5))),
+                palette.signal);
+            DrawTextLine(graphics, g_textLine3, detailFont.get(), palette.ink,
+                Gdiplus::RectF(contentLeft + S(12), ruleY + S(3),
+                               contentRight - contentLeft - S(12), float(S(20))));
+        }
+    }
+
+    BitBlt(target, 0, 0, width, height, memory, 0, 0, SRCCOPY);
+    SelectObject(memory, oldBitmap);
+    DeleteObject(bitmap);
+    DeleteDC(memory);
+    EndPaint(hWnd, &paint);
+}
+
+LRESULT CALLBACK WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
+    switch (message) {
         case WM_ERASEBKGND:
             return 1;
 
-        case WM_PAINT: {
-            PAINTSTRUCT ps;
-            HDC hdc = BeginPaint(hWnd, &ps);
-            RECT rc;
-            GetClientRect(hWnd, &rc);
-
-            HDC memDC = CreateCompatibleDC(hdc);
-            HBITMAP memBmp = CreateCompatibleBitmap(hdc, rc.right, rc.bottom);
-            HBITMAP oldBmp = (HBITMAP)SelectObject(memDC, memBmp);
-
-            UINT dpi = GetCurrentWindowDpi(hWnd);
-            auto S = [dpi](int v) { return ScaleDpi(v, dpi); };
-
-            // Fill with Key Color for transparency
-            HBRUSH hKey = CreateSolidBrush(OSD_KEY_COLOR);
-            FillRect(memDC, &rc, hKey);
-            DeleteObject(hKey);
-
-            RECT rcBox = rc;
-            InflateRect(&rcBox, -S(2), -S(2));
-
-            // Modern frosted card background & border
-            HBRUSH hBg = CreateSolidBrush(RGB(22, 25, 34));
-            HPEN hBorder = CreatePen(PS_SOLID, 1, RGB(70, 78, 96));
-            HGDIOBJ oldBr = SelectObject(memDC, hBg);
-            HGDIOBJ oldPen = SelectObject(memDC, hBorder);
-
-            RoundRect(memDC, rcBox.left, rcBox.top, rcBox.right, rcBox.bottom, S(16), S(16));
-
-            SetBkMode(memDC, TRANSPARENT);
-
-            bool hasLine3 = (g_textLine3[0] != 0);
-
-            // Font 1: Line 1 (Large bold title)
-            HFONT hFontBig = CreateFontW(
-                -S(18), 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
-                DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                CLEARTYPE_QUALITY, VARIABLE_PITCH, L"Microsoft YaHei UI"
-            );
-            HGDIOBJ oldFont = SelectObject(memDC, hFontBig);
-            SetTextColor(memDC, RGB(255, 255, 255));
-
-            RECT rcTop = rcBox;
-            rcTop.top = rcBox.top + S(8);
-            rcTop.bottom = rcTop.top + S(26);
-            DrawTextW(memDC, g_textLine1, -1, &rcTop, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
-
-            // Font 2: Line 2 (Sub text)
-            HFONT hFontMid = CreateFontW(
-                -S(13), 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-                DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                CLEARTYPE_QUALITY, VARIABLE_PITCH, L"Microsoft YaHei UI"
-            );
-            SelectObject(memDC, hFontMid);
-            SetTextColor(memDC, RGB(210, 222, 238));
-
-            RECT rcMid = rcBox;
-            rcMid.top = rcTop.bottom + S(2);
-            rcMid.bottom = rcMid.top + S(22);
-            DrawTextW(memDC, g_textLine2, -1, &rcMid, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
-
-            // Font 3: Line 3 (Status bar / Cyan highlight)
-            HFONT hFontSub = NULL;
-            if (hasLine3) {
-                hFontSub = CreateFontW(
-                    -S(12), 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
-                    DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                    CLEARTYPE_QUALITY, VARIABLE_PITCH, L"Microsoft YaHei UI"
-                );
-                SelectObject(memDC, hFontSub);
-                SetTextColor(memDC, RGB(120, 210, 255));
-
-                RECT rcBot = rcBox;
-                rcBot.top = rcMid.bottom + S(2);
-                rcBot.bottom = rcBot.top + S(22);
-                DrawTextW(memDC, g_textLine3, -1, &rcBot, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
-            }
-
-            BitBlt(hdc, 0, 0, rc.right, rc.bottom, memDC, 0, 0, SRCCOPY);
-
-            SelectObject(memDC, oldFont);
-            SelectObject(memDC, oldPen);
-            SelectObject(memDC, oldBr);
-            SelectObject(memDC, oldBmp);
-            DeleteObject(memBmp);
-            DeleteDC(memDC);
-
-            DeleteObject(hFontBig);
-            DeleteObject(hFontMid);
-            if (hFontSub) DeleteObject(hFontSub);
-            DeleteObject(hBorder);
-            DeleteObject(hBg);
-
-            EndPaint(hWnd, &ps);
+        case WM_PAINT:
+            Paint(hWnd);
             return 0;
-        }
 
-        case WM_TIMER: {
+        case WM_TIMER:
             if (wParam == TIMER_OSD_HIDE) {
                 KillTimer(hWnd, TIMER_OSD_HIDE);
                 SetTimer(hWnd, TIMER_OSD_FADE, 16, NULL);
             } else if (wParam == TIMER_OSD_FADE) {
-                if (g_osdAlpha > 15) {
-                    g_osdAlpha -= 15;
-                    SetLayeredWindowAttributes(hWnd, OSD_KEY_COLOR, g_osdAlpha, LWA_COLORKEY | LWA_ALPHA);
+                if (g_osdAlpha > 14) {
+                    g_osdAlpha = static_cast<BYTE>(std::max(0, g_osdAlpha - 14));
+                    SetLayeredWindowAttributes(hWnd, 0, g_osdAlpha, LWA_ALPHA);
                 } else {
                     KillTimer(hWnd, TIMER_OSD_FADE);
                     ShowWindow(hWnd, SW_HIDE);
@@ -150,48 +370,79 @@ static LRESULT CALLBACK OsdWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lP
                 }
             }
             return 0;
-        }
+
+        case WM_NCHITTEST:
+            return HTTRANSPARENT;
 
         default:
-            return DefWindowProcW(hWnd, msg, wParam, lParam);
+            return DefWindowProcW(hWnd, message, wParam, lParam);
     }
 }
 
-static void LoadEnabledSetting() {
+void LoadSettings() {
     g_config = OsdConfig::Load();
 }
 
-bool Init(HINSTANCE hInstance) {
-    LoadEnabledSetting();
-    WNDCLASSEXW wc = {0};
-    wc.cbSize = sizeof(WNDCLASSEXW);
-    wc.lpfnWndProc = OsdWndProc;
-    wc.hInstance = hInstance;
-    wc.lpszClassName = L"RapooOsdPopupWnd";
-    wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-    RegisterClassExW(&wc);
+float MeasureTextWidth(const std::wstring& text, Gdiplus::Font* font) {
+    Gdiplus::Bitmap probe(1, 1, PixelFormat32bppPARGB);
+    Gdiplus::Graphics graphics(&probe);
+    Gdiplus::RectF layout(0, 0, 4096, 512);
+    Gdiplus::RectF bounds;
+    Gdiplus::StringFormat format;
+    format.SetFormatFlags(Gdiplus::StringFormatFlagsNoWrap);
+    graphics.MeasureString(text.c_str(), -1, font, layout, &format, &bounds);
+    return bounds.Width;
+}
 
-    g_hOsdWnd = CreateWindowExW(
-        WS_EX_LAYERED | WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE,
-        wc.lpszClassName,
+} // namespace
+
+bool Init(HINSTANCE hInstance) {
+    LoadSettings();
+
+    Gdiplus::GdiplusStartupInput input;
+    if (Gdiplus::GdiplusStartup(&g_gdiplusToken, &input, NULL) != Gdiplus::Ok) {
+        return false;
+    }
+    LoadEmbeddedFonts(hInstance);
+
+    WNDCLASSEXW windowClass = {0};
+    windowClass.cbSize = sizeof(windowClass);
+    windowClass.lpfnWndProc = WindowProc;
+    windowClass.hInstance = hInstance;
+    windowClass.lpszClassName = L"RapooOsdPopupWnd";
+    windowClass.hCursor = LoadCursor(NULL, IDC_ARROW);
+    RegisterClassExW(&windowClass);
+
+    g_window = CreateWindowExW(
+        WS_EX_LAYERED | WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TRANSPARENT,
+        windowClass.lpszClassName,
         L"RapooOSD",
         WS_POPUP,
-        0, 0, 300, 96,
-        NULL, NULL, hInstance, NULL
-    );
+        0, 0, 360, 112,
+        NULL, NULL, hInstance, NULL);
 
-    return (g_hOsdWnd != NULL);
+    return g_window != NULL;
 }
 
 void Cleanup() {
-    if (g_hOsdWnd && IsWindow(g_hOsdWnd)) {
-        DestroyWindow(g_hOsdWnd);
-        g_hOsdWnd = NULL;
+    if (g_window && IsWindow(g_window)) {
+        DestroyWindow(g_window);
+        g_window = NULL;
+    }
+
+    delete g_sairaFamily;
+    g_sairaFamily = NULL;
+    delete g_privateFonts;
+    g_privateFonts = NULL;
+
+    if (g_gdiplusToken) {
+        Gdiplus::GdiplusShutdown(g_gdiplusToken);
+        g_gdiplusToken = 0;
     }
 }
 
 HWND GetWindowHandle() {
-    return g_hOsdWnd;
+    return g_window;
 }
 
 bool IsEnabled() {
@@ -201,15 +452,15 @@ bool IsEnabled() {
 void SetEnabled(bool enabled) {
     g_config.enabled = enabled;
     OsdConfig::Save(g_config);
-    if (!enabled && g_hOsdWnd) {
-        KillTimer(g_hOsdWnd, TIMER_OSD_HIDE);
-        KillTimer(g_hOsdWnd, TIMER_OSD_FADE);
-        ShowWindow(g_hOsdWnd, SW_HIDE);
+    if (!enabled && g_window) {
+        KillTimer(g_window, TIMER_OSD_HIDE);
+        KillTimer(g_window, TIMER_OSD_FADE);
+        ShowWindow(g_window, SW_HIDE);
     }
 }
 
 void Show(const WCHAR* line1, const WCHAR* line2, const WCHAR* line3) {
-    if (!g_config.enabled || !g_hOsdWnd) return;
+    if (!g_config.enabled || !g_window) return;
 
     StringCchCopyW(g_textLine1, ARRAYSIZE(g_textLine1), line1 ? line1 : L"");
     StringCchCopyW(g_textLine2, ARRAYSIZE(g_textLine2), line2 ? line2 : L"");
@@ -219,80 +470,45 @@ void Show(const WCHAR* line1, const WCHAR* line2, const WCHAR* line3) {
         g_textLine3[0] = 0;
     }
 
-    // Determine target monitor based on cursor position
-    POINT pt;
-    GetCursorPos(&pt);
-    HMONITOR hMon = MonitorFromPoint(pt, MONITOR_DEFAULTTONEAREST);
-    MONITORINFO mi = { sizeof(mi) };
-    GetMonitorInfoW(hMon, &mi);
-    RECT rcWork = mi.rcWork;
+    POINT cursor = {0};
+    GetCursorPos(&cursor);
+    HMONITOR monitor = MonitorFromPoint(cursor, MONITOR_DEFAULTTONEAREST);
+    MONITORINFO info = {sizeof(info)};
+    GetMonitorInfoW(monitor, &info);
+    RECT work = info.rcWork;
 
-    UINT dpi = GetCurrentWindowDpi(g_hOsdWnd);
-    auto S = [dpi](int v) { return ScaleDpi(v, dpi); };
+    const UINT dpi = GetCurrentWindowDpi(g_window);
+    auto S = [dpi](int value) { return ScaleDpi(value, dpi); };
 
-    // Dynamic width & height calculation via DT_CALCRECT
-    HDC screenDC = GetDC(NULL);
-    HFONT hFontBig = CreateFontW(
-        -S(18), 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
-        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY, VARIABLE_PITCH, L"Microsoft YaHei UI"
-    );
-    HFONT hFontMid = CreateFontW(
-        -S(13), 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY, VARIABLE_PITCH, L"Microsoft YaHei UI"
-    );
-    HFONT hFontSub = CreateFontW(
-        -S(12), 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE,
-        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY, VARIABLE_PITCH, L"Microsoft YaHei UI"
-    );
+    auto bodyProbe = MakeFont(S(17), true, !HasNonAscii(g_textLine1));
+    auto subProbe = MakeFont(S(12), false, !HasNonAscii(g_textLine2));
+    auto detailProbe = MakeFont(S(11), false, !HasNonAscii(g_textLine3));
+    const float contentWidth = std::max({
+        MeasureTextWidth(g_textLine1, bodyProbe.get()),
+        MeasureTextWidth(g_textLine2, subProbe.get()),
+        MeasureTextWidth(g_textLine3, detailProbe.get()),
+    });
 
-    RECT r1 = {0, 0, 0, 0};
-    RECT r2 = {0, 0, 0, 0};
-    RECT r3 = {0, 0, 0, 0};
+    const bool hasLine3 = g_textLine3[0] != 0;
+    int targetWidth = static_cast<int>(contentWidth) + S(64);
+    targetWidth = std::max(targetWidth, S(MIN_WIDTH_DIP));
+    targetWidth = std::min(targetWidth, S(MAX_WIDTH_DIP));
+    const int targetHeight = hasLine3 ? S(124) : S(94);
 
-    HGDIOBJ oldF = SelectObject(screenDC, hFontBig);
-    DrawTextW(screenDC, g_textLine1, -1, &r1, DT_CALCRECT | DT_SINGLELINE);
+    const int x = work.left + ((work.right - work.left) - targetWidth) / 2;
+    const int y = work.bottom - targetHeight - S(70);
 
-    SelectObject(screenDC, hFontMid);
-    DrawTextW(screenDC, g_textLine2, -1, &r2, DT_CALCRECT | DT_SINGLELINE);
+    KillTimer(g_window, TIMER_OSD_HIDE);
+    KillTimer(g_window, TIMER_OSD_FADE);
 
-    int maxTextW = std::max(r1.right - r1.left, r2.right - r2.left);
-
-    bool hasLine3 = (g_textLine3[0] != 0);
-    if (hasLine3) {
-        SelectObject(screenDC, hFontSub);
-        DrawTextW(screenDC, g_textLine3, -1, &r3, DT_CALCRECT | DT_SINGLELINE);
-        maxTextW = std::max(maxTextW, (int)(r3.right - r3.left));
-    }
-
-    SelectObject(screenDC, oldF);
-    DeleteObject(hFontBig);
-    DeleteObject(hFontMid);
-    DeleteObject(hFontSub);
-    ReleaseDC(NULL, screenDC);
-
-    // Add safe horizontal padding (18px each side)
-    int targetW = maxTextW + S(36);
-    targetW = std::max(targetW, S(210));
-    targetW = std::min(targetW, S(420));
-
-    int targetH = hasLine3 ? S(88) : S(66);
-
-    int x = rcWork.left + ((rcWork.right - rcWork.left) - targetW) / 2;
-    int y = rcWork.bottom - targetH - S(70);
-
-    KillTimer(g_hOsdWnd, TIMER_OSD_HIDE);
-    KillTimer(g_hOsdWnd, TIMER_OSD_FADE);
-
-    g_osdAlpha = 240;
-    SetLayeredWindowAttributes(g_hOsdWnd, OSD_KEY_COLOR, g_osdAlpha, LWA_COLORKEY | LWA_ALPHA);
-
-    SetWindowPos(g_hOsdWnd, HWND_TOPMOST, x, y, targetW, targetH, SWP_NOACTIVATE | SWP_SHOWWINDOW);
-    InvalidateRect(g_hOsdWnd, NULL, TRUE);
-
-    SetTimer(g_hOsdWnd, TIMER_OSD_HIDE, 1600, NULL);
+    g_osdAlpha = 255;
+    SetLayeredWindowAttributes(g_window, 0, g_osdAlpha, LWA_ALPHA);
+    SetWindowPos(g_window, HWND_TOPMOST, x, y, targetWidth, targetHeight,
+                 SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+    InvalidateRect(g_window, NULL, FALSE);
+    ShowWindow(g_window, SW_SHOWNOACTIVATE);
+    UpdateWindow(g_window);
+    SetTimer(g_window, TIMER_OSD_HIDE, HIDE_DELAY_MS, NULL);
 }
 
 void ShowDeviceUpdate(const Device::State& state) {
@@ -301,12 +517,18 @@ void ShowDeviceUpdate(const Device::State& state) {
     WCHAR line2[160] = {0};
     WCHAR line3[160] = {0};
 
-    if (g_config.displayFields & OsdConfig::FIELD_MODEL) StringCchCopyW(line1, ARRAYSIZE(line1), model);
-    else StringCchCopyW(line1, ARRAYSIZE(line1), L"RAPOO // DEVICE");
+    if (g_config.displayFields & OsdConfig::FIELD_MODEL) {
+        StringCchCopyW(line1, ARRAYSIZE(line1), model);
+    } else {
+        StringCchCopyW(line1, ARRAYSIZE(line1), L"RAPOO // DEVICE");
+    }
 
     if (g_config.displayFields & OsdConfig::FIELD_DPI_VALUE) {
-        if (state.dpiX == state.dpiY) StringCchPrintfW(line2, ARRAYSIZE(line2), L"%d DPI", state.dpiX);
-        else StringCchPrintfW(line2, ARRAYSIZE(line2), L"X %d  ·  Y %d DPI", state.dpiX, state.dpiY);
+        if (state.dpiX == state.dpiY) {
+            StringCchPrintfW(line2, ARRAYSIZE(line2), L"%d DPI", state.dpiX);
+        } else {
+            StringCchPrintfW(line2, ARRAYSIZE(line2), L"X %d  ·  Y %d DPI", state.dpiX, state.dpiY);
+        }
     } else if (g_config.displayFields & OsdConfig::FIELD_PERFORMANCE) {
         StringCchCopyW(line2, ARRAYSIZE(line2), Rapoo::PerfModeName(state.perfMode));
     } else if (g_config.displayFields & OsdConfig::FIELD_BATTERY) {
@@ -320,22 +542,30 @@ void ShowDeviceUpdate(const Device::State& state) {
     std::wstring detail;
     auto append = [&](const std::wstring& part) {
         if (part.empty()) return;
-        if (!detail.empty()) detail += L"  |  ";
+        if (!detail.empty()) detail += L" · ";
         detail += part;
     };
-    if (g_config.displayFields & OsdConfig::FIELD_MODE) append(state.isWired ? L"USB 有线" : L"2.4G 无线");
-    if (g_config.displayFields & OsdConfig::FIELD_DPI_LEVEL) append(L"DPI 第 " + std::to_wstring(state.dpiLevel) + L" 档");
-    if ((g_config.displayFields & OsdConfig::FIELD_PERFORMANCE) && (g_config.displayFields & OsdConfig::FIELD_DPI_VALUE)) {
+    if (g_config.displayFields & OsdConfig::FIELD_MODE) {
+        append(state.isWired ? L"USB 有线" : L"2.4G 无线");
+    }
+    if (g_config.displayFields & OsdConfig::FIELD_DPI_LEVEL) {
+        append(L"DPI 第 " + std::to_wstring(state.dpiLevel) + L" 档");
+    }
+    if ((g_config.displayFields & OsdConfig::FIELD_PERFORMANCE) &&
+        (g_config.displayFields & OsdConfig::FIELD_DPI_VALUE)) {
         append(Rapoo::PerfModeName(state.perfMode));
     }
-    if ((g_config.displayFields & OsdConfig::FIELD_BATTERY) && (g_config.displayFields & OsdConfig::FIELD_DPI_VALUE ||
-        g_config.displayFields & OsdConfig::FIELD_PERFORMANCE || g_config.displayFields & OsdConfig::FIELD_POLLING)) {
+    if ((g_config.displayFields & OsdConfig::FIELD_BATTERY) &&
+        (g_config.displayFields & OsdConfig::FIELD_DPI_VALUE ||
+         g_config.displayFields & OsdConfig::FIELD_PERFORMANCE ||
+         g_config.displayFields & OsdConfig::FIELD_POLLING)) {
         std::wstring battery = L"电量 " + std::to_wstring(state.battery) + L"%";
         if (state.isCharging) battery += L" 充电中";
         append(battery);
     }
-    if ((g_config.displayFields & OsdConfig::FIELD_POLLING) && (g_config.displayFields & OsdConfig::FIELD_DPI_VALUE ||
-        g_config.displayFields & OsdConfig::FIELD_PERFORMANCE)) {
+    if ((g_config.displayFields & OsdConfig::FIELD_POLLING) &&
+        (g_config.displayFields & OsdConfig::FIELD_DPI_VALUE ||
+         g_config.displayFields & OsdConfig::FIELD_PERFORMANCE)) {
         append(std::to_wstring(state.pollingHz) + L" Hz");
     }
     StringCchCopyW(line3, ARRAYSIZE(line3), detail.c_str());
@@ -350,18 +580,18 @@ bool SetConfig(const OsdConfig::Config& config) {
     g_config = config;
     const bool saved = OsdConfig::Save(g_config);
     g_config = OsdConfig::Load();
-    if (!g_config.enabled && g_hOsdWnd) {
-        KillTimer(g_hOsdWnd, TIMER_OSD_HIDE);
-        KillTimer(g_hOsdWnd, TIMER_OSD_FADE);
-        ShowWindow(g_hOsdWnd, SW_HIDE);
+    if (!g_config.enabled && g_window) {
+        KillTimer(g_window, TIMER_OSD_HIDE);
+        KillTimer(g_window, TIMER_OSD_FADE);
+        ShowWindow(g_window, SW_HIDE);
     }
     return saved;
 }
 
 void ShowStyleOsd(int style) {
-    const WCHAR* names[] = { L"样式一：经典电池", L"样式二：环形进度", L"样式三：大号数字" };
-    int idx = std::clamp(style, 0, 2);
-    Show(L"电池图标样式", names[idx], L"双击托盘图标可循环切换");
+    const WCHAR* names[] = {L"样式一：经典电池", L"样式二：环形进度", L"样式三：大号数字"};
+    const int index = std::clamp(style, 0, 2);
+    Show(L"电池图标样式", names[index], L"双击托盘图标可循环切换");
 }
 
 } // namespace Osd

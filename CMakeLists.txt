@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(rapoo-tray VERSION 1.14.1 LANGUAGES CXX RC)
+project(rapoo-tray VERSION 1.15.0 LANGUAGES CXX RC)
 
 if(NOT WIN32)
     message(FATAL_ERROR "rapoo-tray is a Windows application.")
@@ -41,6 +41,7 @@ target_link_libraries(rapoo-tray PRIVATE
     hid
     user32
     gdi32
+    gdiplus
     shell32
     advapi32
     uxtheme

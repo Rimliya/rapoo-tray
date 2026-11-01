@@ -63,19 +63,19 @@ namespace RapooTray.Settings
             bool dark = theme == ApplicationTheme.Dark;
             var resources = Current.Resources;
 
-            Color paper = dark ? Color.FromRgb(23, 26, 28) : Color.FromRgb(240, 243, 245);
-            Color panel = dark ? Color.FromRgb(31, 35, 38) : Color.FromRgb(255, 255, 255);
-            Color ink = dark ? Color.FromRgb(237, 237, 237) : Color.FromRgb(22, 22, 22);
-            Color muted = dark ? Color.FromRgb(163, 163, 163) : Color.FromRgb(92, 92, 92);
-            Color tertiary = dark ? Color.FromRgb(140, 140, 140) : Color.FromRgb(112, 112, 112);
-            Color rule = dark ? Color.FromRgb(50, 58, 63) : Color.FromRgb(211, 218, 223);
-            Color chip = dark ? Color.FromRgb(42, 48, 52) : Color.FromRgb(224, 230, 234);
+            Color paper = dark ? Color.FromRgb(18, 21, 22) : Color.FromRgb(239, 242, 243);
+            Color panel = dark ? Color.FromRgb(28, 32, 34) : Color.FromRgb(252, 253, 253);
+            Color ink = dark ? Color.FromRgb(237, 240, 240) : Color.FromRgb(22, 25, 26);
+            Color muted = dark ? Color.FromRgb(166, 174, 177) : Color.FromRgb(94, 102, 106);
+            Color tertiary = dark ? Color.FromRgb(138, 147, 151) : Color.FromRgb(120, 129, 134);
+            Color rule = dark ? Color.FromRgb(49, 56, 59) : Color.FromRgb(213, 220, 222);
+            Color chip = dark ? Color.FromRgb(41, 47, 50) : Color.FromRgb(229, 234, 236);
             Color signal = Color.FromRgb(125, 230, 255);
             Color onSignal = Color.FromRgb(22, 22, 22);
             Color trace = dark ? signal : ink;
             Color danger = dark ? Color.FromRgb(255, 138, 122) : Color.FromRgb(179, 38, 30);
-            Color commandBar = Color.FromRgb(22, 22, 22);
-            Color commandText = Color.FromRgb(237, 237, 237);
+            Color commandBar = Color.FromRgb(20, 23, 24);
+            Color commandText = Color.FromRgb(241, 243, 243);
 
             resources["AppPaperBrush"] = new SolidColorBrush(paper);
             resources["AppPanelBrush"] = new SolidColorBrush(panel);
@@ -90,10 +90,11 @@ namespace RapooTray.Settings
             resources["AppDangerBrush"] = new SolidColorBrush(danger);
             resources["AppCommandBarBrush"] = new SolidColorBrush(commandBar);
             resources["AppCommandBarTextBrush"] = new SolidColorBrush(commandText);
+            resources["AppCommandMutedBrush"] = new SolidColorBrush(dark ? Color.FromRgb(158, 168, 173) : Color.FromRgb(170, 178, 181));
 
             resources["AppCardSurfaceBrush"] = new SolidColorBrush(panel);
             resources["AppCardStrokeBrush"] = new SolidColorBrush(rule);
-            resources["AppSoftAccentSurfaceBrush"] = new SolidColorBrush(signal);
+            resources["AppSoftAccentSurfaceBrush"] = new SolidColorBrush(dark ? Color.FromRgb(25, 49, 55) : Color.FromRgb(221, 245, 250));
             resources["AppSubtleSurfaceBrush"] = new SolidColorBrush(chip);
             resources["AppHatchBrush"] = CreateHatchBrush(ink);
             resources["AppGridBrush"] = CreateGridBrush(ink);
@@ -156,15 +157,15 @@ namespace RapooTray.Settings
 
         private static DrawingBrush CreateGridBrush(Color ink)
         {
-            Color gridInk = Color.FromArgb(18, ink.R, ink.G, ink.B);
+            Color gridInk = Color.FromArgb(10, ink.R, ink.G, ink.B);
             var group = new GeometryGroup();
-            group.Children.Add(new LineGeometry(new Point(0, 0), new Point(32, 0)));
-            group.Children.Add(new LineGeometry(new Point(0, 0), new Point(0, 32)));
+            group.Children.Add(new LineGeometry(new Point(0, 0), new Point(72, 0)));
+            group.Children.Add(new LineGeometry(new Point(0, 0), new Point(0, 72)));
             var drawing = new GeometryDrawing(null, new Pen(new SolidColorBrush(gridInk), 1), group);
             var brush = new DrawingBrush(drawing)
             {
                 TileMode = TileMode.Tile,
-                Viewport = new Rect(0, 0, 32, 32),
+                Viewport = new Rect(0, 0, 72, 72),
                 ViewportUnits = BrushMappingMode.Absolute,
                 Stretch = Stretch.None
             };
