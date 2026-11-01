@@ -1086,7 +1086,7 @@
                   <StackPanel Grid.Column="2" VerticalAlignment="Center">
                     <TextBlock Text="// ABOUT" Style="{StaticResource EyebrowStyle}" />
                     <TextBlock Text="rapoo-tray" FontFamily="{StaticResource AppSairaFont}" FontSize="30" FontWeight="ExtraBold" Margin="0,4,0,0" />
-                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0"><Border Background="{DynamicResource AppSignalBrush}" Padding="7,3" Margin="0,0,10,0"><TextBlock x:Name="AboutVersionText" Text="版本 1.16.1" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource AppOnSignalBrush}" /></Border><TextBlock Text="WPF 原生  /  开源" Style="{StaticResource MutedTextStyle}" VerticalAlignment="Center" /></StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0"><Border Background="{DynamicResource AppSignalBrush}" Padding="7,3" Margin="0,0,10,0"><TextBlock x:Name="AboutVersionText" Text="版本 1.16.2" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource AppOnSignalBrush}" /></Border><TextBlock Text="WPF 原生  /  开源" Style="{StaticResource MutedTextStyle}" VerticalAlignment="Center" /></StackPanel>
                     <TextBlock Text="雷柏 VT 系列游戏鼠标托盘工具" Style="{StaticResource MutedTextStyle}" Margin="0,8,0,0" />
                   </StackPanel>
                 </Grid>

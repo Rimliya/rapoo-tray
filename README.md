@@ -1,10 +1,10 @@
 <div align="center">
-  <img src="docs/screenshots/settings-wpf-dark.png" width="960" alt="rapoo-tray 1.16.1 深色设置中心" />
+  <img src="docs/screenshots/settings-wpf-dark.png" width="960" alt="rapoo-tray 1.16.2 深色设置中心" />
   <h1>rapoo-tray</h1>
   <p><b>Rimliya fork</b> · 电量、DPI、回报率、配置切换和屏幕 OSD，都能从托盘里处理。</p>
 
   <p>
-    <a href="https://github.com/Rimliya/rapoo-tray/releases/tag/v1.16.1"><img src="https://img.shields.io/badge/Release-v1.16.1-161616?style=flat-square" alt="Release" /></a>
+    <a href="https://github.com/Rimliya/rapoo-tray/releases/tag/v1.16.2"><img src="https://img.shields.io/badge/Release-v1.16.2-161616?style=flat-square" alt="Release" /></a>
     <img src="https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?style=flat-square&logo=windows" alt="Platform" />
     <img src="https://img.shields.io/badge/Stack-C%2B%2B20%20%7C%20Win32%20%7C%20WPF-00599C?style=flat-square&logo=c%2B%2B" alt="Stack" />
     <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License" />
@@ -13,7 +13,7 @@
 
 ---
 
-> **v1.16.1 未包含代码签名。** 安装时 Windows SmartScreen 可能会拦截并提示“未知发布者”。Release 页面同时提供了 SHA256 校验文件，下载后可自行核对哈希值。
+> **v1.16.2 未包含代码签名。** 安装时 Windows SmartScreen 可能会拦截并提示“未知发布者”。Release 页面同时提供了 SHA256 校验文件，下载后可自行核对哈希值。
 
 ## 项目简介
 
@@ -25,7 +25,7 @@
 
 ## 与上游分支的差异
 
-本项目 fork 自 [Iris-0109/rapoo-tray](https://github.com/Iris-0109/rapoo-tray)。上游公开主线保留了轻量托盘工具的形态；截至 v1.16.1 发布提交，本分支相对上游累计 **48 个 commit，涉及 102 个文件、约 16,000 行新增代码**。
+本项目 fork 自 [Iris-0109/rapoo-tray](https://github.com/Iris-0109/rapoo-tray)。上游公开主线保留了轻量托盘工具的形态；截至 v1.16.2 发布提交，本分支相对上游累计 **50 余个 commit，涉及 100 余个文件、16,000 行以上新增代码**。
 
 界面之外，设置中心、配置模型、DPI 编辑器、电量历史、OSD、诊断工具、应用内更新、安装程序和发布流水线都在这条分支里单独维护。版本号和上游不互通；这里对应的是 [Rimliya/rapoo-tray](https://github.com/Rimliya/rapoo-tray) 下的 `v1.x` Release。
 
@@ -41,16 +41,15 @@
 
 提交 Issue 时请注明 **Rimliya fork、软件版本号、鼠标型号和 Windows 版本**。本分支特有的问题在上游仓库通常无法复现。
 
-## v1.16.1 更新内容
+## v1.16.2 更新内容
 
-这一版主要修复 1.16.0 遗留的细节问题：
+这一版只处理界面文案和版本一致性，不改鼠标协议、配置格式或硬件写入逻辑。
 
-- **回报率采样过滤**：Raw Input 采样现在会按当前雷柏设备的 VID/PID 过滤，接入多只鼠标时不会混入其他设备的输入数据。
-- **完整设置快照**：快照现在包含配置、自动切换规则、OSD 样式、快捷键、电量提醒、开机自启和型号覆盖设置。恢复快照前会自动备份当前状态。
-- **更新失败处理**：应用内下载失败后，可以直接在界面上打开 Release 页面、清理更新缓存、重新下载或重新执行安装，不用再去 `%LOCALAPPDATA%` 手动翻目录。
-- **设置中心字体渲染**：中文正文恢复为 Regular 字重，重新调整了字号、对比度和 ClearType 参数，改善小字号下的发糊问题。
-- **状态 OSD 布局调整**：设备型号与核心读数分层显示，连接方式、DPI 档位、性能模式、电量和回报率移至底部分栏，字段较多时也不会挤成一排。
-- **快速面板标题修正**：修复了宽体英文字体与版本号同时显示时的文本截断问题。
+- **术语统一**：导航、设置页、托盘菜单、OSD 和提醒窗口统一使用“配置”“状态 OSD”“快速面板”“快捷键”“写入鼠标”等说法。
+- **操作说明更直接**：把“安全写入”“设置已即时生效”“高优先级卡片”等表达改成说明实际结果的句子。
+- **状态提示统一**：托盘菜单和快速面板里的离线、切换失败、参数写入状态改成同一套反馈。
+- **插件版本补齐**：TrafficMonitor 插件内部版本从旧的 `1.13.0` 修正为 `1.16.2`，与资源版本和 Release 一致。
+- **截图同步**：README 中的设置中心、状态 OSD、快速面板和诊断截图已更新到当前界面。
 
 ## 技术选型：为什么用原生架构
 
@@ -60,9 +59,9 @@
 
 ## 下载
 
-- [安装版 `rapoo-tray-setup.exe`](https://github.com/Rimliya/rapoo-tray/releases/download/v1.16.1/rapoo-tray-setup.exe)
-- [便携版 `rapoo-tray-portable.zip`](https://github.com/Rimliya/rapoo-tray/releases/download/v1.16.1/rapoo-tray-portable.zip)
-- [TrafficMonitor 插件 `rapoo-plugin.dll`](https://github.com/Rimliya/rapoo-tray/releases/download/v1.16.1/rapoo-plugin.dll)
+- [安装版 `rapoo-tray-setup.exe`](https://github.com/Rimliya/rapoo-tray/releases/download/v1.16.2/rapoo-tray-setup.exe)
+- [便携版 `rapoo-tray-portable.zip`](https://github.com/Rimliya/rapoo-tray/releases/download/v1.16.2/rapoo-tray-portable.zip)
+- [TrafficMonitor 插件 `rapoo-plugin.dll`](https://github.com/Rimliya/rapoo-tray/releases/download/v1.16.2/rapoo-plugin.dll)
 - [全部版本](https://github.com/Rimliya/rapoo-tray/releases)
 
 ### 运行环境
