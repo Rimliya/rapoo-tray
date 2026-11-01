@@ -13,7 +13,7 @@ public static class InstallerCapture {
 "@
 $root = Split-Path -Parent $PSScriptRoot
 $setup = Join-Path $root 'dist\rapoo-tray-setup.exe'
-$output = Join-Path $root '.tools\installer-1.14.0.png'
+$output = Join-Path $root '.tools\installer-preview.png'
 if (!(Test-Path $setup)) { throw "Installer not found: $setup" }
 [InstallerCapture]::SetThreadDpiAwarenessContext([IntPtr](-4)) | Out-Null
 $process = $null

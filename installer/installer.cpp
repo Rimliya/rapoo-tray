@@ -38,7 +38,7 @@
 #define IDC_EDT_PATH         2006
 #define IDC_BTN_BROWSE       2007
 
-static const WCHAR* APP_VERSION = L"1.14.1";
+static const WCHAR* APP_VERSION = L"1.15.0";
 
 static HINSTANCE g_hInstance = NULL;
 static HWND g_hMainWnd = NULL;
@@ -387,7 +387,7 @@ static UINT QuerySystemDpi() {
 
 static HFONT CreateUiFont(int logicalSize, int weight, const WCHAR* face) {
     return CreateFontW(-S(logicalSize), 0, 0, 0, weight, FALSE, FALSE, FALSE,
-        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_NATURAL_QUALITY,
         DEFAULT_PITCH | FF_SWISS, face);
 }
 

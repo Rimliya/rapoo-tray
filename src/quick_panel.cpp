@@ -280,7 +280,7 @@ void DrawTextLine(HDC dc, const std::wstring& text, RECT rect, COLORREF color,
 HFONT MakeFont(int points, UINT dpi, int weight, const WCHAR* face) {
     return CreateFontW(-Scale(points, dpi), 0, 0, 0, weight, FALSE, FALSE, FALSE,
         DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY, VARIABLE_PITCH, face);
+        CLEARTYPE_NATURAL_QUALITY, VARIABLE_PITCH, face);
 }
 
 std::wstring TwoDigits(int value) {

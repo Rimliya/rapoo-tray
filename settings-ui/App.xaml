@@ -17,33 +17,34 @@
       <FontFamily x:Key="AppHarmonyFont">pack://application:,,,/rapoo-tray-settings;component/Assets/Fonts/#HarmonyOS Sans SC</FontFamily>
       <FontFamily x:Key="AppHarmonyMediumFont">pack://application:,,,/rapoo-tray-settings;component/Assets/Fonts/#HarmonyOS Sans SC Medium</FontFamily>
 
-      <SolidColorBrush x:Key="AppPaperBrush" Color="#F0F3F5" />
-      <SolidColorBrush x:Key="AppPanelBrush" Color="#FFFFFF" />
-      <SolidColorBrush x:Key="AppInkBrush" Color="#161616" />
-      <SolidColorBrush x:Key="AppSecondaryTextBrush" Color="#5C5C5C" />
-      <SolidColorBrush x:Key="AppTertiaryTextBrush" Color="#707070" />
-      <SolidColorBrush x:Key="AppRuleBrush" Color="#D3DADF" />
-      <SolidColorBrush x:Key="AppChipBrush" Color="#E0E6EA" />
+      <SolidColorBrush x:Key="AppPaperBrush" Color="#EFF2F3" />
+      <SolidColorBrush x:Key="AppPanelBrush" Color="#FCFDFD" />
+      <SolidColorBrush x:Key="AppInkBrush" Color="#16191A" />
+      <SolidColorBrush x:Key="AppSecondaryTextBrush" Color="#5E666A" />
+      <SolidColorBrush x:Key="AppTertiaryTextBrush" Color="#788186" />
+      <SolidColorBrush x:Key="AppRuleBrush" Color="#D5DCDE" />
+      <SolidColorBrush x:Key="AppChipBrush" Color="#E5EAEC" />
       <SolidColorBrush x:Key="AppSignalBrush" Color="#7DE6FF" />
       <SolidColorBrush x:Key="AppOnSignalBrush" Color="#161616" />
       <SolidColorBrush x:Key="AppTraceBrush" Color="#161616" />
       <SolidColorBrush x:Key="AppDangerBrush" Color="#B3261E" />
-      <SolidColorBrush x:Key="AppCommandBarBrush" Color="#161616" />
-      <SolidColorBrush x:Key="AppCommandBarTextBrush" Color="#EDEDED" />
-      <SolidColorBrush x:Key="AppCardSurfaceBrush" Color="#FFFFFF" />
-      <SolidColorBrush x:Key="AppCardStrokeBrush" Color="#D3DADF" />
-      <SolidColorBrush x:Key="AppSoftAccentSurfaceBrush" Color="#7DE6FF" />
-      <SolidColorBrush x:Key="AppSubtleSurfaceBrush" Color="#E0E6EA" />
+      <SolidColorBrush x:Key="AppCommandBarBrush" Color="#141718" />
+      <SolidColorBrush x:Key="AppCommandBarTextBrush" Color="#F1F3F3" />
+      <SolidColorBrush x:Key="AppCommandMutedBrush" Color="#AAB2B5" />
+      <SolidColorBrush x:Key="AppCardSurfaceBrush" Color="#FCFDFD" />
+      <SolidColorBrush x:Key="AppCardStrokeBrush" Color="#D5DCDE" />
+      <SolidColorBrush x:Key="AppSoftAccentSurfaceBrush" Color="#DDF5FA" />
+      <SolidColorBrush x:Key="AppSubtleSurfaceBrush" Color="#E5EAEC" />
 
       <DrawingBrush x:Key="AppGridBrush" TileMode="Tile"
-                    Viewport="0,0,32,32" ViewportUnits="Absolute" Stretch="None">
+                    Viewport="0,0,72,72" ViewportUnits="Absolute" Stretch="None">
         <DrawingBrush.Drawing>
           <DrawingGroup>
-            <GeometryDrawing Geometry="M0,0 L32,0">
-              <GeometryDrawing.Pen><Pen Brush="#12161616" Thickness="1" /></GeometryDrawing.Pen>
+            <GeometryDrawing Geometry="M0,0 L72,0">
+              <GeometryDrawing.Pen><Pen Brush="#0A161616" Thickness="1" /></GeometryDrawing.Pen>
             </GeometryDrawing>
-            <GeometryDrawing Geometry="M0,0 L0,32">
-              <GeometryDrawing.Pen><Pen Brush="#12161616" Thickness="1" /></GeometryDrawing.Pen>
+            <GeometryDrawing Geometry="M0,0 L0,72">
+              <GeometryDrawing.Pen><Pen Brush="#0A161616" Thickness="1" /></GeometryDrawing.Pen>
             </GeometryDrawing>
           </DrawingGroup>
         </DrawingBrush.Drawing>
@@ -54,13 +55,13 @@
         <DrawingBrush.Drawing>
           <DrawingGroup>
             <GeometryDrawing Geometry="M0,9.2 L9.2,0">
-              <GeometryDrawing.Pen><Pen Brush="#38161616" Thickness="1.5" /></GeometryDrawing.Pen>
+              <GeometryDrawing.Pen><Pen Brush="#30161616" Thickness="1.5" /></GeometryDrawing.Pen>
             </GeometryDrawing>
             <GeometryDrawing Geometry="M-2.3,2.3 L2.3,-2.3">
-              <GeometryDrawing.Pen><Pen Brush="#38161616" Thickness="1.5" /></GeometryDrawing.Pen>
+              <GeometryDrawing.Pen><Pen Brush="#30161616" Thickness="1.5" /></GeometryDrawing.Pen>
             </GeometryDrawing>
             <GeometryDrawing Geometry="M6.9,11.5 L11.5,6.9">
-              <GeometryDrawing.Pen><Pen Brush="#38161616" Thickness="1.5" /></GeometryDrawing.Pen>
+              <GeometryDrawing.Pen><Pen Brush="#30161616" Thickness="1.5" /></GeometryDrawing.Pen>
             </GeometryDrawing>
           </DrawingGroup>
         </DrawingBrush.Drawing>

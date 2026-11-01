@@ -259,13 +259,13 @@ static LRESULT CALLBACK AlertWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM 
             // Fonts
             HFONT hFontTitle = CreateFontW(-S(15), 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
                                            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                                           CLEARTYPE_QUALITY, VARIABLE_PITCH, L"Microsoft YaHei UI");
+                                           CLEARTYPE_NATURAL_QUALITY, VARIABLE_PITCH, L"Microsoft YaHei UI");
             HFONT hFontBody = CreateFontW(-S(12), 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                           DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                                          CLEARTYPE_QUALITY, VARIABLE_PITCH, L"Microsoft YaHei UI");
+                                          CLEARTYPE_NATURAL_QUALITY, VARIABLE_PITCH, L"Microsoft YaHei UI");
             HFONT hFontSmall = CreateFontW(-S(11), 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
                                            DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                                           CLEARTYPE_QUALITY, VARIABLE_PITCH, L"Microsoft YaHei UI");
+                                           CLEARTYPE_NATURAL_QUALITY, VARIABLE_PITCH, L"Microsoft YaHei UI");
 
             // 1. Title Row: Icon + Title
             HGDIOBJ oF = SelectObject(memDC, hFontTitle);
