@@ -38,7 +38,7 @@
 #define IDC_EDT_PATH         2006
 #define IDC_BTN_BROWSE       2007
 
-static const WCHAR* APP_VERSION = L"1.16.3";
+static const WCHAR* APP_VERSION = L"1.16.4";
 
 static HINSTANCE g_hInstance = NULL;
 static HWND g_hMainWnd = NULL;

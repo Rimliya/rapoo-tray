@@ -192,7 +192,7 @@ namespace RapooTray.Settings
         private static HttpClient CreateHttpClient()
         {
             var client = new HttpClient { Timeout = TimeSpan.FromSeconds(12) };
-            client.DefaultRequestHeaders.UserAgent.ParseAdd("rapoo-tray-settings/1.16.3");
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("rapoo-tray-settings/1.16.4");
             return client;
         }
 

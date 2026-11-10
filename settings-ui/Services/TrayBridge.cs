@@ -199,6 +199,7 @@ namespace RapooTray.Settings
                         _demoState.HotkeyVirtualKey = Int(Field(parts, 4));
                         _demoState.OsdDisplayFields = Int(Field(parts, 5));
                         _demoState.QuickPanelItems = Int(Field(parts, 6));
+                        ReadOsdDetails(_demoState, parts, 7);
                         _demoState.HotkeyRegistered = true;
                         _demoState.StatusGood = true;
                         _demoState.StatusText = "OSD 与快捷键已保存";
@@ -226,6 +227,7 @@ namespace RapooTray.Settings
 
         private async Task<string> SendRawAsync(string command)
         {
+            bool requestStarted = false;
             Exception lastError = null;
             for (int attempt = 0; attempt < 2; attempt++)
             {
@@ -237,6 +239,9 @@ namespace RapooTray.Settings
                         {
                             pipe.Connect(2200);
                             byte[] request = Encoding.UTF8.GetBytes(command);
+                            // Once writing starts, the server may have executed the command.
+                            // Replaying it could create a second profile or repeat a hardware write.
+                            requestStarted = true;
                             pipe.Write(request, 0, request.Length);
                             pipe.Flush();
                             using (var output = new MemoryStream())
@@ -249,10 +254,12 @@ namespace RapooTray.Settings
                         }
                     }).ConfigureAwait(false);
                 }
-                catch (Exception ex)
+                catch (Exception ex) when (ex is IOException || ex is TimeoutException)
                 {
+                    if (requestStarted)
+                        throw new InvalidOperationException("与托盘程序的通信已中断，操作可能已执行。请刷新状态后再操作。", ex);
                     lastError = ex;
-                    await Task.Delay(180).ConfigureAwait(false);
+                    if (attempt == 0) await Task.Delay(180).ConfigureAwait(false);
                 }
             }
             throw new InvalidOperationException("无法连接 rapoo-tray 托盘程序。请确认托盘程序正在运行。", lastError);
@@ -281,7 +288,9 @@ namespace RapooTray.Settings
                         state.OsdEnabled = Field(f, 1) == "1"; state.QuickPanelEnabled = Field(f, 2) == "1";
                         state.HotkeyModifiers = Int(Field(f, 3)); state.HotkeyVirtualKey = Int(Field(f, 4));
                         state.HotkeyRegistered = Field(f, 5) == "1"; state.OsdDisplayFields = Int(Field(f, 6));
-                        state.QuickPanelItems = Int(Field(f, 7)); break;
+                        state.QuickPanelItems = Int(Field(f, 7));
+                        ReadOsdDetails(state, f, 8);
+                        state.HotkeyRegistrationMask = Int(Field(f, 23)); break;
                     case "BATTERY_SETTINGS":
                         state.BatteryAlertsEnabled = Field(f, 1) == "1"; state.BatteryWarningThreshold = Int(Field(f, 2));
                         state.BatteryCriticalThreshold = Int(Field(f, 3)); state.ChargingReminderEnabled = Field(f, 4) == "1";
@@ -297,6 +306,25 @@ namespace RapooTray.Settings
                 }
             }
             return state;
+        }
+
+        private static void ReadOsdDetails(AppState state, string[] fields, int start)
+        {
+            state.OsdPosition = Int(Field(fields, start));
+            state.OsdMonitor = Int(Field(fields, start + 1));
+            state.OsdOffsetX = Int(Field(fields, start + 2));
+            state.OsdOffsetY = Int(Field(fields, start + 3));
+            state.OsdScalePercent = Int(Field(fields, start + 4));
+            state.OsdOpacityPercent = Int(Field(fields, start + 5));
+            state.OsdDurationMs = Int(Field(fields, start + 6));
+            state.ProfileHotkeyModifiers = Int(Field(fields, start + 7));
+            state.ProfileHotkeyVirtualKey = Int(Field(fields, start + 8));
+            state.DpiHotkeyModifiers = Int(Field(fields, start + 9));
+            state.DpiHotkeyVirtualKey = Int(Field(fields, start + 10));
+            state.PerformanceHotkeyModifiers = Int(Field(fields, start + 11));
+            state.PerformanceHotkeyVirtualKey = Int(Field(fields, start + 12));
+            state.ToggleOsdHotkeyModifiers = Int(Field(fields, start + 13));
+            state.ToggleOsdHotkeyVirtualKey = Int(Field(fields, start + 14));
         }
 
         private static DpiState ParseDpi(string text)
@@ -349,7 +377,7 @@ namespace RapooTray.Settings
 
         private static AppState DemoState()
         {
-            var state = new AppState { Version = "1.16.3", DeviceName = "雷柏 VT3 V2", DeviceMode = "2.4G 无线", DeviceProductId = "pid_4662", Connected = true,
+            var state = new AppState { Version = "1.16.4", DeviceName = "雷柏 VT3 V2", DeviceMode = "2.4G 无线", DeviceProductId = "pid_4662", Connected = true,
                 Battery = 87, DeviceDpiX = 1600, DeviceDpiY = 1600, AutoSwitch = true, OsdEnabled = true, AutoRun = true,
                 RfAvailable = true, RfFull = true, ActiveProfileId = 1, StatusText = "已读取设备状态；保存后点“应用”写入鼠标", StatusGood = true,
                 QuickPanelEnabled = true, HotkeyModifiers = 3, HotkeyVirtualKey = 77, HotkeyRegistered = true,

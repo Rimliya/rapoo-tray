@@ -1,10 +1,10 @@
 <div align="center">
-  <img src="docs/screenshots/settings-wpf-dark.png" width="960" alt="rapoo-tray 1.16.3 深色设置中心" />
+  <img src="docs/screenshots/settings-wpf-dark.png" width="960" alt="rapoo-tray 1.16.4 深色设置中心" />
   <h1>rapoo-tray</h1>
   <p><b>Rimliya fork</b> · 电量、DPI、回报率、配置切换和屏幕 OSD，都能从托盘里处理。</p>
 
   <p>
-    <a href="https://github.com/Rimliya/rapoo-tray/releases/tag/v1.16.3"><img src="https://img.shields.io/badge/Release-v1.16.3-161616?style=flat-square" alt="Release" /></a>
+    <a href="https://github.com/Rimliya/rapoo-tray/releases/tag/v1.16.4"><img src="https://img.shields.io/badge/Release-v1.16.4-161616?style=flat-square" alt="Release" /></a>
     <img src="https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?style=flat-square&logo=windows" alt="Platform" />
     <img src="https://img.shields.io/badge/Stack-C%2B%2B20%20%7C%20Win32%20%7C%20WPF-00599C?style=flat-square&logo=c%2B%2B" alt="Stack" />
     <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="License" />
@@ -13,7 +13,7 @@
 
 ---
 
-> **v1.16.3 未包含代码签名。** 安装时 Windows SmartScreen 可能会拦截并提示“未知发布者”。Release 页面同时提供了 SHA256 校验文件，下载后可自行核对哈希值。
+> **v1.16.4 未包含代码签名。** 安装时 Windows SmartScreen 可能会拦截并提示“未知发布者”。Release 页面同时提供了 SHA256 校验文件，下载后可自行核对哈希值。
 
 ## 项目简介
 
@@ -41,14 +41,15 @@
 
 提交 Issue 时请注明 **Rimliya fork、软件版本号、鼠标型号和 Windows 版本**。本分支特有的问题在上游仓库通常无法复现。
 
-## v1.16.3 更新内容
+## v1.16.4 更新内容
 
-这一版只更换应用图标和任务栏资源，不改鼠标协议、配置格式或硬件写入逻辑。
+本版修复设置状态读取和设备通信中的稳定性问题。
 
-- **新应用图标**：采用新的 `R` 传感器标识，替换旧版图标。
-- **多尺寸适配**：ICO 包含 16/20/24/32/40/48/64/96/128/256 px；小尺寸使用无外框简化帧，48 px 以上保留完整八角框。
-- **任务栏与文件图标**：窗口任务栏、标题栏、`rapoo-tray.exe`、设置中心、DPI 窗口、安装程序和快捷方式统一使用新图标。
-- **文档同步**：README 的深色、浅色、诊断和关于页截图已更新。
+- **OSD 与快捷键**：正确读取自定义位置、显示器、偏移、缩放、透明度、停留时间和全部动作快捷键，设置快照同步保留这些参数。
+- **快捷键状态**：正确显示后端返回的注册结果，避免冲突被误报为注册成功。
+- **命令重试**：仅在尚未发送请求时重试连接，避免通信中断后重复创建配置或写入鼠标。
+- **HID 通信**：异步操作超时或断连后等待取消完成，再释放缓冲区和事件。
+- **回归测试**：新增设置协议、快照和演示模式往返测试，并接入构建与发布流水线。
 
 ## 技术选型：为什么用原生架构
 
@@ -58,9 +59,9 @@
 
 ## 下载
 
-- [安装版 `rapoo-tray-setup.exe`](https://github.com/Rimliya/rapoo-tray/releases/download/v1.16.3/rapoo-tray-setup.exe)
-- [便携版 `rapoo-tray-portable.zip`](https://github.com/Rimliya/rapoo-tray/releases/download/v1.16.3/rapoo-tray-portable.zip)
-- [TrafficMonitor 插件 `rapoo-plugin.dll`](https://github.com/Rimliya/rapoo-tray/releases/download/v1.16.3/rapoo-plugin.dll)
+- [安装版 `rapoo-tray-setup.exe`](https://github.com/Rimliya/rapoo-tray/releases/download/v1.16.4/rapoo-tray-setup.exe)
+- [便携版 `rapoo-tray-portable.zip`](https://github.com/Rimliya/rapoo-tray/releases/download/v1.16.4/rapoo-tray-portable.zip)
+- [TrafficMonitor 插件 `rapoo-plugin.dll`](https://github.com/Rimliya/rapoo-tray/releases/download/v1.16.4/rapoo-plugin.dll)
 - [全部版本](https://github.com/Rimliya/rapoo-tray/releases)
 
 ### 运行环境

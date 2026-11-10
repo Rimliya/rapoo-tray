@@ -39,6 +39,13 @@ jobs:
           if (!$settingsExe) { throw 'WPF settings output directory was not found' }
           Get-ChildItem $settingsExe.DirectoryName -File | Where-Object { $_.Extension -ne '.pdb' } | Copy-Item -Destination bin -Force
 
+      - name: Test settings protocol and snapshots
+        shell: pwsh
+        run: |
+          dotnet restore tests/SettingsLogicTests.csproj --configfile NuGet.config
+          dotnet run --project tests/SettingsLogicTests.csproj -c Release --no-restore
+          if ($LASTEXITCODE -ne 0) { throw 'Settings logic tests failed' }
+
       - name: Build native tray application
         shell: pwsh
         run: |

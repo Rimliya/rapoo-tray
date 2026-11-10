@@ -58,6 +58,26 @@ static void SaveRegistryDword(const WCHAR* valName, DWORD val) {
     }
 }
 
+// Caller must hold g_csDevIO. Keep the buffer and OVERLAPPED alive until I/O ends.
+static bool WriteControlReport(const BYTE* buffer, DWORD size, DWORD timeout = 800) {
+    OVERLAPPED ov = {0};
+    ov.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
+    if (!ov.hEvent) return false;
+    DWORD written = 0;
+    BOOL ok = WriteFile(g_hControlDev, buffer, size, &written, &ov);
+    if (!ok && GetLastError() == ERROR_IO_PENDING) {
+        if (WaitForSingleObject(ov.hEvent, timeout) == WAIT_OBJECT_0) {
+            ok = GetOverlappedResult(g_hControlDev, &ov, &written, FALSE);
+        } else {
+            CancelIoEx(g_hControlDev, &ov);
+            GetOverlappedResult(g_hControlDev, &ov, &written, TRUE);
+            ok = FALSE;
+        }
+    }
+    CloseHandle(ov.hEvent);
+    return ok && written == size;
+}
+
 // Caller must hold g_csDevIO. Vendor control traffic is unlocked lazily so a
 // normal startup with no pending setting changes does not touch the mouse.
 static bool EnsureDeviceUnlockedLocked() {
@@ -66,19 +86,7 @@ static bool EnsureDeviceUnlockedLocked() {
 
     BYTE unlockBuf[33] = {0};
     DWORD unlockSize = Rapoo::BuildUnlockPacket(unlockBuf, sizeof(unlockBuf));
-    DWORD written = 0;
-    OVERLAPPED ov = {0};
-    ov.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
-    if (!ov.hEvent) return false;
-
-    BOOL ok = WriteFile(g_hControlDev, unlockBuf, unlockSize, &written, &ov);
-    if (!ok && GetLastError() == ERROR_IO_PENDING) {
-        ok = WaitForSingleObject(ov.hEvent, 800) == WAIT_OBJECT_0 &&
-             GetOverlappedResult(g_hControlDev, &ov, &written, FALSE);
-    }
-    CloseHandle(ov.hEvent);
-
-    if (!ok || written != unlockSize) return false;
+    if (!WriteControlReport(unlockBuf, unlockSize)) return false;
     Sleep(50);
     g_controlUnlocked = true;
     return true;
@@ -98,22 +106,9 @@ static bool SendRawCommand(BYTE bank, BYTE addr, const BYTE* pData, BYTE len) {
     BYTE buf[33] = {0};
     DWORD pktSize = Rapoo::BuildWriteCommand(bank, addr, pData, len, buf, sizeof(buf));
 
-    DWORD written = 0;
-    OVERLAPPED ov = {0};
-    ov.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
-    BOOL ok = WriteFile(g_hControlDev, buf, pktSize, &written, &ov);
-    if (!ok && GetLastError() == ERROR_IO_PENDING) {
-        if (WaitForSingleObject(ov.hEvent, 800) == WAIT_OBJECT_0) {
-            GetOverlappedResult(g_hControlDev, &ov, &written, FALSE);
-            ok = (written == pktSize);
-        } else {
-            CancelIo(g_hControlDev);
-            ok = FALSE;
-        }
-    }
-    CloseHandle(ov.hEvent);
+    bool ok = WriteControlReport(buf, pktSize);
     LeaveCriticalSection(&g_csDevIO);
-    return (ok && written == pktSize);
+    return ok;
 }
 
 
@@ -135,21 +130,7 @@ static bool ReadRegisterBytesAttempts(BYTE bank, BYTE addr, BYTE len, BYTE* outD
         BYTE outBuf[33] = {0};
         DWORD pktSize = Rapoo::BuildReadCommand(bank, addr, len, outBuf, sizeof(outBuf));
 
-        DWORD written = 0;
-        OVERLAPPED ov = {0};
-        ov.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
-        BOOL wOk = WriteFile(g_hControlDev, outBuf, pktSize, &written, &ov);
-        if (!wOk && GetLastError() == ERROR_IO_PENDING) {
-            if (WaitForSingleObject(ov.hEvent, 800) == WAIT_OBJECT_0) {
-                GetOverlappedResult(g_hControlDev, &ov, &written, FALSE);
-                wOk = (written == pktSize);
-            } else {
-                CancelIo(g_hControlDev);
-                wOk = FALSE;
-            }
-        }
-        CloseHandle(ov.hEvent);
-        if (!wOk) {
+        if (!WriteControlReport(outBuf, pktSize)) {
             Sleep(15);
             continue;
         }
@@ -588,6 +569,7 @@ static DWORD WINAPI HidWorkerThread(LPVOID lpParam) {
 
         BYTE buf[65] = {0};
         DWORD bytesRead = 0;
+        bool readPending = false;
 
         while (WaitForSingleObject(g_hStopEvent, 0) == WAIT_TIMEOUT) {
             ResetEvent(hReadEvent);
@@ -595,6 +577,7 @@ static DWORD WINAPI HidWorkerThread(LPVOID lpParam) {
             if (!ok) {
                 DWORD err = GetLastError();
                 if (err == ERROR_IO_PENDING) {
+                    readPending = true;
                     HANDLE waitHandles[3] = { g_hStopEvent, hReadEvent, g_hDevChangeEvent };
 
                     // Keep one passive report read pending. Some Rapoo dongles
@@ -617,6 +600,7 @@ static DWORD WINAPI HidWorkerThread(LPVOID lpParam) {
                         CancelIo(hStatus);
                         break;
                     } else if (waitRes == WAIT_OBJECT_0 + 1) {
+                        readPending = false;
                         if (!GetOverlappedResult(hStatus, &ov, &bytesRead, FALSE)) {
                             break;
                         }
@@ -690,6 +674,10 @@ static DWORD WINAPI HidWorkerThread(LPVOID lpParam) {
         LeaveCriticalSection(&g_csState);
         if (wasConn && g_callback) g_callback(copySt, CHANGE_CONNECTED | CHANGE_BATTERY);
 
+        if (readPending) {
+            CancelIoEx(hStatus, &ov);
+            GetOverlappedResult(hStatus, &ov, &bytesRead, TRUE);
+        }
         CloseHandle(hReadEvent);
         CloseHandle(hStatus);
 
@@ -1129,12 +1117,7 @@ void ForceRefresh() {
     if (g_hControlDev != INVALID_HANDLE_VALUE) {
         BYTE unlockBuf[33] = {0};
         DWORD uSize = Rapoo::BuildUnlockPacket(unlockBuf, sizeof(unlockBuf));
-        DWORD written = 0;
-        OVERLAPPED uOv = {0};
-        uOv.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
-        WriteFile(g_hControlDev, unlockBuf, uSize, &written, &uOv);
-        WaitForSingleObject(uOv.hEvent, 100);
-        CloseHandle(uOv.hEvent);
+        WriteControlReport(unlockBuf, uSize, 100);
     }
     LeaveCriticalSection(&g_csDevIO);
 
